@@ -89,7 +89,7 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.toneMapping = THREE.ReinhardToneMapping;
-        renderer.toneMappingExposure = 0.6;
+        renderer.toneMappingExposure = 0.8;
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
@@ -172,28 +172,54 @@
         const stars = new THREE.Points(starGeo, starMat);
         scene.add(stars);
         
-        // --- galaxy nebula ---
-        const galaxyTexture = (() => {
-            const c = document.createElement('canvas'); c.width = 512; c.height = 512;
-            const ctx = c.getContext('2d');
-            ctx.fillStyle = '#000'; ctx.fillRect(0,0,c.width,c.height);
-            for (let i = 0; i < 12000; i++) {
-                const a = Math.random() * Math.PI * 2;
-                const r = Math.pow(Math.random(), 1.4) * 250;
-                const x = c.width/2 + Math.cos(a) * r;
-                const y = c.height/2 + Math.sin(a) * r * 0.3;
-                const hue = 200 + Math.random() * 120;
-                ctx.fillStyle = `hsla(${hue}, 80%, ${40 + Math.random() * 40}%, ${Math.random() * 0.3})`;
-                ctx.beginPath(); ctx.arc(x, y, Math.random() * 2 + 0.5, 0, Math.PI*2); ctx.fill();
+        // --- 3D SPIRAL GALAXIES (actual particle systems, visible while orbiting) ---
+        function createSpiralGalaxy(posX, posY, posZ, hue1, hue2, count, size, opacity) {
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+                const isCore = i < count * 0.25;
+                let r, a, thick;
+                if (isCore) {
+                    r = Math.random() * 0.6;
+                    a = Math.random() * Math.PI * 2;
+                    thick = (Math.random() - 0.5) * 0.12;
+                } else {
+                    const armIdx = Math.floor(Math.random() * 3);
+                    const t = Math.pow(Math.random(), 0.5) * 4.5 + 0.2;
+                    r = 0.6 + t * 0.65;
+                    a = (armIdx / 3) * Math.PI * 2 + t * 1.2 + (Math.random() - 0.5) * 0.3;
+                    thick = (Math.random() - 0.5) * 0.18 * Math.min(1, r / 2);
+                }
+                positions[i*3] = Math.cos(a) * r;
+                positions[i*3+1] = thick;
+                positions[i*3+2] = Math.sin(a) * r;
+                const hue = hue1 + (r / 4.5) * (hue2 - hue1);
+                const c = new THREE.Color().setHSL(hue, 0.8, isCore ? 0.5 + Math.random() * 0.3 : 0.3 + Math.random() * 0.3);
+                colors[i*3] = c.r; colors[i*3+1] = c.g; colors[i*3+2] = c.b;
             }
-            return new THREE.CanvasTexture(c);
-        })();
-        const galaxy = new THREE.Mesh(new THREE.PlaneGeometry(28, 16), new THREE.MeshStandardMaterial({ map: galaxyTexture, transparent: true, opacity: 0.35, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
-        galaxy.position.set(-8, 4, -14); galaxy.lookAt(0, 1, 0);
-        scene.add(galaxy);
-        const galaxy2 = galaxy.clone();
-        galaxy2.position.set(9, -1, -15); galaxy2.material = galaxy.material.clone(); galaxy2.material.opacity = 0.2; galaxy2.rotation.y = 0.5; galaxy2.scale.set(1, 0.7, 1);
-        scene.add(galaxy2);
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const mat = new THREE.PointsMaterial({
+                size, vertexColors: true, transparent: true, opacity,
+                blending: THREE.AdditiveBlending, sizeAttenuation: true, depthWrite: false,
+            });
+            const pts = new THREE.Points(geo, mat);
+            pts.position.set(posX, posY, posZ);
+            pts.rotation.x = (Math.random() - 0.5) * 0.20;
+            pts.rotation.y = Math.random() * Math.PI * 2;
+            return pts;
+        }
+        
+        const galaxies = [
+            createSpiralGalaxy(-14, 5, -18, 0.62, 0.75, 8000, 0.5, 0.9),   // blue/cyan
+            createSpiralGalaxy(16, 2, -20, 0.78, 0.88, 7000, 0.45, 0.85),  // pink/purple
+            createSpiralGalaxy(-12, -3, -22, 0.55, 0.65, 6000, 0.4, 0.8),  // green/teal
+            createSpiralGalaxy(14, 6, -24, 0.72, 0.82, 7000, 0.5, 0.85),   // magenta/pink
+            createSpiralGalaxy(0, -2, -26, 0.58, 0.70, 8000, 0.55, 0.9),   // teal/blue
+            createSpiralGalaxy(-20, 1, -10, 0.65, 0.80, 5000, 0.35, 0.7),  // distant blue/purple
+        ];
+        galaxies.forEach(g => scene.add(g));
         
         // --- PLANETS (many, with variety) ---
         const planets = [];
@@ -213,14 +239,18 @@
         ];
         const rings = [];
         planetData.forEach(d => {
-            const mat = new THREE.MeshStandardMaterial({ color: d.c, emissive: d.e, emissiveIntensity: 0.25, roughness: 0.4, metalness: 0.3 });
+            const mat = new THREE.MeshStandardMaterial({ color: d.c, emissive: d.e, emissiveIntensity: 0.8, roughness: 0.3, metalness: 0.2 });
             const mesh = new THREE.Mesh(new THREE.SphereGeometry(d.r, 48, 48), mat);
             mesh.position.set(d.x, d.y, d.z);
             mesh.castShadow = true;
             scene.add(mesh);
             planets.push(mesh);
+            // glow aura (child of planet, follows automatically)
+            const auraMat = new THREE.MeshBasicMaterial({ color: d.c, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending });
+            const aura = new THREE.Mesh(new THREE.SphereGeometry(d.r * 2.2, 24, 24), auraMat);
+            mesh.add(aura);
             if (d.ring) {
-                const ringMat = new THREE.MeshStandardMaterial({ color: d.ringC, emissive: d.e, emissiveIntensity: 0.2, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+                const ringMat = new THREE.MeshStandardMaterial({ color: d.ringC, emissive: d.e, emissiveIntensity: 0.6, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
                 const ring = new THREE.Mesh(new THREE.TorusGeometry(d.r * 1.5, 0.12, 24, 100), ringMat);
                 ring.rotation.x = Math.PI / 2.2;
                 ring.position.copy(mesh.position);
@@ -521,6 +551,12 @@
             });
             rings.forEach((r, i) => {
                 r.rotation.z += 0.008;
+            });
+            
+            // rotate galaxies slowly (each at different speeds, opposite directions)
+            galaxies.forEach((g, i) => {
+                g.rotation.y += 0.00015 * (1 + i * 0.2) * (i % 2 === 0 ? 1 : -1);
+                g.rotation.x += 0.00005 * (i % 2 === 0 ? 1 : -1);
             });
             
             // floating pages
