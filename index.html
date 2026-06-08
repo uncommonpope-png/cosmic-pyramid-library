@@ -425,6 +425,91 @@
         const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0, 2.4, 2.8, 4, 1)), new THREE.LineBasicMaterial({ color: 0xff8844 }));
         edges.position.copy(pyramid.position); scene.add(edges);
         
+        // ========== INTERIOR CHAMBER + GLOWING DOORWAY ==========
+        const doorGlow = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.9, 1.5),
+            new THREE.MeshStandardMaterial({
+                color: 0xffaa66, emissive: 0xff4422, emissiveIntensity: 0.8,
+                transparent: true, side: THREE.DoubleSide
+            })
+        );
+        doorGlow.position.set(0, 1.2, 1.45);
+        doorGlow.lookAt(0, 1.2, 2);
+        scene.add(doorGlow);
+        
+        const interiorGroup = new THREE.Group();
+        interiorGroup.visible = false;
+        scene.add(interiorGroup);
+        
+        const iFloor = new THREE.Mesh(new THREE.PlaneGeometry(5, 5), new THREE.MeshStandardMaterial({ color: 0x5a4a3a, roughness: 0.8 }));
+        iFloor.rotation.x = -Math.PI / 2; iFloor.position.y = -0.2; iFloor.receiveShadow = true;
+        interiorGroup.add(iFloor);
+        
+        const iWall = new THREE.Mesh(new THREE.BoxGeometry(4.8, 3.2, 0.2), new THREE.MeshStandardMaterial({ color: 0x8a7a6a }));
+        iWall.position.set(0, 1.5, -2.5);
+        interiorGroup.add(iWall);
+        
+        const pedestal = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.5, 1.0), new THREE.MeshStandardMaterial({ color: 0xaa8866 }));
+        pedestal.position.set(0, 0, 0); pedestal.castShadow = true;
+        interiorGroup.add(pedestal);
+        
+        const bookGroup = new THREE.Group();
+        const bookCover = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.6), new THREE.MeshStandardMaterial({ color: 0x8b3a2a }));
+        bookCover.position.set(0, 0.3, 0);
+        bookGroup.add(bookCover);
+        interiorGroup.add(bookGroup);
+        
+        const interiorLight = new THREE.PointLight(0xffaa66, 0.6, 6);
+        interiorLight.position.set(0, 1.2, 0);
+        interiorGroup.add(interiorLight);
+        
+        let isInside = false;
+        const originalCameraPos = new THREE.Vector3(6, 5, 9);
+        const interiorCamPos = new THREE.Vector3(0, 1.2, 2.2);
+        const interiorTarget = new THREE.Vector3(0, 1, 0);
+        
+        function enterPyramid() {
+            if (isInside || readingState !== 'idle') return;
+            isInside = true;
+            controls.enabled = false;
+            interiorGroup.visible = true;
+            pyramid.visible = false;
+            doorGlow.visible = false;
+            const startPos = camera.position.clone();
+            const startTarget = controls.target.clone();
+            const startTime = performance.now();
+            function anim() {
+                const t = Math.min(1, (performance.now() - startTime) / 800);
+                camera.position.lerpVectors(startPos, interiorCamPos, t);
+                controls.target.lerpVectors(startTarget, interiorTarget, t);
+                controls.update();
+                if (t < 1) requestAnimationFrame(anim);
+                else controls.enabled = true;
+            }
+            requestAnimationFrame(anim);
+        }
+        
+        function exitPyramid() {
+            if (!isInside) return;
+            isInside = false;
+            controls.enabled = false;
+            interiorGroup.visible = false;
+            pyramid.visible = true;
+            doorGlow.visible = true;
+            const startPos = camera.position.clone();
+            const startTarget = controls.target.clone();
+            const startTime = performance.now();
+            function anim() {
+                const t = Math.min(1, (performance.now() - startTime) / 800);
+                camera.position.lerpVectors(startPos, originalCameraPos, t);
+                controls.target.lerpVectors(startTarget, new THREE.Vector3(0, 1.8, 0), t);
+                controls.update();
+                if (t < 1) requestAnimationFrame(anim);
+                else controls.enabled = true;
+            }
+            requestAnimationFrame(anim);
+        }
+        
         // ========== NEON SOULS ==========
         const soulCount = 40;
         const souls = [];
@@ -725,7 +810,10 @@
         let interactionDragging = false;
         
         function getClickTargets() {
-            return [...books, ...souls.map(s => s.obj.children[0])];
+            const targets = [...books, ...souls.map(s => s.obj.children[0])];
+            if (!isInside && readingState === 'idle') targets.push(doorGlow);
+            if (isInside) targets.push(bookCover);
+            return targets;
         }
         
         renderer.domElement.addEventListener('pointerdown', (e) => {
@@ -752,8 +840,25 @@
                 return;
             }
             
+            // check door glow → enter pyramid
+            if (!isInside && mouseDownTarget === doorGlow) {
+                enterPyramid();
+                return;
+            }
+            
+            // check interior book → show PLT reading
+            if (isInside && mouseDownTarget === bookCover) {
+                readTitle.textContent = pltContent.title;
+                readAuthor.textContent = `— ${pltContent.author} —`;
+                readChapters.innerHTML = pltContent.chapters.map(ch =>
+                    `<div class="chapter"><span class="icon">${ch.icon}</span><span class="name">${ch.name}</span><p class="desc">${ch.desc}</p></div>`
+                ).join('');
+                readSummary.textContent = pltContent.summary;
+                readingOverlay.classList.add('active');
+                return;
+            }
+            
             // check souls (click on core mesh which is children[0] of group)
-            // find which soul this belongs to
             for (const s of souls) {
                 if (s.obj.children[0] === mouseDownTarget) {
                     const quote = pltQuotes[Math.floor(Math.random() * pltQuotes.length)];
@@ -771,7 +876,8 @@
             raycaster.setFromCamera(pointer, camera);
             const bookHits = raycaster.intersectObjects(books, false);
             const soulHits = raycaster.intersectObjects(souls.map(s => s.obj.children[0]), false);
-            const cursor = bookHits.length > 0 ? 'pointer' : soulHits.length > 0 ? 'grab' : 'default';
+            const doorHits = !isInside ? raycaster.intersectObject(doorGlow) : [];
+            const cursor = bookHits.length > 0 ? 'pointer' : soulHits.length > 0 ? 'grab' : doorHits.length > 0 ? 'pointer' : 'default';
             renderer.domElement.style.cursor = cursor;
             
             // update mouse world position for soul proximity
@@ -785,6 +891,17 @@
         document.getElementById('reading-bg').addEventListener('click', () => {
             if (readingState === 'open') {
                 closeBookBtn.click();
+            }
+        });
+        
+        // ESC key: exit pyramid or close reading overlay
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (readingState === 'open') {
+                    closeBookBtn.click();
+                } else if (isInside) {
+                    exitPyramid();
+                }
             }
         });
         
@@ -881,6 +998,10 @@
             // --- bloom pulse ---
             bloomPass.strength = 1.1 + Math.sin(time * 0.4) * 0.15;
             
+            // update hint
+            if (isInside) hintEl.textContent = '🔮 Inside the pyramid · Click the book · ESC to exit';
+            else hintEl.textContent = '🖱️ Drag objects | Click books | Click souls | Click door to enter';
+            
             controls.update();
             effectComposer.render();
         }
@@ -893,6 +1014,9 @@
             effectComposer.setSize(window.innerWidth, window.innerHeight);
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+        
+        // update hint based on state
+        const hintEl = document.getElementById('controls-hint');
         
         console.log('Mystical Library: click books to read PLT content, click souls for whispers, drag objects');
     </script>
