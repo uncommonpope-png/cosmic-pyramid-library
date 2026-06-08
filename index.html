@@ -3,90 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>🌀 Cosmic Pyramid Library – Phase 4 | E‑commerce & My Books</title>
+    <title>Mystical Library · Pyramid of Souls · Cosmic Realm</title>
     <style>
-        body { margin:0; overflow:hidden; font-family:'Cinema', 'Orbitron', 'Courier New', monospace; }
-        canvas { display:block; width:100%; height:100%; }
-        /* UI Overlay */
-        .ui {
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Georgia', 'Times New Roman', serif;
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            color: #ffdd99;
+            padding: 10px 18px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: bold;
+            backdrop-filter: blur(8px);
+            pointer-events: none;
+            z-index: 10;
+            letter-spacing: 1px;
+            font-family: monospace;
+        }
+        #controls-hint {
             position: absolute;
             bottom: 20px;
             left: 20px;
-            z-index: 20;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            pointer-events: none;
-        }
-        .chat-panel, .cart-panel, .mybooks-panel {
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(12px);
+            background: rgba(0,0,0,0.6);
+            color: #ccc;
+            padding: 6px 12px;
             border-radius: 20px;
-            border: 1px solid #ffaa66;
-            width: 280px;
-            pointer-events: auto;
-            padding: 12px;
-            color: #ffdd99;
             font-size: 12px;
             font-family: monospace;
+            pointer-events: none;
+            z-index: 10;
         }
-        .cart-panel { position: absolute; top: 80px; right: 20px; bottom: auto; left: auto; width: 260px; }
-        .mybooks-panel { position: absolute; top: 80px; left: 20px; width: 260px; }
-        .chat-log { height: 150px; overflow-y: auto; margin-bottom: 8px; border-bottom: 1px solid #ffaa66; }
-        .chat-input-area { display: flex; gap: 6px; }
-        input, button {
-            background: #2a2a3a;
-            border: 1px solid #ffaa66;
-            color: #ffaa66;
-            border-radius: 20px;
-            padding: 6px 10px;
-            font-family: monospace;
-        }
-        button { cursor: pointer; background: #ffaa66; color: #000; font-weight: bold; }
-        .book-item { padding: 5px; margin: 5px 0; background: rgba(0,0,0,0.5); border-radius: 12px; cursor: pointer; }
-        .librarian-avatar { position: absolute; bottom: 20px; right: 20px; width: 80px; height: 80px; background: rgba(0,0,0,0.6); border-radius: 50%; border: 2px solid #ffaa66; display: flex; align-items: center; justify-content: center; font-size: 40px; pointer-events: none; z-index: 20; }
-        .flying-book-ui { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); border-radius: 40px; padding: 8px 20px; color: #ffaa66; display: none; z-index: 30; white-space: nowrap; }
-        .page-flip { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 320px; max-height: 80vh; background: rgba(0,0,0,0.95); border-radius: 20px; border: 1px solid #ffaa66; display: none; z-index: 100; flex-direction: column; padding: 20px; color: #ffdd99; overflow-y: auto; }
-        @media (max-width: 768px) {
-            .chat-panel, .cart-panel, .mybooks-panel { width: 240px; font-size: 10px; }
-            .librarian-avatar { width: 60px; height: 60px; font-size: 30px; }
+        @media (max-width: 600px) {
+            #info { font-size: 10px; top: 10px; left: 10px; }
+            #controls-hint { font-size: 9px; }
         }
     </style>
 </head>
 <body>
-
-    <!-- UI Panels -->
-    <div class="ui">
-        <div class="chat-panel">
-            <div class="chat-log" id="chatLog"><div>📚 Librarian: Welcome, seeker. Browse the stars or your collection.</div></div>
-            <div class="chat-input-area">
-                <input type="text" id="chatInput" placeholder="Ask the librarian...">
-                <button id="sendChat">Send</button>
-                <button id="voiceBtn">🎤</button>
-            </div>
-        </div>
-        <div class="mybooks-panel" id="myBooksPanel">
-            <strong>📖 My Books</strong>
-            <div id="myBooksList">(Login to see your collection)</div>
-            <button id="loginBtn" style="margin-top:8px;">🔐 Login / Signup</button>
-        </div>
-        <div class="cart-panel" id="cartPanel">
-            <strong>🛒 Cart</strong>
-            <div id="cartItems">Empty</div>
-            <button id="checkoutBtn" style="margin-top:8px;">💳 Checkout</button>
-        </div>
-    </div>
-    <div class="librarian-avatar">🧙</div>
-    <div class="flying-book-ui" id="flyingBookUI">✨ Flying through the galaxy... ✨</div>
-    <div id="pageFlipModal" class="page-flip">
-        <div id="bookTitle" style="font-size: 20px; margin-bottom: 10px;"></div>
-        <div id="bookContent" style="flex:1; overflow-y:auto; margin:10px 0;"></div>
-        <button id="closePageFlip">Close</button>
-        <button id="buyNowBtn" style="margin-top:10px;">📦 Add to Cart & Fly</button>
-    </div>
+    <div id="info">✨ PYRAMID OF SOULS · COSMIC LIBRARY ✨</div>
+    <div id="controls-hint">🖱️ Drag to rotate | Scroll to zoom | Floating souls + galaxies</div>
 
     <script type="importmap">
-        { "imports": { "three": "https://unpkg.com/three@0.128.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/" } }
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+            }
+        }
     </script>
 
     <script type="module">
@@ -96,325 +65,432 @@
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
         
-        // ============================================================
-        // PHASE 4: E‑COMMERCE + USER PERSISTENCE (demo with localStorage)
-        // ============================================================
-        
-        // --- Shopify Integration Guide (replace with real SDK later) ---
-        // For production, replace the addToCart and checkout functions with Shopify Buy SDK.
-        // This demo uses localStorage to simulate user library and cart.
-        
-        let currentUser = localStorage.getItem('soulverse_user') || null;
-        let userLibrary = JSON.parse(localStorage.getItem(`library_${currentUser}`) || '[]');
-        let cart = JSON.parse(localStorage.getItem('soulverse_cart') || '[]');
-        
-        // --- 3D Scene Setup (reused from Phase 3, simplified) ---
+        // --- setup scene, camera, renderer ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x010118);
-        scene.fog = new THREE.FogExp2(0x010118, 0.0008);
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
-        camera.position.set(5, 4, 12);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        scene.background = new THREE.Color(0x020210);
+        scene.fog = new THREE.FogExp2(0x020210, 0.008);
+        
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(5, 4, 8);
+        camera.lookAt(0, 1.5, 0);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+        renderer.toneMappingExposure = 1.2;
         document.body.appendChild(renderer.domElement);
         
+        // --- postprocessing bloom for glowing souls & pyramid edges ---
         const renderScene = new RenderPass(scene, camera);
-        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.3, 0.85);
-        const composer = new EffectComposer(renderer);
-        composer.addPass(renderScene);
-        composer.addPass(bloomPass);
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.3, 0.85);
+        bloomPass.threshold = 0.1;
+        bloomPass.strength = 0.8;
+        bloomPass.radius = 0.5;
+        const effectComposer = new EffectComposer(renderer);
+        effectComposer.addPass(renderScene);
+        effectComposer.addPass(bloomPass);
         
+        // --- controls ---
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
-        controls.autoRotate = true;
-        controls.autoRotateSpeed = 0.3;
-        controls.target.set(0, 2, 0);
+        controls.dampingFactor = 0.05;
+        controls.zoomSpeed = 1.0;
+        controls.rotateSpeed = 0.8;
+        controls.enableZoom = true;
+        controls.enablePan = true;
+        controls.panSpeed = 0.8;
+        controls.target.set(0, 1.8, 0);
         
-        // Lighting (quick)
-        const ambient = new THREE.AmbientLight(0x332244, 0.5);
+        // --- lighting (dramatic, mystical) ---
+        const ambient = new THREE.AmbientLight(0x221133, 0.5);
         scene.add(ambient);
-        const sunLight = new THREE.DirectionalLight(0xffcc88, 1.2);
-        sunLight.position.set(5, 10, 3);
-        sunLight.castShadow = true;
-        scene.add(sunLight);
-        const fillLight = new THREE.PointLight(0x8866ff, 0.6);
-        fillLight.position.set(0, -2, 0);
+        
+        const mainLight = new THREE.DirectionalLight(0xffeedd, 1.2);
+        mainLight.position.set(3, 8, 2);
+        mainLight.castShadow = true;
+        mainLight.shadow.mapSize.width = 1024;
+        scene.add(mainLight);
+        
+        const fillLight = new THREE.PointLight(0x5577aa, 0.6);
+        fillLight.position.set(-2, 3, 3);
         scene.add(fillLight);
         
-        // Stars
-        const starGeo = new THREE.BufferGeometry();
-        const starPos = new Float32Array(3000 * 3);
-        for (let i = 0; i < 3000; i++) {
-            starPos[i*3] = (Math.random() - 0.5) * 800;
-            starPos[i*3+1] = (Math.random() - 0.5) * 400;
-            starPos[i*3+2] = (Math.random() - 0.5) * 300 - 100;
+        const backLight = new THREE.PointLight(0xffaa66, 0.5);
+        backLight.position.set(0, 2.5, -4);
+        scene.add(backLight);
+        
+        const rimLight = new THREE.PointLight(0xff88aa, 0.4);
+        rimLight.position.set(2, 2, -3);
+        scene.add(rimLight);
+        
+        const pyramidGlow = new THREE.PointLight(0xffaa55, 0.9, 12);
+        pyramidGlow.position.set(0, 2, 0);
+        scene.add(pyramidGlow);
+        
+        // --- background: galaxies & planets ---
+        // Starfield particle system
+        const starCount = 2000;
+        const starGeometry = new THREE.BufferGeometry();
+        const starPositions = new Float32Array(starCount * 3);
+        for (let i = 0; i < starCount; i++) {
+            starPositions[i*3] = (Math.random() - 0.5) * 400;
+            starPositions[i*3+1] = (Math.random() - 0.5) * 200;
+            starPositions[i*3+2] = (Math.random() - 0.5) * 150 - 50;
         }
-        starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.2 }));
+        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending });
+        const stars = new THREE.Points(starGeometry, starMaterial);
         scene.add(stars);
         
-        // Pyramid (simplified)
-        const pyramidGroup = new THREE.Group();
-        const tiers = [[3.2,0.6,0.3,0xccaa77],[2.6,0.6,0.9,0xddbb88],[2.0,0.6,1.5,0xeecc99],[1.4,0.6,2.1,0xffddaa]];
-        tiers.forEach(t => {
-            const box = new THREE.Mesh(new THREE.BoxGeometry(t[0], t[1], t[0]), new THREE.MeshStandardMaterial({ color: t[3], metalness: 0.7 }));
-            box.position.y = t[2];
-            box.castShadow = true;
-            pyramidGroup.add(box);
-        });
-        const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.5,0.8,8), new THREE.MeshStandardMaterial({ color: 0xffaa66, emissive: 0xff4422 }));
-        crystal.position.y = 2.5;
-        pyramidGroup.add(crystal);
-        scene.add(pyramidGroup);
+        // Nebula / Galaxy sprite (large disc)
+        const galaxyTexture = (() => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            const centerX = canvas.width/2, centerY = canvas.height/2;
+            for (let i = 0; i < 8000; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const radius = Math.pow(Math.random(), 1.5) * 250;
+                const x = centerX + Math.cos(angle) * radius;
+                const y = centerY + Math.sin(angle) * radius * 0.4;
+                const size = Math.random() * 2 + 0.5;
+                const brightness = 80 + Math.random() * 175;
+                ctx.fillStyle = `rgba(255, ${150 + Math.random() * 105}, ${80 + Math.random() * 100}, ${Math.random() * 0.6})`;
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            return new THREE.CanvasTexture(canvas);
+        })();
+        const galaxyPlane = new THREE.Mesh(
+            new THREE.PlaneGeometry(22, 14),
+            new THREE.MeshStandardMaterial({ map: galaxyTexture, transparent: true, opacity: 0.4, side: THREE.DoubleSide, blending: THREE.AdditiveBlending })
+        );
+        galaxyPlane.position.set(-6, 3, -12);
+        galaxyPlane.lookAt(0, 1, 0);
+        scene.add(galaxyPlane);
         
-        // Floating shelves with books (store in array)
-        const shelfGroup = new THREE.Group();
-        const shelfRadius = 3.8;
-        const books = [];
-        const bookDataMap = new Map(); // map 3D book object to data
+        // Planets (spheres with texture)
+        const createPlanet = (radius, color, posX, posY, posZ, emissive = 0x332200) => {
+            const geometry = new THREE.SphereGeometry(radius, 64, 64);
+            const material = new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: 0.2, roughness: 0.5, metalness: 0.3 });
+            const planet = new THREE.Mesh(geometry, material);
+            planet.position.set(posX, posY, posZ);
+            scene.add(planet);
+            return planet;
+        };
         
-        for (let i = 0; i < 4; i++) {
-            const yPos = 0.5 + i * 0.8;
-            const ring = new THREE.Mesh(new THREE.TorusGeometry(shelfRadius, 0.15, 32, 100), new THREE.MeshStandardMaterial({ color: [0x88aaff,0xff88aa,0x88ffaa,0xffaa88][i], metalness: 0.8 }));
-            ring.rotation.x = Math.PI/2;
-            ring.position.y = yPos;
-            shelfGroup.add(ring);
-            for (let j = 0; j < 8; j++) {
-                const angle = (j / 8) * Math.PI * 2;
-                const x = Math.cos(angle) * (shelfRadius - 0.2);
-                const z = Math.sin(angle) * (shelfRadius - 0.2);
-                const colors = [0xff6666,0x66ff66,0x6666ff,0xffaa66,0xff66aa,0x66ffaa];
-                const bookColor = colors[(i*8+j) % colors.length];
-                const book = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.7,0.2), new THREE.MeshStandardMaterial({ color: bookColor, metalness: 0.2 }));
-                book.position.set(x, yPos+0.05, z);
-                book.rotation.y = angle;
+        const planet1 = createPlanet(0.9, 0x88aaff, -5, 1.2, -9, 0x224466);
+        const planet2 = createPlanet(0.7, 0xffaa88, 6, -0.5, -10, 0x663322);
+        const planet3 = createPlanet(1.1, 0x99ccff, 4, 2.5, -12, 0x2266aa);
+        const planet4 = createPlanet(0.5, 0xffccaa, -4, -1, -11, 0x553322);
+        
+        // Rings around planet2
+        const ringGeo = new THREE.TorusGeometry(1.0, 0.12, 32, 200);
+        const ringMat = new THREE.MeshStandardMaterial({ color: 0xddaa77, emissive: 0x552200, emissiveIntensity: 0.3 });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2.2;
+        ring.position.copy(planet2.position);
+        scene.add(ring);
+        
+        // --- Library environment: bookshelves and pillars ---
+        const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3a2a, roughness: 0.6, metalness: 0.1 });
+        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x8a7a6a, roughness: 0.7 });
+        
+        // Pillars
+        for (let i = -1; i <= 1; i+=2) {
+            const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 4.5, 12), stoneMat);
+            pillar.position.set(i * 3.5, 1.8, -3);
+            pillar.castShadow = true;
+            scene.add(pillar);
+        }
+        
+        // Bookshelves (simple)
+        const shelfPositions = [[-4.5, 0.8, -2], [4.2, 0.8, -2], [-4, 2.2, -2.2], [3.8, 2.2, -2.2]];
+        shelfPositions.forEach(pos => {
+            const shelfBase = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.1, 1.2), woodMat);
+            shelfBase.position.set(pos[0], pos[1], pos[2]);
+            shelfBase.castShadow = true;
+            scene.add(shelfBase);
+            // add books (colorful boxes)
+            for (let i = 0; i < 5; i++) {
+                const book = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.65, 0.3), new THREE.MeshStandardMaterial({ color: [0x8b5a5a, 0x5a6b4a, 0x7a4c6e, 0x9e6a4a][i%4], roughness: 0.3 }));
+                book.position.set(pos[0] - 0.8 + i * 0.4, pos[1] + 0.35, pos[2] + 0.1);
                 book.castShadow = true;
-                const bookId = `book_${i}_${j}`;
-                const bookData = {
-                    id: bookId,
-                    title: `Cosmic Volume ${i*8+j+1}`,
-                    price: (19.99 + i*5).toFixed(2),
-                    description: "A mystical book floating in the galaxy.",
-                    content: `This is the content of ${i*8+j+1}. Contains ancient wisdom.`
-                };
-                book.userData = bookData;
-                shelfGroup.add(book);
-                books.push(book);
-                bookDataMap.set(book, bookData);
+                scene.add(book);
             }
-        }
-        scene.add(shelfGroup);
+        });
         
-        // Dust particles
-        const dustGeo = new THREE.BufferGeometry();
-        const dustPos = new Float32Array(2000 * 3);
-        for (let i=0;i<2000;i++) {
-            dustPos[i*3] = (Math.random()-0.5)*10;
-            dustPos[i*3+1] = Math.random()*5;
-            dustPos[i*3+2] = (Math.random()-0.5)*10;
-        }
-        dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-        const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffaa88, size: 0.05, blending: THREE.AdditiveBlending }));
-        scene.add(dust);
+        // --- The Pyramid (detailed texture, emissive edges) ---
+        const pyramidGroup = new THREE.Group();
+        // Base platform
+        const platform = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.3, 4.2), new THREE.MeshStandardMaterial({ color: 0x6a4a3a, roughness: 0.4, metalness: 0.2 }));
+        platform.position.set(0, -0.2, 0);
+        platform.receiveShadow = true;
+        scene.add(platform);
         
-        // --- Helper Functions ---
-        function updateCartUI() {
-            const cartDiv = document.getElementById('cartItems');
-            if (cart.length === 0) cartDiv.innerHTML = "Empty";
-            else cartDiv.innerHTML = cart.map(item => `<div>${item.title} - $${item.price}</div>`).join('');
-        }
-        function updateLibraryUI() {
-            const container = document.getElementById('myBooksList');
-            if (!currentUser) { container.innerHTML = "(Login to see your collection)"; return; }
-            if (userLibrary.length === 0) container.innerHTML = "No books yet. Buy one!";
-            else container.innerHTML = userLibrary.map(book => `<div class="book-item" data-id="${book.id}">📖 ${book.title}</div>`).join('');
-            // attach click to read owned books
-            document.querySelectorAll('.book-item').forEach(el => {
-                el.addEventListener('click', () => {
-                    const id = el.dataset.id;
-                    const book = userLibrary.find(b => b.id === id);
-                    if (book) openBookModal(book, false);
-                });
-            });
-        }
-        
-        function addToCart(bookData) {
-            cart.push(bookData);
-            localStorage.setItem('soulverse_cart', JSON.stringify(cart));
-            updateCartUI();
-            alert(`Added ${bookData.title} to cart.`);
-        }
-        
-        function buyBook(bookData) {
-            if (!currentUser) { alert("Please login first."); return; }
-            addToCart(bookData);
-            // Simulate purchase and add to library
-            if (!userLibrary.find(b => b.id === bookData.id)) {
-                userLibrary.push(bookData);
-                localStorage.setItem(`library_${currentUser}`, JSON.stringify(userLibrary));
-                updateLibraryUI();
+        // Pyramid itself (with custom texture)
+        const pyramidGeo = new THREE.CylinderGeometry(0, 2.4, 2.8, 4, 1);
+        const pyramidTexture = (() => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#d4b88c';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // hieroglyphic / mystical patterns
+            ctx.strokeStyle = '#8b5a2b';
+            ctx.lineWidth = 12;
+            for (let i = 0; i < 60; i++) {
+                ctx.beginPath();
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + (Math.random() - 0.5) * 40, y + (Math.random() - 0.5) * 40);
+                ctx.stroke();
             }
-            // Optionally start flying animation
-            startFlyingBook(bookData);
-        }
+            ctx.fillStyle = '#c9893a';
+            ctx.font = 'bold 36px "Times New Roman"';
+            for (let i = 0; i < 12; i++) {
+                ctx.fillText("𓃥𓃠𓂀", Math.random() * canvas.width, Math.random() * canvas.height);
+            }
+            // gold veining
+            ctx.fillStyle = '#e4b03b';
+            for (let i = 0; i < 300; i++) {
+                ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 4, 4);
+            }
+            return new THREE.CanvasTexture(canvas);
+        })();
         
-        // Flying book animation (simplified)
-        let isFlying = false;
-        let flyingBookMesh = null;
-        function startFlyingBook(bookData) {
-            if (isFlying) return;
-            isFlying = true;
-            const flyingUI = document.getElementById('flyingBookUI');
-            flyingUI.style.display = 'block';
+        const pyramidMat = new THREE.MeshStandardMaterial({ map: pyramidTexture, color: 0xccaa77, roughness: 0.3, metalness: 0.7, emissive: 0x442200, emissiveIntensity: 0.2 });
+        const pyramid = new THREE.Mesh(pyramidGeo, pyramidMat);
+        pyramid.castShadow = true;
+        pyramid.receiveShadow = true;
+        pyramid.position.set(0, 1.2, 0);
+        scene.add(pyramid);
+        
+        // Gold capstone
+        const capstone = new THREE.Mesh(new THREE.ConeGeometry(0.45, 0.6, 8), new THREE.MeshStandardMaterial({ color: 0xffcc66, metalness: 0.9, emissive: 0xaa6622, emissiveIntensity: 0.5 }));
+        capstone.position.set(0, 2.65, 0);
+        capstone.castShadow = true;
+        scene.add(capstone);
+        
+        // Add glowing edges using EdgesGeometry + emissive lines
+        const edgesGeo = new THREE.EdgesGeometry(pyramidGeo);
+        const edgesMat = new THREE.LineBasicMaterial({ color: 0xffaa55 });
+        const wireframe = new THREE.LineSegments(edgesGeo, edgesMat);
+        wireframe.position.copy(pyramid.position);
+        scene.add(wireframe);
+        
+        // --- Floating Souls: ethereal, translucent, with trails ---
+        // Study reference: souls look like translucent, glowing humanoid shapes or orbs with wispy trails.
+        // We'll create a set of floating "soul orbs" with soft particle tails.
+        const soulCount = 35;
+        const souls = [];
+        
+        // Helper: create a soul (glowing sphere with a wispy particle ring)
+        function createSoul(x, y, z, color = 0xffaa88, size = 0.22) {
             const group = new THREE.Group();
-            const cover = new THREE.Mesh(new THREE.BoxGeometry(0.8,1.0,0.15), new THREE.MeshStandardMaterial({ color: 0xffaa66 }));
-            group.add(cover);
-            group.position.set(0,1.5,0);
+            // core glow
+            const coreMat = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.9, transparent: true, opacity: 0.85 });
+            const core = new THREE.Mesh(new THREE.SphereGeometry(size, 24, 24), coreMat);
+            core.castShadow = false;
+            group.add(core);
+            
+            // aura (larger semi-transparent)
+            const auraMat = new THREE.MeshPhongMaterial({ color: color, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending });
+            const aura = new THREE.Mesh(new THREE.SphereGeometry(size * 1.6, 24, 24), auraMat);
+            group.add(aura);
+            
+            // wispy trail particles (floating around)
+            const trailCount = 12;
+            const trailParticles = [];
+            for (let i = 0; i < trailCount; i++) {
+                const trailMat = new THREE.PointsMaterial({ color: color, size: 0.05, transparent: true, blending: THREE.AdditiveBlending });
+                const particleGeo = new THREE.BufferGeometry();
+                const pos = new Float32Array(1 * 3);
+                pos[0] = (Math.random() - 0.5) * 0.5;
+                pos[1] = (Math.random() - 0.5) * 0.5;
+                pos[2] = (Math.random() - 0.5) * 0.5;
+                particleGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                const points = new THREE.Points(particleGeo, trailMat);
+                group.add(points);
+                trailParticles.push({ points, offset: new THREE.Vector3(pos[0], pos[1], pos[2]), speed: 0.01 + Math.random() * 0.02 });
+            }
+            group.userData = { trailParticles, baseColor: color, floatSpeed: 0.5 + Math.random() * 0.5, floatAngle: Math.random() * Math.PI * 2, radius: 0.8 };
+            group.position.set(x, y, z);
             scene.add(group);
-            flyingBookMesh = group;
-            let startTime = performance.now();
-            function animateFly(now) {
-                const t = Math.min(1, (now - startTime) / 3000);
-                const angle = t * Math.PI * 4;
-                const rad = 4 + t * 8;
-                const x = Math.cos(angle) * rad;
-                const z = Math.sin(angle) * rad;
-                const y = 1.5 + t * 3;
-                if (flyingBookMesh) flyingBookMesh.position.set(x, y, z);
-                if (t < 1) requestAnimationFrame(animateFly);
-                else {
-                    scene.remove(group);
-                    flyingBookMesh = null;
-                    flyingUI.style.display = 'none';
-                    isFlying = false;
-                    openBookModal(bookData, true);
-                }
-            }
-            requestAnimationFrame(animateFly);
+            return group;
         }
         
-        function openBookModal(bookData, isOwned = false) {
-            const modal = document.getElementById('pageFlipModal');
-            document.getElementById('bookTitle').innerText = bookData.title;
-            document.getElementById('bookContent').innerHTML = `<p>${bookData.content}</p><p>Price: $${bookData.price}</p>`;
-            const buyBtn = document.getElementById('buyNowBtn');
-            if (isOwned) {
-                buyBtn.innerText = '📖 Read Again';
-                buyBtn.onclick = () => { alert(`Reading ${bookData.title}...`); };
-            } else {
-                buyBtn.innerText = '📦 Add to Cart & Fly';
-                buyBtn.onclick = () => buyBook(bookData);
-            }
-            modal.style.display = 'flex';
+        // create souls floating around pyramid and library
+        const soulColors = [0xffaa88, 0xff88aa, 0xaaffcc, 0xffccaa, 0xdd99ff];
+        for (let i = 0; i < soulCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 2.5 + Math.random() * 3.5;
+            const yOffset = 0.5 + Math.random() * 3.2;
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            const color = soulColors[Math.floor(Math.random() * soulColors.length)];
+            const soul = createSoul(x, yOffset, z, color, 0.2 + Math.random() * 0.1);
+            souls.push({ obj: soul, angle: angle, radius: radius, ySpeed: 0.2 + Math.random() * 0.4, yPhase: Math.random() * Math.PI * 2, initialY: yOffset });
         }
         
-        // Book click handler
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-        window.addEventListener('click', (event) => {
-            mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
-            mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
-            raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(books);
-            if (intersects.length > 0) {
-                const book = intersects[0].object;
-                const data = book.userData;
-                openBookModal(data, false);
-            }
-        });
-        
-        // Auth simulation
-        document.getElementById('loginBtn').addEventListener('click', () => {
-            const email = prompt("Enter email to login/signup:");
-            if (email) {
-                currentUser = email;
-                localStorage.setItem('soulverse_user', currentUser);
-                userLibrary = JSON.parse(localStorage.getItem(`library_${currentUser}`) || '[]');
-                updateLibraryUI();
-                alert(`Logged in as ${currentUser}`);
-            }
-        });
-        
-        document.getElementById('checkoutBtn').addEventListener('click', () => {
-            if (cart.length === 0) { alert("Cart empty"); return; }
-            // In production, redirect to Shopify checkout
-            alert("Proceed to checkout (simulated). In production, redirect to Shopify cart.");
-            // For demo, clear cart
-            cart = [];
-            localStorage.setItem('soulverse_cart', JSON.stringify(cart));
-            updateCartUI();
-        });
-        
-        document.getElementById('closePageFlip').addEventListener('click', () => {
-            document.getElementById('pageFlipModal').style.display = 'none';
-        });
-        
-        // Librarian chat (simple)
-        const chatLog = document.getElementById('chatLog');
-        const chatInput = document.getElementById('chatInput');
-        function addChat(msg, fromUser = false) {
-            const div = document.createElement('div');
-            div.innerHTML = `<strong>${fromUser ? 'You' : '📚 Librarian'}:</strong> ${msg}`;
-            chatLog.appendChild(div);
-            chatLog.scrollTop = chatLog.scrollHeight;
+        // Additional wisps of light (particle system for ethereal feel)
+        const wispCount = 800;
+        const wispGeo = new THREE.BufferGeometry();
+        const wispPositions = new Float32Array(wispCount * 3);
+        for (let i = 0; i < wispCount; i++) {
+            wispPositions[i*3] = (Math.random() - 0.5) * 12;
+            wispPositions[i*3+1] = Math.random() * 5;
+            wispPositions[i*3+2] = (Math.random() - 0.5) * 12 - 2;
         }
-        async function sendMessage() {
-            const text = chatInput.value.trim();
-            if (!text) return;
-            addChat(text, true);
-            chatInput.value = "";
-            let reply = "I am the Soul Librarian. Click any book to read or buy.";
-            if (text.toLowerCase().includes('recommend')) {
-                const randomBook = books[Math.floor(Math.random() * books.length)].userData;
-                reply = `I recommend "${randomBook.title}". Would you like to see it?`;
-            } else if (text.toLowerCase().includes('price')) {
-                reply = "Prices range from $19.99 to $39.99 per cosmic volume.";
-            }
-            addChat(reply);
-        }
-        document.getElementById('sendChat').addEventListener('click', sendMessage);
-        chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+        wispGeo.setAttribute('position', new THREE.BufferAttribute(wispPositions, 3));
+        const wispMat = new THREE.PointsMaterial({ color: 0xffaa88, size: 0.04, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending });
+        const wisps = new THREE.Points(wispGeo, wispMat);
+        scene.add(wisps);
         
-        // Voice
-        if ('webkitSpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            const recognition = new SpeechRecognition();
-            recognition.lang = 'en-US';
-            document.getElementById('voiceBtn').addEventListener('click', () => {
-                recognition.start();
-            });
-            recognition.onresult = (e) => {
-                chatInput.value = e.results[0][0].transcript;
-                sendMessage();
-            };
-        } else {
-            document.getElementById('voiceBtn').disabled = true;
+        // --- Additional magic dust around pyramid ---
+        const dustCount = 1500;
+        const dustGeo = new THREE.BufferGeometry();
+        const dustPositions = new Float32Array(dustCount * 3);
+        for (let i = 0; i < dustCount; i++) {
+            dustPositions[i*3] = (Math.random() - 0.5) * 5;
+            dustPositions[i*3+1] = Math.random() * 3.5;
+            dustPositions[i*3+2] = (Math.random() - 0.5) * 5;
         }
+        dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+        const dustMat = new THREE.PointsMaterial({ color: 0xffcc88, size: 0.03, transparent: true, blending: THREE.AdditiveBlending });
+        const dustParticles = new THREE.Points(dustGeo, dustMat);
+        dustParticles.position.set(0, 1.2, 0);
+        scene.add(dustParticles);
         
-        // Animation
+        // --- Animate souls: floating movement and wispy trails rotation ---
         let time = 0;
+        
+        function animateSouls() {
+            time += 0.016;
+            souls.forEach(soul => {
+                // orbital motion around pyramid
+                const newAngle = soul.angle + 0.008;
+                soul.angle = newAngle;
+                const rad = soul.radius;
+                const x = Math.cos(newAngle) * rad;
+                const z = Math.sin(newAngle) * rad;
+                // bobbing Y
+                const y = soul.initialY + Math.sin(time * soul.ySpeed + soul.yPhase) * 0.2;
+                soul.obj.position.set(x, y, z);
+                // rotate aura particles
+                if (soul.obj.userData.trailParticles) {
+                    soul.obj.userData.trailParticles.forEach((part, idx) => {
+                        part.points.rotation.y += 0.03;
+                        part.points.rotation.x += 0.02;
+                    });
+                }
+                // slight scale pulse
+                const scale = 1 + Math.sin(time * 3 + soul.angle) * 0.1;
+                soul.obj.children[0].scale.set(scale, scale, scale);
+            });
+            
+            // rotate starfield and wisps slowly
+            stars.rotation.y += 0.0005;
+            stars.rotation.x += 0.0003;
+            wisps.rotation.y += 0.002;
+            dustParticles.rotation.y += 0.005;
+            
+            // animate planets rotation
+            planet1.rotation.y += 0.005;
+            planet2.rotation.x += 0.003;
+            planet3.rotation.z += 0.004;
+            ring.rotation.z += 0.01;
+            ring.rotation.y += 0.005;
+            
+            // pulsating pyramid glow
+            const intensity = 0.8 + Math.sin(time * 2) * 0.3;
+            pyramidGlow.intensity = intensity;
+            capstone.material.emissiveIntensity = 0.4 + Math.sin(time * 2.5) * 0.2;
+        }
+        
+        // --- Add floating books / magical pages around library ---
+        const floatingPages = [];
+        for (let i = 0; i < 40; i++) {
+            const pageMat = new THREE.MeshStandardMaterial({ color: 0xfae8c8, emissive: 0xaa8844, emissiveIntensity: 0.1 });
+            const page = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.28, 0.02), pageMat);
+            page.position.set((Math.random() - 0.5) * 8, Math.random() * 3.5, (Math.random() - 0.5) * 7 - 1);
+            page.castShadow = true;
+            scene.add(page);
+            floatingPages.push({ mesh: page, speedX: (Math.random() - 0.5) * 0.01, speedY: (Math.random() - 0.5) * 0.01 + 0.005, speedZ: (Math.random() - 0.5) * 0.01, origPos: page.position.clone() });
+        }
+        
+        function animatePages() {
+            floatingPages.forEach(p => {
+                p.mesh.position.x += p.speedX;
+                p.mesh.position.y += Math.sin(time * 1.5) * 0.003;
+                p.mesh.position.z += p.speedZ;
+                p.mesh.rotation.z += 0.02;
+                p.mesh.rotation.x += 0.01;
+                // reset bounds
+                if (Math.abs(p.mesh.position.x) > 5) p.mesh.position.x = p.origPos.x * -0.8;
+                if (p.mesh.position.y > 3.5) p.mesh.position.y = 0.2;
+                if (Math.abs(p.mesh.position.z) > 6) p.mesh.position.z = p.origPos.z;
+            });
+        }
+        
+        // --- Lens flare / glow effect simulation via point lights & bloom ---
+        // additional floating orbs
+        const orbCount = 12;
+        const orbs = [];
+        for (let i = 0; i < orbCount; i++) {
+            const orbMat = new THREE.MeshStandardMaterial({ color: 0xffaa66, emissive: 0xff4422, emissiveIntensity: 0.7, transparent: true });
+            const orb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), orbMat);
+            orb.position.set((Math.random() - 0.5) * 7, Math.random() * 4, (Math.random() - 0.5) * 6 - 1);
+            scene.add(orb);
+            orbs.push(orb);
+        }
+        
+        // --- camera slight auto orbit optional? not needed, but add dynamic ---
+        
+        // --- animation loop ---
+        let lastTime = 0;
+        
         function animate() {
             requestAnimationFrame(animate);
-            time += 0.016;
-            stars.rotation.y += 0.0002;
-            shelfGroup.rotation.y += 0.0005;
-            controls.update();
-            composer.render();
+            const delta = Math.min(0.033, performance.now() - lastTime) / 1000;
+            lastTime = performance.now();
+            
+            animateSouls();
+            animatePages();
+            
+            // move orbs in gentle circles
+            orbs.forEach((orb, idx) => {
+                orb.position.x += Math.sin(time * 0.8 + idx) * 0.003;
+                orb.position.y += Math.cos(time * 0.6 + idx) * 0.002;
+                orb.position.z += Math.sin(time * 0.5 + idx) * 0.003;
+            });
+            
+            // bloom strength subtle variation
+            bloomPass.strength = 0.75 + Math.sin(time * 0.5) * 0.1;
+            
+            controls.update(); // update orbit controls
+            effectComposer.render();
         }
+        
         animate();
         
-        window.addEventListener('resize', () => {
+        // window resize handler
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
-            composer.setSize(window.innerWidth, window.innerHeight);
-        });
+            effectComposer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
         
-        // Initial UI update
-        updateCartUI();
-        if (currentUser) updateLibraryUI();
-        
-        console.log("🌀 Phase 4 – E‑commerce & User Library Active");
+        console.log("Mystical Library with Pyramid, Floating Souls, Planets & Galaxies loaded.");
     </script>
 </body>
 </html>
