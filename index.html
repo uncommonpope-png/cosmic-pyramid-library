@@ -765,11 +765,8 @@
                     readingBook.scale.set(1, 1, 1);
                     readingBook.rotation.set(0, 0, 0);
                     readingState = 'idle';
-                    readingBook = null;
-                    
-                    // re-add to draggables
                     draggables.push(readingBook);
-                    // this will be stale but next click creates fresh drag controls
+                    readingBook = null;
                 }
             }
         }
