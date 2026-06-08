@@ -887,6 +887,9 @@
             if (intersectPoint) mouseWorldPos.copy(intersectPoint);
         });
         
+        // update hint element ref
+        const hintEl = document.getElementById('controls-hint');
+        
         // close overlay on bg click
         document.getElementById('reading-bg').addEventListener('click', () => {
             if (readingState === 'open') {
@@ -1014,9 +1017,6 @@
             effectComposer.setSize(window.innerWidth, window.innerHeight);
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
-        
-        // update hint based on state
-        const hintEl = document.getElementById('controls-hint');
         
         console.log('Mystical Library: click books to read PLT content, click souls for whispers, drag objects');
     </script>
