@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>🌀 Cosmic Pyramid Library – Phase 3 | Soul Librarian & Flying Books</title>
+    <title>🌀 Cosmic Pyramid Library – Phase 4 | E‑commerce & My Books</title>
     <style>
         body { margin:0; overflow:hidden; font-family:'Cinema', 'Orbitron', 'Courier New', monospace; }
         canvas { display:block; width:100%; height:100%; }
@@ -18,31 +18,23 @@
             gap: 12px;
             pointer-events: none;
         }
-        .chat-panel {
+        .chat-panel, .cart-panel, .mybooks-panel {
             background: rgba(0,0,0,0.7);
             backdrop-filter: blur(12px);
             border-radius: 20px;
             border: 1px solid #ffaa66;
-            width: 300px;
+            width: 280px;
             pointer-events: auto;
             padding: 12px;
             color: #ffdd99;
             font-size: 12px;
             font-family: monospace;
         }
-        .chat-log {
-            height: 200px;
-            overflow-y: auto;
-            margin-bottom: 8px;
-            border-bottom: 1px solid #ffaa66;
-            padding-bottom: 6px;
-        }
-        .chat-input-area {
-            display: flex;
-            gap: 6px;
-        }
-        .chat-input-area input {
-            flex: 1;
+        .cart-panel { position: absolute; top: 80px; right: 20px; bottom: auto; left: auto; width: 260px; }
+        .mybooks-panel { position: absolute; top: 80px; left: 20px; width: 260px; }
+        .chat-log { height: 150px; overflow-y: auto; margin-bottom: 8px; border-bottom: 1px solid #ffaa66; }
+        .chat-input-area { display: flex; gap: 6px; }
+        input, button {
             background: #2a2a3a;
             border: 1px solid #ffaa66;
             color: #ffaa66;
@@ -50,113 +42,51 @@
             padding: 6px 10px;
             font-family: monospace;
         }
-        .chat-input-area button {
-            background: #ffaa66;
-            border: none;
-            border-radius: 20px;
-            padding: 6px 12px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .librarian-avatar {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 80px;
-            height: 80px;
-            background: rgba(0,0,0,0.6);
-            border-radius: 50%;
-            border: 2px solid #ffaa66;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 40px;
-            pointer-events: none;
-            z-index: 20;
-            backdrop-filter: blur(8px);
-        }
-        .flying-book-ui {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            backdrop-filter: blur(12px);
-            border-radius: 40px;
-            padding: 8px 20px;
-            color: #ffaa66;
-            font-size: 14px;
-            display: none;
-            z-index: 30;
-            pointer-events: none;
-            white-space: nowrap;
-            font-family: monospace;
-        }
-        .page-flip {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 300px;
-            height: 400px;
-            background: rgba(0,0,0,0.9);
-            border-radius: 16px;
-            border: 1px solid #ffaa66;
-            display: none;
-            z-index: 100;
-            pointer-events: auto;
-            text-align: center;
-            padding: 20px;
-            color: #ffdd99;
-            font-family: monospace;
-            backdrop-filter: blur(20px);
-            flex-direction: column;
-        }
-        .page-flip button {
-            margin-top: 20px;
-            background: #ffaa66;
-            border: none;
-            border-radius: 30px;
-            padding: 6px 12px;
-            cursor: pointer;
-            font-weight: bold;
-        }
+        button { cursor: pointer; background: #ffaa66; color: #000; font-weight: bold; }
+        .book-item { padding: 5px; margin: 5px 0; background: rgba(0,0,0,0.5); border-radius: 12px; cursor: pointer; }
+        .librarian-avatar { position: absolute; bottom: 20px; right: 20px; width: 80px; height: 80px; background: rgba(0,0,0,0.6); border-radius: 50%; border: 2px solid #ffaa66; display: flex; align-items: center; justify-content: center; font-size: 40px; pointer-events: none; z-index: 20; }
+        .flying-book-ui { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); border-radius: 40px; padding: 8px 20px; color: #ffaa66; display: none; z-index: 30; white-space: nowrap; }
+        .page-flip { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 320px; max-height: 80vh; background: rgba(0,0,0,0.95); border-radius: 20px; border: 1px solid #ffaa66; display: none; z-index: 100; flex-direction: column; padding: 20px; color: #ffdd99; overflow-y: auto; }
         @media (max-width: 768px) {
-            .chat-panel { width: 260px; font-size: 10px; }
+            .chat-panel, .cart-panel, .mybooks-panel { width: 240px; font-size: 10px; }
             .librarian-avatar { width: 60px; height: 60px; font-size: 30px; }
         }
     </style>
 </head>
 <body>
 
-    <!-- UI Elements -->
+    <!-- UI Panels -->
     <div class="ui">
         <div class="chat-panel">
-            <div class="chat-log" id="chatLog">
-                <div>📚 Librarian: Welcome, seeker. Ask me about any book, or speak your wish.</div>
-            </div>
+            <div class="chat-log" id="chatLog"><div>📚 Librarian: Welcome, seeker. Browse the stars or your collection.</div></div>
             <div class="chat-input-area">
                 <input type="text" id="chatInput" placeholder="Ask the librarian...">
                 <button id="sendChat">Send</button>
                 <button id="voiceBtn">🎤</button>
             </div>
         </div>
+        <div class="mybooks-panel" id="myBooksPanel">
+            <strong>📖 My Books</strong>
+            <div id="myBooksList">(Login to see your collection)</div>
+            <button id="loginBtn" style="margin-top:8px;">🔐 Login / Signup</button>
+        </div>
+        <div class="cart-panel" id="cartPanel">
+            <strong>🛒 Cart</strong>
+            <div id="cartItems">Empty</div>
+            <button id="checkoutBtn" style="margin-top:8px;">💳 Checkout</button>
+        </div>
     </div>
     <div class="librarian-avatar">🧙</div>
     <div class="flying-book-ui" id="flyingBookUI">✨ Flying through the galaxy... ✨</div>
     <div id="pageFlipModal" class="page-flip">
-        <div id="bookTitle" style="font-size: 20px; margin-bottom: 10px;">Book Title</div>
-        <div id="bookContent" style="flex: 1; overflow-y: auto; margin: 10px 0;">Page content will appear here...</div>
-        <button id="closePageFlip">Close Book</button>
+        <div id="bookTitle" style="font-size: 20px; margin-bottom: 10px;"></div>
+        <div id="bookContent" style="flex:1; overflow-y:auto; margin:10px 0;"></div>
+        <button id="closePageFlip">Close</button>
+        <button id="buyNowBtn" style="margin-top:10px;">📦 Add to Cart & Fly</button>
     </div>
 
     <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
-            }
-        }
+        { "imports": { "three": "https://unpkg.com/three@0.128.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/" } }
     </script>
 
     <script type="module">
@@ -167,39 +97,41 @@
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
         
         // ============================================================
-        // PHASE 3: COSMIC LIBRARY + AI LIBRARIAN + FLYING BOOK
+        // PHASE 4: E‑COMMERCE + USER PERSISTENCE (demo with localStorage)
         // ============================================================
         
-        // --- Scene Setup (same as Phase 1, enhanced) ---
+        // --- Shopify Integration Guide (replace with real SDK later) ---
+        // For production, replace the addToCart and checkout functions with Shopify Buy SDK.
+        // This demo uses localStorage to simulate user library and cart.
+        
+        let currentUser = localStorage.getItem('soulverse_user') || null;
+        let userLibrary = JSON.parse(localStorage.getItem(`library_${currentUser}`) || '[]');
+        let cart = JSON.parse(localStorage.getItem('soulverse_cart') || '[]');
+        
+        // --- 3D Scene Setup (reused from Phase 3, simplified) ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x010118);
         scene.fog = new THREE.FogExp2(0x010118, 0.0008);
-        
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
         camera.position.set(5, 4, 12);
-        
-        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
         
-        // Post-processing
         const renderScene = new RenderPass(scene, camera);
         const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.3, 0.85);
-        const effectComposer = new EffectComposer(renderer);
-        effectComposer.addPass(renderScene);
-        effectComposer.addPass(bloomPass);
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
         
-        // Controls
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.autoRotate = true;
         controls.autoRotateSpeed = 0.3;
-        controls.enableZoom = true;
         controls.target.set(0, 2, 0);
         
-        // Lighting (same as Phase 1)
+        // Lighting (quick)
         const ambient = new THREE.AmbientLight(0x332244, 0.5);
         scene.add(ambient);
         const sunLight = new THREE.DirectionalLight(0xffcc88, 1.2);
@@ -209,212 +141,178 @@
         const fillLight = new THREE.PointLight(0x8866ff, 0.6);
         fillLight.position.set(0, -2, 0);
         scene.add(fillLight);
-        const rimLight = new THREE.PointLight(0xffaa66, 0.5);
-        rimLight.position.set(0, 3, -5);
-        scene.add(rimLight);
         
-        // Stars & Nebula (same)
-        const starCount = 3000;
+        // Stars
         const starGeo = new THREE.BufferGeometry();
-        const starPos = new Float32Array(starCount * 3);
-        for (let i = 0; i < starCount; i++) {
+        const starPos = new Float32Array(3000 * 3);
+        for (let i = 0; i < 3000; i++) {
             starPos[i*3] = (Math.random() - 0.5) * 800;
             starPos[i*3+1] = (Math.random() - 0.5) * 400;
             starPos[i*3+2] = (Math.random() - 0.5) * 300 - 100;
         }
         starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.2, transparent: true }));
+        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.2 }));
         scene.add(stars);
         
-        const nebulaCount = 800;
-        const nebulaGeo = new THREE.BufferGeometry();
-        const nebulaPos = new Float32Array(nebulaCount * 3);
-        for (let i = 0; i < nebulaCount; i++) {
-            nebulaPos[i*3] = (Math.random() - 0.5) * 200;
-            nebulaPos[i*3+1] = (Math.random() - 0.5) * 100;
-            nebulaPos[i*3+2] = (Math.random() - 0.5) * 150 - 50;
-        }
-        nebulaGeo.setAttribute('position', new THREE.BufferAttribute(nebulaPos, 3));
-        const nebulae = new THREE.Points(nebulaGeo, new THREE.PointsMaterial({ color: 0x88aaff, size: 0.4, transparent: true, blending: THREE.AdditiveBlending }));
-        scene.add(nebulae);
-        
-        // Pyramid (same)
+        // Pyramid (simplified)
         const pyramidGroup = new THREE.Group();
-        const tiers = [
-            { width: 3.2, height: 0.6, y: 0.3, color: 0xccaa77 },
-            { width: 2.6, height: 0.6, y: 0.9, color: 0xddbb88 },
-            { width: 2.0, height: 0.6, y: 1.5, color: 0xeecc99 },
-            { width: 1.4, height: 0.6, y: 2.1, color: 0xffddaa }
-        ];
-        tiers.forEach(tier => {
-            const box = new THREE.Mesh(new THREE.BoxGeometry(tier.width, tier.height, tier.width), new THREE.MeshStandardMaterial({ color: tier.color, metalness: 0.7 }));
-            box.position.y = tier.y;
+        const tiers = [[3.2,0.6,0.3,0xccaa77],[2.6,0.6,0.9,0xddbb88],[2.0,0.6,1.5,0xeecc99],[1.4,0.6,2.1,0xffddaa]];
+        tiers.forEach(t => {
+            const box = new THREE.Mesh(new THREE.BoxGeometry(t[0], t[1], t[0]), new THREE.MeshStandardMaterial({ color: t[3], metalness: 0.7 }));
+            box.position.y = t[2];
             box.castShadow = true;
             pyramidGroup.add(box);
-            const edges = new THREE.EdgesGeometry(box.geometry);
-            const wire = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xffaa66 }));
-            wire.position.copy(box.position);
-            pyramidGroup.add(wire);
         });
-        const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.8, 8), new THREE.MeshStandardMaterial({ color: 0xffaa66, emissive: 0xff4422 }));
+        const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.5,0.8,8), new THREE.MeshStandardMaterial({ color: 0xffaa66, emissive: 0xff4422 }));
         crystal.position.y = 2.5;
         pyramidGroup.add(crystal);
         scene.add(pyramidGroup);
         
-        // Floating shelves with books (interactive)
+        // Floating shelves with books (store in array)
         const shelfGroup = new THREE.Group();
         const shelfRadius = 3.8;
-        const shelfCount = 4;
-        const shelfColors = [0x88aaff, 0xff88aa, 0x88ffaa, 0xffaa88];
         const books = [];
+        const bookDataMap = new Map(); // map 3D book object to data
         
-        for (let i = 0; i < shelfCount; i++) {
+        for (let i = 0; i < 4; i++) {
             const yPos = 0.5 + i * 0.8;
-            const ring = new THREE.Mesh(new THREE.TorusGeometry(shelfRadius, 0.15, 32, 100), new THREE.MeshStandardMaterial({ color: shelfColors[i], metalness: 0.8 }));
-            ring.rotation.x = Math.PI / 2;
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(shelfRadius, 0.15, 32, 100), new THREE.MeshStandardMaterial({ color: [0x88aaff,0xff88aa,0x88ffaa,0xffaa88][i], metalness: 0.8 }));
+            ring.rotation.x = Math.PI/2;
             ring.position.y = yPos;
-            ring.castShadow = true;
             shelfGroup.add(ring);
-            
-            const bookCount = 8;
-            for (let j = 0; j < bookCount; j++) {
-                const angle = (j / bookCount) * Math.PI * 2;
+            for (let j = 0; j < 8; j++) {
+                const angle = (j / 8) * Math.PI * 2;
                 const x = Math.cos(angle) * (shelfRadius - 0.2);
                 const z = Math.sin(angle) * (shelfRadius - 0.2);
-                const colors = [0xff6666, 0x66ff66, 0x6666ff, 0xffaa66, 0xff66aa, 0x66ffaa];
-                const bookColor = colors[(i * bookCount + j) % colors.length];
-                const book = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.2), new THREE.MeshStandardMaterial({ color: bookColor, metalness: 0.2 }));
-                book.position.set(x, yPos + 0.05, z);
+                const colors = [0xff6666,0x66ff66,0x6666ff,0xffaa66,0xff66aa,0x66ffaa];
+                const bookColor = colors[(i*8+j) % colors.length];
+                const book = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.7,0.2), new THREE.MeshStandardMaterial({ color: bookColor, metalness: 0.2 }));
+                book.position.set(x, yPos+0.05, z);
                 book.rotation.y = angle;
                 book.castShadow = true;
-                book.userData = {
-                    title: `Cosmic Volume ${i * bookCount + j + 1}`,
-                    price: (19.99 + i * 5).toFixed(2),
-                    description: "A mystical book floating in the galaxy. Click to explore.",
-                    content: `This is the sample content of ${i * bookCount + j + 1}. It contains ancient wisdom about the stars and souls. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.`
+                const bookId = `book_${i}_${j}`;
+                const bookData = {
+                    id: bookId,
+                    title: `Cosmic Volume ${i*8+j+1}`,
+                    price: (19.99 + i*5).toFixed(2),
+                    description: "A mystical book floating in the galaxy.",
+                    content: `This is the content of ${i*8+j+1}. Contains ancient wisdom.`
                 };
+                book.userData = bookData;
                 shelfGroup.add(book);
                 books.push(book);
+                bookDataMap.set(book, bookData);
             }
         }
         scene.add(shelfGroup);
         
         // Dust particles
-        const dustCount = 2000;
         const dustGeo = new THREE.BufferGeometry();
-        const dustPositions = new Float32Array(dustCount * 3);
-        for (let i = 0; i < dustCount; i++) {
-            dustPositions[i*3] = (Math.random() - 0.5) * 10;
-            dustPositions[i*3+1] = Math.random() * 5;
-            dustPositions[i*3+2] = (Math.random() - 0.5) * 10;
+        const dustPos = new Float32Array(2000 * 3);
+        for (let i=0;i<2000;i++) {
+            dustPos[i*3] = (Math.random()-0.5)*10;
+            dustPos[i*3+1] = Math.random()*5;
+            dustPos[i*3+2] = (Math.random()-0.5)*10;
         }
-        dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+        dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
         const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffaa88, size: 0.05, blending: THREE.AdditiveBlending }));
         scene.add(dust);
         
-        // --- Flying Book Mode State ---
-        let isFlying = false;
-        let originalCameraPos = camera.position.clone();
-        let originalControlsTarget = controls.target.clone();
-        let flyingBookMesh = null;
-        let flyingBookData = null;
-        
-        // --- Helper: Create a 3D book model for flying ---
-        function createFlyingBookModel(color) {
-            const group = new THREE.Group();
-            const cover = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.0, 0.15), new THREE.MeshStandardMaterial({ color: color, metalness: 0.3 }));
-            cover.castShadow = true;
-            group.add(cover);
-            const pages = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.92, 0.12), new THREE.MeshStandardMaterial({ color: 0xffeedd, emissive: 0x442200 }));
-            pages.position.z = 0.02;
-            group.add(pages);
-            return group;
+        // --- Helper Functions ---
+        function updateCartUI() {
+            const cartDiv = document.getElementById('cartItems');
+            if (cart.length === 0) cartDiv.innerHTML = "Empty";
+            else cartDiv.innerHTML = cart.map(item => `<div>${item.title} - $${item.price}</div>`).join('');
         }
-        
-        // --- Start flying book animation ---
-        function startFlyingBook(bookData) {
-            if (isFlying) return;
-            isFlying = true;
-            flyingBookData = bookData;
-            
-            // Store original camera state
-            originalCameraPos.copy(camera.position);
-            originalControlsTarget.copy(controls.target);
-            controls.autoRotate = false;
-            
-            // Create a flying book model
-            const color = 0xffaa66;
-            flyingBookMesh = createFlyingBookModel(color);
-            flyingBookMesh.position.set(0, 1.5, 0);
-            scene.add(flyingBookMesh);
-            
-            // Show UI
-            const flyingUI = document.getElementById('flyingBookUI');
-            flyingUI.style.display = 'block';
-            
-            // Animate camera to follow the book as it flies through the galaxy
-            let progress = 0;
-            const duration = 3000; // 3 seconds flight
-            const startTime = performance.now();
-            
-            function flyAnimation(now) {
-                const elapsed = now - startTime;
-                const t = Math.min(1, elapsed / duration);
-                // Spiral path: circle around pyramid and outward
-                const angle = t * Math.PI * 4;
-                const radius = 4 + t * 8;
-                const x = Math.cos(angle) * radius;
-                const z = Math.sin(angle) * radius;
-                const y = 1.5 + t * 3;
-                
-                if (flyingBookMesh) {
-                    flyingBookMesh.position.set(x, y, z);
-                    flyingBookMesh.lookAt(0, 1.5, 0);
-                }
-                camera.position.lerpVectors(originalCameraPos, new THREE.Vector3(x + 2, y + 1, z + 2), t);
-                controls.target.lerpVectors(originalControlsTarget, new THREE.Vector3(x, y, z), t);
-                controls.update();
-                
-                if (t < 1) {
-                    requestAnimationFrame(flyAnimation);
-                } else {
-                    // Flight finished: open the book modal
-                    endFlyingBook();
-                    openBookModal(bookData);
-                }
-            }
-            requestAnimationFrame(flyAnimation);
-        }
-        
-        function endFlyingBook() {
-            if (flyingBookMesh) {
-                scene.remove(flyingBookMesh);
-                flyingBookMesh = null;
-            }
-            document.getElementById('flyingBookUI').style.display = 'none';
-            isFlying = false;
-            // Restore camera slowly or immediately? For now, keep camera where it is.
-            controls.autoRotate = true;
-        }
-        
-        function openBookModal(bookData) {
-            const modal = document.getElementById('pageFlipModal');
-            document.getElementById('bookTitle').innerText = bookData.title;
-            document.getElementById('bookContent').innerHTML = `<p>${bookData.content}</p><p>Price: $${bookData.price}</p><p><button id="addToCartBtn" style="background:#ffaa66; border:none; padding:5px 15px; border-radius:20px;">📦 Add to Cart</button></p>`;
-            modal.style.display = 'flex';
-            
-            document.getElementById('addToCartBtn')?.addEventListener('click', () => {
-                alert(`Added ${bookData.title} to cart! (Simulated)`);
-                modal.style.display = 'none';
+        function updateLibraryUI() {
+            const container = document.getElementById('myBooksList');
+            if (!currentUser) { container.innerHTML = "(Login to see your collection)"; return; }
+            if (userLibrary.length === 0) container.innerHTML = "No books yet. Buy one!";
+            else container.innerHTML = userLibrary.map(book => `<div class="book-item" data-id="${book.id}">📖 ${book.title}</div>`).join('');
+            // attach click to read owned books
+            document.querySelectorAll('.book-item').forEach(el => {
+                el.addEventListener('click', () => {
+                    const id = el.dataset.id;
+                    const book = userLibrary.find(b => b.id === id);
+                    if (book) openBookModal(book, false);
+                });
             });
         }
         
-        // --- Book click handler (existing + fly option) ---
+        function addToCart(bookData) {
+            cart.push(bookData);
+            localStorage.setItem('soulverse_cart', JSON.stringify(cart));
+            updateCartUI();
+            alert(`Added ${bookData.title} to cart.`);
+        }
+        
+        function buyBook(bookData) {
+            if (!currentUser) { alert("Please login first."); return; }
+            addToCart(bookData);
+            // Simulate purchase and add to library
+            if (!userLibrary.find(b => b.id === bookData.id)) {
+                userLibrary.push(bookData);
+                localStorage.setItem(`library_${currentUser}`, JSON.stringify(userLibrary));
+                updateLibraryUI();
+            }
+            // Optionally start flying animation
+            startFlyingBook(bookData);
+        }
+        
+        // Flying book animation (simplified)
+        let isFlying = false;
+        let flyingBookMesh = null;
+        function startFlyingBook(bookData) {
+            if (isFlying) return;
+            isFlying = true;
+            const flyingUI = document.getElementById('flyingBookUI');
+            flyingUI.style.display = 'block';
+            const group = new THREE.Group();
+            const cover = new THREE.Mesh(new THREE.BoxGeometry(0.8,1.0,0.15), new THREE.MeshStandardMaterial({ color: 0xffaa66 }));
+            group.add(cover);
+            group.position.set(0,1.5,0);
+            scene.add(group);
+            flyingBookMesh = group;
+            let startTime = performance.now();
+            function animateFly(now) {
+                const t = Math.min(1, (now - startTime) / 3000);
+                const angle = t * Math.PI * 4;
+                const rad = 4 + t * 8;
+                const x = Math.cos(angle) * rad;
+                const z = Math.sin(angle) * rad;
+                const y = 1.5 + t * 3;
+                if (flyingBookMesh) flyingBookMesh.position.set(x, y, z);
+                if (t < 1) requestAnimationFrame(animateFly);
+                else {
+                    scene.remove(group);
+                    flyingBookMesh = null;
+                    flyingUI.style.display = 'none';
+                    isFlying = false;
+                    openBookModal(bookData, true);
+                }
+            }
+            requestAnimationFrame(animateFly);
+        }
+        
+        function openBookModal(bookData, isOwned = false) {
+            const modal = document.getElementById('pageFlipModal');
+            document.getElementById('bookTitle').innerText = bookData.title;
+            document.getElementById('bookContent').innerHTML = `<p>${bookData.content}</p><p>Price: $${bookData.price}</p>`;
+            const buyBtn = document.getElementById('buyNowBtn');
+            if (isOwned) {
+                buyBtn.innerText = '📖 Read Again';
+                buyBtn.onclick = () => { alert(`Reading ${bookData.title}...`); };
+            } else {
+                buyBtn.innerText = '📦 Add to Cart & Fly';
+                buyBtn.onclick = () => buyBook(bookData);
+            }
+            modal.style.display = 'flex';
+        }
+        
+        // Book click handler
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
-        
-        function onBookClick(event) {
-            if (isFlying) return;
+        window.addEventListener('click', (event) => {
             mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
             mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
             raycaster.setFromCamera(mouse, camera);
@@ -422,111 +320,101 @@
             if (intersects.length > 0) {
                 const book = intersects[0].object;
                 const data = book.userData;
-                // Show options: read now or fly with book
-                const action = confirm(`📖 ${data.title}\n💰 $${data.price}\n\nDo you want to FLY with this book through the galaxy?\n(OK = Fly | Cancel = Read here)`);
-                if (action) {
-                    startFlyingBook(data);
-                } else {
-                    openBookModal(data);
-                }
+                openBookModal(data, false);
             }
-        }
-        window.addEventListener('click', onBookClick, false);
+        });
         
-        // --- AI Librarian (simple rule-based + optional Web Speech) ---
-        const chatLog = document.getElementById('chatLog');
-        const chatInput = document.getElementById('chatInput');
-        const sendBtn = document.getElementById('sendChat');
-        const voiceBtn = document.getElementById('voiceBtn');
-        
-        function addChatMessage(sender, text) {
-            const div = document.createElement('div');
-            div.innerHTML = `<strong>${sender}:</strong> ${text}`;
-            chatLog.appendChild(div);
-            chatLog.scrollTop = chatLog.scrollHeight;
-        }
-        
-        // Simple recommendation logic
-        function librarianResponse(userMessage) {
-            const lower = userMessage.toLowerCase();
-            if (lower.includes('recommend') || lower.includes('suggest')) {
-                const randomBook = books[Math.floor(Math.random() * books.length)].userData;
-                return `I recommend "${randomBook.title}". It's a mystical journey through the cosmos. Would you like to fly with it?`;
-            } else if (lower.includes('price') || lower.includes('cost')) {
-                return "Most books are between $19.99 and $39.99. Each one contains unique galactic wisdom.";
-            } else if (lower.includes('help')) {
-                return "You can click on any book to read or fly with it. Ask me for recommendations or about prices.";
-            } else {
-                return "I am the Soul Librarian. Seek a book, ask for a recommendation, or simply fly among the stars.";
+        // Auth simulation
+        document.getElementById('loginBtn').addEventListener('click', () => {
+            const email = prompt("Enter email to login/signup:");
+            if (email) {
+                currentUser = email;
+                localStorage.setItem('soulverse_user', currentUser);
+                userLibrary = JSON.parse(localStorage.getItem(`library_${currentUser}`) || '[]');
+                updateLibraryUI();
+                alert(`Logged in as ${currentUser}`);
             }
-        }
+        });
         
-        async function sendMessage() {
-            const text = chatInput.value.trim();
-            if (!text) return;
-            addChatMessage("You", text);
-            chatInput.value = "";
-            // Simulate AI response (can be replaced with real LLM call)
-            const reply = librarianResponse(text);
-            addChatMessage("📚 Librarian", reply);
-            // Optional: text-to-speech
-            if ('speechSynthesis' in window) {
-                const utterance = new SpeechSynthesisUtterance(reply);
-                utterance.voice = speechSynthesis.getVoices().find(v => v.lang === 'en-US');
-                speechSynthesis.cancel();
-                speechSynthesis.speak(utterance);
-            }
-        }
+        document.getElementById('checkoutBtn').addEventListener('click', () => {
+            if (cart.length === 0) { alert("Cart empty"); return; }
+            // In production, redirect to Shopify checkout
+            alert("Proceed to checkout (simulated). In production, redirect to Shopify cart.");
+            // For demo, clear cart
+            cart = [];
+            localStorage.setItem('soulverse_cart', JSON.stringify(cart));
+            updateCartUI();
+        });
         
-        sendBtn.addEventListener('click', sendMessage);
-        chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
-        
-        // Voice input
-        if ('webkitSpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            const recognition = new SpeechRecognition();
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            recognition.lang = 'en-US';
-            voiceBtn.addEventListener('click', () => {
-                recognition.start();
-            });
-            recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                chatInput.value = transcript;
-                sendMessage();
-            };
-        } else {
-            voiceBtn.disabled = true;
-            voiceBtn.style.opacity = 0.5;
-        }
-        
-        // Close modal button
         document.getElementById('closePageFlip').addEventListener('click', () => {
             document.getElementById('pageFlipModal').style.display = 'none';
         });
         
-        // --- Animation Loop ---
+        // Librarian chat (simple)
+        const chatLog = document.getElementById('chatLog');
+        const chatInput = document.getElementById('chatInput');
+        function addChat(msg, fromUser = false) {
+            const div = document.createElement('div');
+            div.innerHTML = `<strong>${fromUser ? 'You' : '📚 Librarian'}:</strong> ${msg}`;
+            chatLog.appendChild(div);
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+        async function sendMessage() {
+            const text = chatInput.value.trim();
+            if (!text) return;
+            addChat(text, true);
+            chatInput.value = "";
+            let reply = "I am the Soul Librarian. Click any book to read or buy.";
+            if (text.toLowerCase().includes('recommend')) {
+                const randomBook = books[Math.floor(Math.random() * books.length)].userData;
+                reply = `I recommend "${randomBook.title}". Would you like to see it?`;
+            } else if (text.toLowerCase().includes('price')) {
+                reply = "Prices range from $19.99 to $39.99 per cosmic volume.";
+            }
+            addChat(reply);
+        }
+        document.getElementById('sendChat').addEventListener('click', sendMessage);
+        chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+        
+        // Voice
+        if ('webkitSpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'en-US';
+            document.getElementById('voiceBtn').addEventListener('click', () => {
+                recognition.start();
+            });
+            recognition.onresult = (e) => {
+                chatInput.value = e.results[0][0].transcript;
+                sendMessage();
+            };
+        } else {
+            document.getElementById('voiceBtn').disabled = true;
+        }
+        
+        // Animation
         let time = 0;
         function animate() {
             requestAnimationFrame(animate);
             time += 0.016;
             stars.rotation.y += 0.0002;
-            nebulae.rotation.y -= 0.0001;
             shelfGroup.rotation.y += 0.0005;
             controls.update();
-            effectComposer.render();
+            composer.render();
         }
         animate();
         
-        // Resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
-            effectComposer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
         });
         
-        console.log("🌀 Cosmic Pyramid Library – Phase 3 Active");
+        // Initial UI update
+        updateCartUI();
+        if (currentUser) updateLibraryUI();
+        
+        console.log("🌀 Phase 4 – E‑commerce & User Library Active");
     </script>
 </body>
 </html>
