@@ -701,38 +701,53 @@
         logseqCanvas.height = 1024;
         const lctx = logseqCanvas.getContext('2d');
         
-        function drawTestScreen() {
-            lctx.fillStyle = '#0044aa';
+        function drawLogseqGraph(time) {
+            lctx.fillStyle = '#1e1e2e';
             lctx.fillRect(0, 0, logseqCanvas.width, logseqCanvas.height);
-            lctx.fillStyle = '#ffffff';
-            lctx.font = 'bold 96px monospace';
-            lctx.textAlign = 'center';
-            lctx.fillText('LAPTOP', logseqCanvas.width/2, 200);
-            lctx.fillStyle = '#ffdd00';
-            lctx.font = 'bold 64px monospace';
-            lctx.fillText('SCREEN TEST', logseqCanvas.width/2, 340);
-            lctx.fillStyle = '#44ff88';
-            lctx.font = '36px monospace';
-            lctx.fillText('Click to open panels ▸', logseqCanvas.width/2, 500);
-            lctx.fillStyle = '#aaaaff';
-            lctx.font = '20px monospace';
-            lctx.fillText('LOGSEQ • MCP-ready', logseqCanvas.width/2, 660);
+            lctx.fillStyle = '#89b4fa';
+            lctx.font = '24px monospace';
+            lctx.fillText("Logseq Brain · Active", 50, 80);
+            const t = (time || performance.now() / 1000);
+            const nodes = [
+                { x: 200 + Math.sin(t) * 20, y: 300 + Math.cos(t * 0.7) * 30 },
+                { x: 400 + Math.cos(t * 0.9) * 25, y: 200 + Math.sin(t * 0.5) * 20 },
+                { x: 600 + Math.sin(t * 0.6) * 30, y: 350 + Math.cos(t) * 25 },
+                { x: 450 + Math.cos(t * 0.8) * 20, y: 500 + Math.sin(t * 0.4) * 30 },
+                { x: 300 + Math.sin(t * 0.5) * 25, y: 450 + Math.cos(t * 0.6) * 20 },
+                { x: 550 + Math.cos(t) * 15, y: 250 + Math.sin(t * 0.8) * 25 },
+            ];
+            const edges = [[0,1],[1,2],[2,3],[3,0],[0,4],[4,5],[5,1],[2,5]];
+            lctx.strokeStyle = '#cba6f7';
+            lctx.lineWidth = 2;
+            edges.forEach(e => {
+                lctx.beginPath();
+                lctx.moveTo(nodes[e[0]].x, nodes[e[0]].y);
+                lctx.lineTo(nodes[e[1]].x, nodes[e[1]].y);
+                lctx.stroke();
+            });
+            nodes.forEach((node, i) => {
+                lctx.fillStyle = '#f38ba8';
+                lctx.beginPath();
+                lctx.arc(node.x, node.y, 12 + Math.sin(t * 2 + i) * 3, 0, Math.PI * 2);
+                lctx.fill();
+                lctx.fillStyle = '#11111b';
+                lctx.font = '14px monospace';
+                lctx.fillText('Node ' + (i + 1), node.x - 28, node.y - 18);
+            });
+            lctx.fillStyle = '#a6e3a1';
+            lctx.font = '16px monospace';
+            lctx.fillText('// Connect your Logseq or MCP here', 50, 600);
+            lctx.fillStyle = '#585b70';
+            lctx.font = '13px monospace';
+            lctx.fillText('/* See updateLogseqScreen() in source */', 50, 630);
         }
-        drawTestScreen();
+        drawLogseqGraph();
         const screenTex = new THREE.CanvasTexture(logseqCanvas);
         screenTex.needsUpdate = true;
         const screenMat = new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false, side: THREE.DoubleSide });
         laptopScreen = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 0.02), screenMat);
         laptopScreen.position.set(0, 0.55, 1.0);
         interiorGroup.add(laptopScreen);
-        
-        // Diagnostic: bright green cube right beside laptop to confirm position
-        const diagCube = new THREE.Mesh(
-            new THREE.BoxGeometry(0.15, 0.15, 0.15),
-            new THREE.MeshBasicMaterial({ color: 0x00ff00 })
-        );
-        diagCube.position.set(0.6, 0.55, 1.0);
-        interiorGroup.add(diagCube);
         
         const laptopBaseMat = new THREE.MeshStandardMaterial({ color: 0xccccdd, metalness: 0.7 });
         const laptopBase = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.08, 0.8), laptopBaseMat);
@@ -743,7 +758,7 @@
         let logseqRAF = null;
         function startLogseqLoop() {
             const frame = () => {
-                drawTestScreen();
+                drawLogseqGraph();
                 screenTex.needsUpdate = true;
                 logseqRAF = requestAnimationFrame(frame);
             };
@@ -848,8 +863,8 @@
         // ========== PYRAMID ENTER/EXIT ==========
         let isInside = false;
         const originalCameraPos = camera.position.clone();
-        const interiorCamPos = new THREE.Vector3(0.2, 0.8, 2.3);
-        const interiorTarget = new THREE.Vector3(0, 0.6, 0.8);
+        const interiorCamPos = new THREE.Vector3(0, 1.2, 2.3);
+        const interiorTarget = new THREE.Vector3(0, 1, 0);
         
         function enterPyramid() {
             if (isInside || readingState !== 'idle') return;
