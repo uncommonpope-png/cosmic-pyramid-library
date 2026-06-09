@@ -560,20 +560,57 @@
         const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0, 2.4, 2.8, 4, 1)), new THREE.LineBasicMaterial({ color: 0xff8844 }));
         edges.position.copy(pyramid.position); scene.add(edges);
         
-        // ========== PYRAMID DOORWAY ==========
-        const doorGlow = new THREE.Mesh(
-            new THREE.PlaneGeometry(0.9, 1.5),
-            new THREE.MeshStandardMaterial({
-                color: 0xffaa66,
-                emissive: 0xff4422,
-                emissiveIntensity: 0.8,
-                transparent: true,
-                side: THREE.DoubleSide
-            })
+        // ========== EGYPTIAN DOORWAY ==========
+        const doorGroup = new THREE.Group();
+        
+        const portalPlaneMat = new THREE.MeshStandardMaterial({
+            color: 0xffaa66,
+            emissive: 0xff4422,
+            emissiveIntensity: 1.2,
+            transparent: true,
+            opacity: 0.85,
+            side: THREE.DoubleSide
+        });
+        const portalPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 2.0), portalPlaneMat);
+        portalPlane.position.set(0, 1.2, 0);
+        doorGroup.add(portalPlane);
+        
+        const archStoneMat = new THREE.MeshStandardMaterial({ color: 0xccaa88, roughness: 0.4, metalness: 0.1 });
+        
+        const leftPillar = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.4, 0.4), archStoneMat);
+        leftPillar.position.set(-0.8, 1.2, 0);
+        doorGroup.add(leftPillar);
+        
+        const rightPillar = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.4, 0.4), archStoneMat);
+        rightPillar.position.set(0.8, 1.2, 0);
+        doorGroup.add(rightPillar);
+        
+        const arch = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.15, 16, 64), archStoneMat);
+        arch.rotation.x = Math.PI / 2;
+        arch.position.set(0, 2.4, 0);
+        doorGroup.add(arch);
+        
+        const hieroglyphCanvas = document.createElement('canvas');
+        hieroglyphCanvas.width = 512;
+        hieroglyphCanvas.height = 512;
+        const hctx = hieroglyphCanvas.getContext('2d');
+        hctx.fillStyle = '#d4b88c';
+        hctx.fillRect(0, 0, 512, 512);
+        hctx.fillStyle = '#4a2e1a';
+        hctx.font = 'Bold 48px "Times New Roman"';
+        hctx.fillText("𓃥𓃠𓂀𓅓𓋹", 100, 200);
+        hctx.fillText("𓂀𓅓𓋹𓃥", 100, 350);
+        const hieroglyphTexture = new THREE.CanvasTexture(hieroglyphCanvas);
+        
+        const hieroglyphPlane = new THREE.Mesh(
+            new THREE.PlaneGeometry(1.0, 1.0),
+            new THREE.MeshStandardMaterial({ map: hieroglyphTexture, side: THREE.DoubleSide, transparent: true, opacity: 0.6 })
         );
-        doorGlow.position.set(0, 1.2, 1.45);
-        doorGlow.lookAt(0, 1.2, 2);
-        scene.add(doorGlow);
+        hieroglyphPlane.position.set(0, 1.2, 0.05);
+        doorGroup.add(hieroglyphPlane);
+        
+        doorGroup.position.set(0, 0, 1.45);
+        scene.add(doorGroup);
         
         // ========== NEON SOULS ==========
         const soulCount = 40;
@@ -727,7 +764,7 @@
             controls.enabled = false;
             interiorGroup.visible = true;
             pyramid.visible = false;
-            doorGlow.visible = false;
+            doorGroup.visible = false;
             souls.forEach(s => s.obj.visible = false);
             const startPos = camera.position.clone();
             const startTarget = controls.target.clone();
@@ -750,7 +787,7 @@
             controls.enabled = false;
             interiorGroup.visible = false;
             pyramid.visible = true;
-            doorGlow.visible = true;
+            doorGroup.visible = true;
             souls.forEach(s => s.obj.visible = true);
             const startPos = camera.position.clone();
             const startTarget = controls.target.clone();
@@ -966,7 +1003,7 @@
         
         function getClickTargets() {
             const targets = [...books, ...souls.map(s => s.obj.children[0])];
-            if (!isInside) targets.push(doorGlow);
+            if (!isInside) targets.push(portalPlane);
             return targets;
         }
         
@@ -1012,7 +1049,7 @@
                 }
                 return;
             }
-            if (mouseDownTarget === doorGlow) {
+            if (mouseDownTarget === portalPlane) {
                 enterPyramid();
                 return;
             }
