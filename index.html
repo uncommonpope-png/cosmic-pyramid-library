@@ -576,6 +576,58 @@
         const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0, 2.4, 2.8, 4, 1)), new THREE.LineBasicMaterial({ color: 0xff8844 }));
         edges.position.copy(pyramid.position); scene.add(edges);
         
+        // ========== EGYPTIAN DOORWAY ==========
+        const doorGroup = new THREE.Group();
+        
+        const portalPlaneMat = new THREE.MeshStandardMaterial({
+            color: 0xffaa66,
+            emissive: 0xff4422,
+            emissiveIntensity: 1.2,
+            transparent: true,
+            opacity: 0.85,
+            side: THREE.DoubleSide
+        });
+        const portalPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 2.0), portalPlaneMat);
+        portalPlane.position.set(0, 1.2, 0);
+        doorGroup.add(portalPlane);
+        
+        const archStoneMat = new THREE.MeshStandardMaterial({ color: 0xccaa88, roughness: 0.4, metalness: 0.1 });
+        
+        const leftPillar = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.4, 0.4), archStoneMat);
+        leftPillar.position.set(-0.8, 1.2, 0);
+        doorGroup.add(leftPillar);
+        
+        const rightPillar = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.4, 0.4), archStoneMat);
+        rightPillar.position.set(0.8, 1.2, 0);
+        doorGroup.add(rightPillar);
+        
+        const arch = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.15, 16, 64), archStoneMat);
+        arch.rotation.x = Math.PI / 2;
+        arch.position.set(0, 2.4, 0);
+        doorGroup.add(arch);
+        
+        const hieroglyphCanvas = document.createElement('canvas');
+        hieroglyphCanvas.width = 512;
+        hieroglyphCanvas.height = 512;
+        const hctx = hieroglyphCanvas.getContext('2d');
+        hctx.fillStyle = '#d4b88c';
+        hctx.fillRect(0, 0, 512, 512);
+        hctx.fillStyle = '#4a2e1a';
+        hctx.font = 'Bold 48px "Times New Roman"';
+        hctx.fillText("≡ôâÑ≡ôâá≡ôéÇ≡ôàô≡ôï╣", 100, 200);
+        hctx.fillText("≡ôéÇ≡ôàô≡ôï╣≡ôâÑ", 100, 350);
+        const hieroglyphTexture = new THREE.CanvasTexture(hieroglyphCanvas);
+        
+        const hieroglyphPlane = new THREE.Mesh(
+            new THREE.PlaneGeometry(1.0, 1.0),
+            new THREE.MeshStandardMaterial({ map: hieroglyphTexture, side: THREE.DoubleSide, transparent: true, opacity: 0.6 })
+        );
+        hieroglyphPlane.position.set(0, 1.2, 0.05);
+        doorGroup.add(hieroglyphPlane);
+        
+        doorGroup.position.set(0, 0, 1.45);
+        scene.add(doorGroup);
+        
         // ========== NEON SOULS ==========
         const soulCount = 40;
         const souls = [];
@@ -608,6 +660,53 @@
             const s = createSoul(Math.cos(angle)*radius, yOff, Math.sin(angle)*radius, c, 0.18 + Math.random() * 0.12);
             souls.push({ obj: s, angle, radius, yOff, ySpeed: 0.2 + Math.random() * 0.5, yPhase: Math.random() * Math.PI * 2, baseColor: new THREE.Color(c) });
         }
+        
+        // ========== INTERIOR CHAMBER ==========
+        const interiorGroup = new THREE.Group();
+        interiorGroup.visible = false;
+        scene.add(interiorGroup);
+        
+        const interiorFloor = new THREE.Mesh(
+            new THREE.PlaneGeometry(5.5, 5.5),
+            new THREE.MeshStandardMaterial({ color: 0x5a4a3a, roughness: 0.8 })
+        );
+        interiorFloor.rotation.x = -Math.PI / 2;
+        interiorFloor.position.y = -0.2;
+        interiorFloor.receiveShadow = true;
+        interiorGroup.add(interiorFloor);
+        
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x8a7a6a });
+        const backWall = new THREE.Mesh(new THREE.BoxGeometry(5.2, 3.5, 0.2), wallMat);
+        backWall.position.set(0, 1.6, -2.8);
+        interiorGroup.add(backWall);
+        const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.5, 5.2), wallMat);
+        leftWall.position.set(-2.8, 1.6, 0);
+        interiorGroup.add(leftWall);
+        const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.5, 5.2), wallMat);
+        rightWall.position.set(2.8, 1.6, 0);
+        interiorGroup.add(rightWall);
+        
+        const ceiling = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.2, 5.6), new THREE.MeshStandardMaterial({ color: 0x332a1a, emissive: 0x221100 }));
+        ceiling.position.set(0, 3.2, 0);
+        interiorGroup.add(ceiling);
+        
+        const pedestal = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.5, 1.1), new THREE.MeshStandardMaterial({ color: 0xaa8866 }));
+        pedestal.position.set(0, 0, 0);
+        pedestal.castShadow = true;
+        interiorGroup.add(pedestal);
+        
+        const bookGroupInt = new THREE.Group();
+        const bookCover = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.1, 0.65), new THREE.MeshStandardMaterial({ color: 0x8b3a2a }));
+        bookCover.position.set(0, 0.3, 0);
+        bookGroupInt.add(bookCover);
+        const bookPages = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.06, 0.6), new THREE.MeshStandardMaterial({ color: 0xfdf0d0 }));
+        bookPages.position.set(0, 0.28, 0);
+        bookGroupInt.add(bookPages);
+        interiorGroup.add(bookGroupInt);
+        
+        const interiorLight = new THREE.PointLight(0xffaa66, 0.7, 6);
+        interiorLight.position.set(0, 1.2, 0);
+        interiorGroup.add(interiorLight);
         
         // ========== WISPS & DUST ==========
         const wispGeo = new THREE.BufferGeometry();
@@ -668,6 +767,58 @@
         let readingBookOrigMat = null;
         const readTargetPos = new THREE.Vector3(0, 2.2, 2.8);
         const readFlySpeed = 0.05;
+        
+        // ========== PYRAMID ENTER/EXIT ==========
+        let isInside = false;
+        const originalCameraPos = camera.position.clone();
+        const interiorCamPos = new THREE.Vector3(0, 1.2, 2.3);
+        const interiorTarget = new THREE.Vector3(0, 1, 0);
+        
+        function enterPyramid() {
+            if (isInside || readingState !== 'idle') return;
+            isInside = true;
+            controls.enabled = false;
+            interiorGroup.visible = true;
+            pyramid.visible = false;
+            doorGroup.visible = false;
+            souls.forEach(s => s.obj.visible = false);
+            const startPos = camera.position.clone();
+            const startTarget = controls.target.clone();
+            const startTime = performance.now();
+            function animEnter(now) {
+                const t = Math.min(1, (now - startTime) / 800);
+                camera.position.lerpVectors(startPos, interiorCamPos, t);
+                controls.target.lerpVectors(startTarget, interiorTarget, t);
+                controls.update();
+                if (t < 1) requestAnimationFrame(animEnter);
+                else controls.enabled = true;
+            }
+            requestAnimationFrame(animEnter);
+            if (typeof exitBtn !== 'undefined') exitBtn.style.display = 'block';
+        }
+        
+        function exitPyramid() {
+            if (!isInside) return;
+            isInside = false;
+            controls.enabled = false;
+            interiorGroup.visible = false;
+            pyramid.visible = true;
+            doorGroup.visible = true;
+            souls.forEach(s => s.obj.visible = true);
+            const startPos = camera.position.clone();
+            const startTarget = controls.target.clone();
+            const startTime = performance.now();
+            function animExit(now) {
+                const t = Math.min(1, (now - startTime) / 800);
+                camera.position.lerpVectors(startPos, originalCameraPos, t);
+                controls.target.lerpVectors(startTarget, new THREE.Vector3(0, 1.5, 0), t);
+                controls.update();
+                if (t < 1) requestAnimationFrame(animExit);
+                else controls.enabled = true;
+            }
+            requestAnimationFrame(animExit);
+            if (typeof exitBtn !== 'undefined') exitBtn.style.display = 'none';
+        }
         
         // open book 3D group (shown when fully opened)
         let openBookGroup = null;
@@ -867,8 +1018,19 @@
         let interactionDragging = false;
         
         function getClickTargets() {
-            return [...books, ...souls.map(s => s.obj.children[0])];
+            const targets = [...books, ...souls.map(s => s.obj.children[0])];
+            if (!isInside) targets.push(portalPlane);
+            return targets;
         }
+        
+        const allInteriorHits = () => {
+            const list = [];
+            interiorGroup.children.forEach(c => {
+                if (c.children) c.children.forEach(gc => list.push(gc));
+                list.push(c);
+            });
+            return list;
+        };
         
         renderer.domElement.addEventListener('pointerdown', (e) => {
             mouseDownPos2.x = e.clientX;
@@ -878,7 +1040,8 @@
             pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
             pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
             raycaster.setFromCamera(pointer, camera);
-            const hits = raycaster.intersectObjects(getClickTargets(), false);
+            const targets = isInside ? allInteriorHits() : getClickTargets();
+            const hits = raycaster.intersectObjects(targets, false);
             mouseDownTarget = hits.length > 0 ? hits[0].object : null;
         });
         
@@ -886,15 +1049,35 @@
             const dist = Math.hypot(e.clientX - mouseDownPos2.x, e.clientY - mouseDownPos2.y);
             if (dist > 5) { interactionDragging = true; return; }
             if (interactionDragging || !mouseDownTarget) return;
+            if (readingState !== 'idle') return;
             
-            // check books (but only if not currently reading or returning)
+            // pyramid enter/exit
+            if (isInside) {
+                let hitBook = false;
+                bookGroupInt.children.forEach(c => {
+                    if (mouseDownTarget === c) { hitBook = true; }
+                    if (c.children) c.children.forEach(cc => { if (mouseDownTarget === cc) hitBook = true; });
+                });
+                if (hitBook) {
+                    alert("≡ƒôû THE CALCULATION ┬╖ Profit ┬╖ Love ┬╖ Tax\n\n\"Every move in life is a three-part equation. Whether you calculate it or not.\"");
+                } else {
+                    exitPyramid();
+                }
+                return;
+            }
+            if (mouseDownTarget === portalPlane) {
+                enterPyramid();
+                return;
+            }
+            
+            // check books
             const bookHit = mouseDownTarget.userData && mouseDownTarget.userData.isBook;
-            if (bookHit && readingState === 'idle') {
+            if (bookHit) {
                 startReading(mouseDownTarget);
                 return;
             }
             
-            // check souls (click on core mesh which is children[0] of group)
+            // check souls
             for (const s of souls) {
                 if (s.obj.children[0] === mouseDownTarget) {
                     const quote = pltQuotes[Math.floor(Math.random() * pltQuotes.length)];
@@ -932,12 +1115,31 @@
             }
         });
         
-        // ESC key: close reading overlay
+        // ESC key: close reading overlay or exit pyramid
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && readingState === 'open') {
                 closeBookBtn.click();
+            } else if (e.key === 'Escape' && isInside) {
+                exitPyramid();
             }
         });
+        
+        // Exit button
+        const exitBtn = document.createElement('button');
+        exitBtn.textContent = '≡ƒÅ¢∩╕Å EXIT PYRAMID';
+        exitBtn.style.position = 'absolute';
+        exitBtn.style.bottom = '20px';
+        exitBtn.style.right = '20px';
+        exitBtn.style.background = '#2c1a0e';
+        exitBtn.style.color = '#efdba1';
+        exitBtn.style.border = '1px solid #b87a3c';
+        exitBtn.style.padding = '8px 16px';
+        exitBtn.style.borderRadius = '40px';
+        exitBtn.style.cursor = 'pointer';
+        exitBtn.style.zIndex = '20';
+        exitBtn.style.display = 'none';
+        document.body.appendChild(exitBtn);
+        exitBtn.addEventListener('click', exitPyramid);
         
         // ========== ANIMATION ==========
         let time = 0, lastTime = 0;
@@ -1032,7 +1234,9 @@
             // --- bloom pulse ---
             bloomPass.strength = 1.1 + Math.sin(time * 0.4) * 0.15;
             
-            hintEl.textContent = '≡ƒû▒∩╕Å Drag objects | Click books | Click souls | Scroll to zoom';
+            hintEl.textContent = isInside
+                ? '≡ƒôû Click the book | Click wall or press ESC to exit'
+                : '≡ƒû▒∩╕Å Drag objects | Click books | Click souls | Click pyramid door to enter';
             
             controls.update();
             effectComposer.render();
