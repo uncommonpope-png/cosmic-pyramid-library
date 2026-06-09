@@ -103,13 +103,7 @@
     </style>
 </head>
 <body>
-    <div id="dbg" style="position:fixed;top:0;left:0;z-index:99999;color:#0f0;background:rgba(0,0,0,0.95);padding:8px;font:12px monospace;white-space:pre-wrap;max-height:150px;overflow:auto;pointer-events:none;"></div>
-    <script>
-        function dbg(m){var e=document.getElementById('dbg');if(e)e.textContent+=m+'\n';}
-        window.onerror=function(m,u,l,c,err){dbg('ERR: '+m+' '+l+':'+c);};
-        window.addEventListener('unhandledrejection',function(e){dbg('PROM: '+e.reason);});
-        dbg('Page loaded');
-    </script>
+
     <div id="info">≡ƒôû CLICK BOOKS TO READ ┬╖ CLICK SOULS FOR WHISPERS</div>
     <div id="controls-hint">≡ƒû▒∩╕Å Drag objects | Click books | Click souls | Scroll to zoom</div>
 
@@ -138,21 +132,12 @@
     </script>
 
     <script type="module">
-        dbg('Module started');
         import * as THREE from 'three';
-        dbg('THREE OK');
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        dbg('OrbitControls OK');
         import { DragControls } from 'three/addons/controls/DragControls.js';
-        dbg('DragControls OK');
         import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-        dbg('EffectComposer OK');
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-        dbg('RenderPass OK');
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-        dbg('UnrealBloomPass OK');
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-        dbg('Imports done');
         
         // ========== PLT CONTENT ==========
         const pltBooks = {
@@ -313,7 +298,6 @@
         camera.position.set(6, 5, 9);
         
         const renderer = new THREE.WebGLRenderer({ antialias: true });
-        dbg('Renderer: ' + (renderer ? 'OK' : 'NULL'));
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.toneMapping = THREE.ReinhardToneMapping;
@@ -321,7 +305,6 @@
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
-        dbg('Canvas appended');
         
         // ========== POSTPROCESSING ==========
         const renderScene = new RenderPass(scene, camera);
@@ -667,160 +650,52 @@
             souls.push({ obj: s, angle, radius, yOff, ySpeed: 0.2 + Math.random() * 0.5, yPhase: Math.random() * Math.PI * 2, baseColor: new THREE.Color(c) });
         }
         
-        // ========== PINK OFFICE ==========
+        // ========== INTERIOR CHAMBER ==========
         const interiorGroup = new THREE.Group();
         interiorGroup.visible = false;
         scene.add(interiorGroup);
         
-        const floorMat = new THREE.MeshStandardMaterial({ color: 0xffccdd, roughness: 0.6 });
-        const floor = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), floorMat);
-        floor.rotation.x = -Math.PI / 2;
-        floor.position.y = -0.2;
-        floor.receiveShadow = true;
-        interiorGroup.add(floor);
+        const interiorFloor = new THREE.Mesh(
+            new THREE.PlaneGeometry(5.5, 5.5),
+            new THREE.MeshStandardMaterial({ color: 0x5a4a3a, roughness: 0.8 })
+        );
+        interiorFloor.rotation.x = -Math.PI / 2;
+        interiorFloor.position.y = -0.2;
+        interiorFloor.receiveShadow = true;
+        interiorGroup.add(interiorFloor);
         
-        const wallMat = new THREE.MeshStandardMaterial({ color: 0xffaacc });
-        const backWall = new THREE.Mesh(new THREE.BoxGeometry(6, 3.5, 0.2), wallMat);
-        backWall.position.set(0, 1.6, -3);
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x8a7a6a });
+        const backWall = new THREE.Mesh(new THREE.BoxGeometry(5.2, 3.5, 0.2), wallMat);
+        backWall.position.set(0, 1.6, -2.8);
         interiorGroup.add(backWall);
-        const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.5, 6), wallMat);
-        leftWall.position.set(-3, 1.6, 0);
+        const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.5, 5.2), wallMat);
+        leftWall.position.set(-2.8, 1.6, 0);
         interiorGroup.add(leftWall);
-        const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.5, 6), wallMat);
-        rightWall.position.set(3, 1.6, 0);
+        const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.5, 5.2), wallMat);
+        rightWall.position.set(2.8, 1.6, 0);
         interiorGroup.add(rightWall);
         
-        const ceilingMat = new THREE.MeshStandardMaterial({ color: 0xffddee, emissive: 0xffaacc, emissiveIntensity: 0.1 });
-        const ceiling = new THREE.Mesh(new THREE.BoxGeometry(6.2, 0.1, 6.2), ceilingMat);
+        const ceiling = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.2, 5.6), new THREE.MeshStandardMaterial({ color: 0x332a1a, emissive: 0x221100 }));
         ceiling.position.set(0, 3.2, 0);
         interiorGroup.add(ceiling);
         
-        const pinkLight = new THREE.PointLight(0xff88aa, 0.6);
-        pinkLight.position.set(0, 2, 0);
-        interiorGroup.add(pinkLight);
+        const pedestal = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.5, 1.1), new THREE.MeshStandardMaterial({ color: 0xaa8866 }));
+        pedestal.position.set(0, 0, 0);
+        pedestal.castShadow = true;
+        interiorGroup.add(pedestal);
         
-        // Desk
-        const deskMat = new THREE.MeshStandardMaterial({ color: 0xddbb99, roughness: 0.4 });
-        const deskTop = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.1, 1.5), deskMat);
-        deskTop.position.set(0, 0, 1);
-        deskTop.castShadow = true;
-        deskTop.receiveShadow = true;
-        interiorGroup.add(deskTop);
+        const bookGroupInt = new THREE.Group();
+        const bookCover = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.1, 0.65), new THREE.MeshStandardMaterial({ color: 0x8b3a2a }));
+        bookCover.position.set(0, 0.3, 0);
+        bookGroupInt.add(bookCover);
+        const bookPages = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.06, 0.6), new THREE.MeshStandardMaterial({ color: 0xfdf0d0 }));
+        bookPages.position.set(0, 0.28, 0);
+        bookGroupInt.add(bookPages);
+        interiorGroup.add(bookGroupInt);
         
-        const deskLegMat = new THREE.MeshStandardMaterial({ color: 0xaa8866 });
-        [[-1.1, -0.35, 0.5], [1.1, -0.35, 0.5], [-1.1, -0.35, 1.5], [1.1, -0.35, 1.5]].forEach(p => {
-            const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.6, 0.1), deskLegMat);
-            leg.position.set(p[0], p[1], p[2]);
-            leg.castShadow = true;
-            interiorGroup.add(leg);
-        });
-        
-        // Laptop with animated Logseq screen
-        let laptopScreen = null;
-        const logseqCanvas = document.createElement('canvas');
-        logseqCanvas.width = 1024;
-        logseqCanvas.height = 1024;
-        const lctx = logseqCanvas.getContext('2d');
-        
-        function drawLogseqGraph(time) {
-            lctx.fillStyle = '#1e1e2e';
-            lctx.fillRect(0, 0, logseqCanvas.width, logseqCanvas.height);
-            lctx.fillStyle = '#89b4fa';
-            lctx.font = '24px monospace';
-            lctx.fillText("Logseq Brain ┬╖ Active", 50, 80);
-            const t = (time || performance.now() / 1000);
-            const nodes = [
-                { x: 200 + Math.sin(t) * 20, y: 300 + Math.cos(t * 0.7) * 30 },
-                { x: 400 + Math.cos(t * 0.9) * 25, y: 200 + Math.sin(t * 0.5) * 20 },
-                { x: 600 + Math.sin(t * 0.6) * 30, y: 350 + Math.cos(t) * 25 },
-                { x: 450 + Math.cos(t * 0.8) * 20, y: 500 + Math.sin(t * 0.4) * 30 },
-                { x: 300 + Math.sin(t * 0.5) * 25, y: 450 + Math.cos(t * 0.6) * 20 },
-                { x: 550 + Math.cos(t) * 15, y: 250 + Math.sin(t * 0.8) * 25 },
-            ];
-            const edges = [[0,1],[1,2],[2,3],[3,0],[0,4],[4,5],[5,1],[2,5]];
-            lctx.strokeStyle = '#cba6f7';
-            lctx.lineWidth = 2;
-            edges.forEach(e => {
-                lctx.beginPath();
-                lctx.moveTo(nodes[e[0]].x, nodes[e[0]].y);
-                lctx.lineTo(nodes[e[1]].x, nodes[e[1]].y);
-                lctx.stroke();
-            });
-            nodes.forEach((node, i) => {
-                lctx.fillStyle = '#f38ba8';
-                lctx.beginPath();
-                lctx.arc(node.x, node.y, 12 + Math.sin(t * 2 + i) * 3, 0, Math.PI * 2);
-                lctx.fill();
-                lctx.fillStyle = '#11111b';
-                lctx.font = '14px monospace';
-                lctx.fillText('Node ' + (i + 1), node.x - 28, node.y - 18);
-            });
-            lctx.fillStyle = '#a6e3a1';
-            lctx.font = '16px monospace';
-            lctx.fillText('// Connect your Logseq or MCP here', 50, 600);
-            lctx.fillStyle = '#585b70';
-            lctx.font = '13px monospace';
-            lctx.fillText('/* See updateLogseqScreen() in source */', 50, 630);
-        }
-        drawLogseqGraph();
-        const screenTex = new THREE.CanvasTexture(logseqCanvas);
-        const screenMat = new THREE.MeshStandardMaterial({ map: screenTex, emissive: 0x2266aa, emissiveIntensity: 0.3 });
-        laptopScreen = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 0.05), screenMat);
-        laptopScreen.position.set(0, 0.45, 1);
-        laptopScreen.castShadow = true;
-        laptopScreen.userData = { isLaptop: true };
-        interiorGroup.add(laptopScreen);
-        
-        const laptopBaseMat = new THREE.MeshStandardMaterial({ color: 0xccccdd, metalness: 0.7 });
-        const laptopBase = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.08, 0.8), laptopBaseMat);
-        laptopBase.position.set(0, 0.15, 1);
-        laptopBase.castShadow = true;
-        interiorGroup.add(laptopBase);
-        
-        let logseqRAF = null;
-        function startLogseqLoop() {
-            const frame = () => {
-                drawLogseqGraph();
-                screenTex.needsUpdate = true;
-                logseqRAF = requestAnimationFrame(frame);
-            };
-            frame();
-        }
-        function stopLogseqLoop() {
-            if (logseqRAF) { cancelAnimationFrame(logseqRAF); logseqRAF = null; }
-        }
-        
-        // Chair with fallback
-        function addGeomChair() {
-            const chairGroup = new THREE.Group();
-            const seatMat = new THREE.MeshStandardMaterial({ color: 0xdd8899, roughness: 0.7 });
-            const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 0.12, 12), seatMat);
-            seat.position.y = 0.06;
-            seat.castShadow = true;
-            chairGroup.add(seat);
-            const back = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.5, 12), seatMat);
-            back.position.set(0, 0.35, -0.3);
-            back.rotation.x = 0.15;
-            back.castShadow = true;
-            chairGroup.add(back);
-            const legMatChair = new THREE.MeshStandardMaterial({ color: 0x886655, metalness: 0.3 });
-            [[-0.25, -0.06, -0.25], [0.25, -0.06, -0.25], [-0.25, -0.06, 0.25], [0.25, -0.06, 0.25]].forEach(p => {
-                const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.2, 6), legMatChair);
-                leg.position.set(p[0], p[1], p[2]);
-                chairGroup.add(leg);
-            });
-            chairGroup.position.set(1.2, -0.2, 1.5);
-            interiorGroup.add(chairGroup);
-        }
-        
-        const chairLoader = new THREE.GLTFLoader();
-        chairLoader.load('https://threejs.org/examples/models/gltf/SheenChair/SheenChair.glb', (gltf) => {
-            const chair = gltf.scene;
-            chair.position.set(1.2, -0.2, 1.5);
-            chair.scale.set(0.8, 0.8, 0.8);
-            chair.traverse((node) => { if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; } });
-            interiorGroup.add(chair);
-        }, undefined, () => { addGeomChair(); });
+        const interiorLight = new THREE.PointLight(0xffaa66, 0.7, 6);
+        interiorLight.position.set(0, 1.2, 0);
+        interiorGroup.add(interiorLight);
         
         // ========== WISPS & DUST ==========
         const wispGeo = new THREE.BufferGeometry();
@@ -908,7 +783,6 @@
                 else controls.enabled = true;
             }
             requestAnimationFrame(animEnter);
-            startLogseqLoop();
             if (typeof exitBtn !== 'undefined') exitBtn.style.display = 'block';
         }
         
@@ -932,7 +806,6 @@
                 else controls.enabled = true;
             }
             requestAnimationFrame(animExit);
-            stopLogseqLoop();
             if (typeof exitBtn !== 'undefined') exitBtn.style.display = 'none';
         }
         
@@ -1169,7 +1042,12 @@
             
             // pyramid enter/exit
             if (isInside) {
-                if (mouseDownTarget === laptopScreen) {
+                let hitBook = false;
+                bookGroupInt.children.forEach(c => {
+                    if (mouseDownTarget === c) { hitBook = true; }
+                    if (c.children) c.children.forEach(cc => { if (mouseDownTarget === cc) hitBook = true; });
+                });
+                if (hitBook) {
                     alert("≡ƒôû THE CALCULATION ┬╖ Profit ┬╖ Love ┬╖ Tax\n\n\"Every move in life is a three-part equation. Whether you calculate it or not.\"");
                 } else {
                     exitPyramid();
@@ -1362,7 +1240,6 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
         
-        dbg('Render loop started, ' + scene.children.length + ' objects');
         console.log('Mystical Library: click books to read PLT content, click souls for whispers, drag objects');
     </script>
 </body>
