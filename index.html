@@ -742,9 +742,7 @@
             lctx.fillText('/* See updateLogseqScreen() in source */', 50, 630);
         }
         drawLogseqGraph();
-        const screenTex = new THREE.CanvasTexture(logseqCanvas);
-        screenTex.needsUpdate = true;
-        const screenMat = new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false, side: THREE.DoubleSide });
+        const screenMat = new THREE.MeshBasicMaterial({ color: 0xff0044, toneMapped: false, side: THREE.DoubleSide });
         laptopScreen = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 0.02), screenMat);
         laptopScreen.position.set(0, 0.55, 1.0);
         interiorGroup.add(laptopScreen);
@@ -863,8 +861,8 @@
         // ========== PYRAMID ENTER/EXIT ==========
         let isInside = false;
         const originalCameraPos = camera.position.clone();
-        const interiorCamPos = new THREE.Vector3(0, 1.2, 2.3);
-        const interiorTarget = new THREE.Vector3(0, 1, 0);
+        const interiorCamPos = new THREE.Vector3(0, 0.8, 2.3);
+        const interiorTarget = new THREE.Vector3(0, 0.6, 1.0);
         
         function enterPyramid() {
             if (isInside || readingState !== 'idle') return;
