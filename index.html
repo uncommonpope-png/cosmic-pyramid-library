@@ -103,6 +103,13 @@
     </style>
 </head>
 <body>
+    <div id="dbg" style="position:fixed;top:0;left:0;z-index:99999;color:#0f0;background:rgba(0,0,0,0.95);padding:8px;font:12px monospace;white-space:pre-wrap;max-height:150px;overflow:auto;pointer-events:none;"></div>
+    <script>
+        function dbg(m){var e=document.getElementById('dbg');if(e)e.textContent+=m+'\n';}
+        window.onerror=function(m,u,l,c,err){dbg('ERR: '+m+' '+l+':'+c);};
+        window.addEventListener('unhandledrejection',function(e){dbg('PROM: '+e.reason);});
+        dbg('Page loaded');
+    </script>
     <div id="info">≡ƒôû CLICK BOOKS TO READ ┬╖ CLICK SOULS FOR WHISPERS</div>
     <div id="controls-hint">≡ƒû▒∩╕Å Drag objects | Click books | Click souls | Scroll to zoom</div>
 
@@ -131,12 +138,19 @@
     </script>
 
     <script type="module">
+        dbg('Module started');
         import * as THREE from 'three';
+        dbg('THREE OK');
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        dbg('OrbitControls OK');
         import { DragControls } from 'three/addons/controls/DragControls.js';
+        dbg('DragControls OK');
         import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        dbg('EffectComposer OK');
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        dbg('RenderPass OK');
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        dbg('Imports done');
         
         // ========== PLT CONTENT ==========
         const pltContent = {
@@ -172,6 +186,7 @@
         camera.position.set(6, 5, 9);
         
         const renderer = new THREE.WebGLRenderer({ antialias: true });
+        dbg('Renderer: ' + (renderer ? 'OK' : 'NULL'));
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.toneMapping = THREE.ReinhardToneMapping;
@@ -179,6 +194,7 @@
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
+        dbg('Canvas appended');
         
         // ========== POSTPROCESSING ==========
         const renderScene = new RenderPass(scene, camera);
@@ -902,6 +918,7 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
         
+        dbg('Render loop started, scene has ' + scene.children.length + ' objects');
         console.log('Mystical Library: click books to read PLT content, click souls for whispers, drag objects');
     </script>
 </body>
