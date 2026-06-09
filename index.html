@@ -720,10 +720,19 @@
         }
         drawTestScreen();
         const screenTex = new THREE.CanvasTexture(logseqCanvas);
+        screenTex.needsUpdate = true;
         const screenMat = new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false, side: THREE.DoubleSide });
         laptopScreen = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 0.02), screenMat);
         laptopScreen.position.set(0, 0.55, 1.0);
         interiorGroup.add(laptopScreen);
+        
+        // Diagnostic: bright green cube right beside laptop to confirm position
+        const diagCube = new THREE.Mesh(
+            new THREE.BoxGeometry(0.15, 0.15, 0.15),
+            new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+        );
+        diagCube.position.set(0.6, 0.55, 1.0);
+        interiorGroup.add(diagCube);
         
         const laptopBaseMat = new THREE.MeshStandardMaterial({ color: 0xccccdd, metalness: 0.7 });
         const laptopBase = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.08, 0.8), laptopBaseMat);
