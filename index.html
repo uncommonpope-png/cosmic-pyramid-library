@@ -138,6 +138,9 @@
         import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+        import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';
+        import { RGBShiftShader } from 'three/addons/shaders/RGBShiftShader.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         
         // ========== PLT CONTENT ==========
@@ -310,12 +313,23 @@
         // ========== POSTPROCESSING ==========
         const renderScene = new RenderPass(scene, camera);
         const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-        bloomPass.threshold = 0.05;
+        bloomPass.threshold = 0.3;
         bloomPass.strength = 1.2;
         bloomPass.radius = 0.6;
         const effectComposer = new EffectComposer(renderer);
         effectComposer.addPass(renderScene);
         effectComposer.addPass(bloomPass);
+        
+        // ========== VIGNETTE ==========
+        const vignettePass = new ShaderPass(VignetteShader);
+        vignettePass.uniforms['offset'].value = 0.95;
+        vignettePass.uniforms['darkness'].value = 1.3;
+        effectComposer.addPass(vignettePass);
+        
+        // ========== CHROMATIC ABERRATION ==========
+        const rgbShiftPass = new ShaderPass(RGBShiftShader);
+        rgbShiftPass.uniforms['amount'].value = 0.0015;
+        effectComposer.addPass(rgbShiftPass);
         
         // ========== ORBIT CONTROLS ==========
         const controls = new OrbitControls(camera, renderer.domElement);
@@ -329,10 +343,11 @@
         controls.maxDistance = 30;
         controls.target.set(0, 1.8, 0);
         
-        // ========== NEON LIGHTING ==========
-        const ambient = new THREE.AmbientLight(0x110022, 0.15);
-        scene.add(ambient);
-        const dimFill = new THREE.DirectionalLight(0x223344, 0.15);
+        // ========== HEMISPHERE + NEON LIGHTING ==========
+        const hemiLight = new THREE.HemisphereLight(0x445577, 0x222244, 0.6);
+        hemiLight.position.set(0, 10, 0);
+        scene.add(hemiLight);
+        const dimFill = new THREE.DirectionalLight(0x445566, 0.2);
         dimFill.position.set(2, 5, 3);
         scene.add(dimFill);
         
@@ -356,15 +371,21 @@
         const starGeo = new THREE.BufferGeometry();
         const starPos = new Float32Array(starCount * 3);
         const starCols = new Float32Array(starCount * 3);
+        const starPhases = new Float32Array(starCount);
+        const starSpeeds = new Float32Array(starCount);
         for (let i = 0; i < starCount; i++) {
             starPos[i*3] = (Math.random() - 0.5) * 500;
             starPos[i*3+1] = (Math.random() - 0.5) * 250;
             starPos[i*3+2] = (Math.random() - 0.5) * 200 - 50;
             const c = new THREE.Color().setHSL(0.55 + Math.random() * 0.25, 0.6, 0.3 + Math.random() * 0.7);
             starCols[i*3] = c.r; starCols[i*3+1] = c.g; starCols[i*3+2] = c.b;
+            starPhases[i] = Math.random() * Math.PI * 2;
+            starSpeeds[i] = 0.5 + Math.random() * 2.5;
         }
         starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
         starGeo.setAttribute('color', new THREE.BufferAttribute(starCols, 3));
+        starGeo.setAttribute('phase', new THREE.BufferAttribute(starPhases, 1));
+        starGeo.setAttribute('speed', new THREE.BufferAttribute(starSpeeds, 1));
         const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 0.18, vertexColors: true, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending }));
         scene.add(stars);
         
@@ -409,6 +430,82 @@
             createSpiralGalaxy(-20, 1, -10, 0.65, 0.80, 5000, 0.35, 0.7),
         ];
         galaxies.forEach(g => scene.add(g));
+        
+        // ========== GRADIENT GROUND ==========
+        function createGroundTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024; canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+            const cx = 512, cy = 512;
+            const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 512);
+            grad.addColorStop(0, '#000000');
+            grad.addColorStop(0.3, '#0a0a14');
+            grad.addColorStop(0.6, '#151525');
+            grad.addColorStop(1, '#1a1a2e');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 1024, 1024);
+            return new THREE.CanvasTexture(canvas);
+        }
+        const groundGeo = new THREE.CircleGeometry(18, 64);
+        const groundMat = new THREE.MeshStandardMaterial({
+            map: createGroundTexture(),
+            transparent: true, opacity: 0.7,
+            side: THREE.DoubleSide,
+            roughness: 0.9, metalness: 0.0
+        });
+        const groundDisc = new THREE.Mesh(groundGeo, groundMat);
+        groundDisc.rotation.x = -Math.PI / 2;
+        groundDisc.position.y = -0.05;
+        groundDisc.receiveShadow = true;
+        scene.add(groundDisc);
+        
+        // ========== NEBULA BACKGROUND ==========
+        function createNebulaTexture(palette) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            const cx = 256, cy = 256;
+            ctx.globalCompositeOperation = 'lighter';
+            const outerGrad = ctx.createRadialGradient(cx, cy, 512*0.2, cx, cy, 512);
+            outerGrad.addColorStop(0, `rgba(${palette.outer},0.35)`);
+            outerGrad.addColorStop(0.6, `rgba(${palette.outer},0.12)`);
+            outerGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = outerGrad;
+            ctx.fillRect(0, 0, 512, 512);
+            const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 512*0.35);
+            coreGrad.addColorStop(0, `rgba(${palette.core},0.75)`);
+            coreGrad.addColorStop(0.55, `rgba(${palette.core},0.18)`);
+            coreGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = coreGrad;
+            ctx.fillRect(0, 0, 512, 512);
+            ctx.globalCompositeOperation = 'source-over';
+            return new THREE.CanvasTexture(canvas);
+        }
+        const nebulaPalettes = [
+            { core: '100,130,210', outer: '100,30,100' },
+            { core: '200,100,180', outer: '80,40,120' },
+            { core: '255,140,70',  outer: '140,50,30' },
+        ];
+        const nebulae = [];
+        nebulaPalettes.forEach((p, i) => {
+            const tex = createNebulaTexture(p);
+            const mat = new THREE.SpriteMaterial({
+                map: tex, transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false, opacity: 0.2
+            });
+            const sprite = new THREE.Sprite(mat);
+            const angle = (i / 3) * Math.PI * 2;
+            const dist = 55 + Math.random() * 25;
+            sprite.position.set(
+                Math.cos(angle) * dist,
+                (Math.random() - 0.5) * 15,
+                Math.sin(angle) * dist
+            );
+            sprite.scale.set(70, 70, 1);
+            scene.add(sprite);
+            nebulae.push({ sprite, rotSpeed: 0.0003 + Math.random() * 0.0003 });
+        });
         
         // ========== PLANETS ==========
         const planets = [];
@@ -569,15 +666,57 @@
         // ========== EGYPTIAN DOORWAY ==========
         const doorGroup = new THREE.Group();
         
-        const portalPlaneMat = new THREE.MeshStandardMaterial({
-            color: 0xffaa66,
-            emissive: 0xff4422,
-            emissiveIntensity: 1.2,
+        // Ripple shader for portal
+        const portalUniforms = {
+            uTime: { value: 0 },
+            uColor1: { value: new THREE.Color(0xff6600) },
+            uColor2: { value: new THREE.Color(0xffaa44) },
+            uCenter: { value: new THREE.Vector2(0.5, 0.5) },
+            uSpeed: { value: 1.5 },
+            uFrequency: { value: 6.0 },
+            uAmplitude: { value: 0.03 }
+        };
+        const portalMat = new THREE.ShaderMaterial({
+            uniforms: portalUniforms,
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float uTime;
+                uniform vec3 uColor1;
+                uniform vec3 uColor2;
+                uniform vec2 uCenter;
+                uniform float uSpeed;
+                uniform float uFrequency;
+                uniform float uAmplitude;
+                varying vec2 vUv;
+                void main() {
+                    vec2 uv = vUv;
+                    vec2 dir = uv - uCenter;
+                    float dist = length(dir);
+                    float ripple = sin(dist * uFrequency * 3.14159 - uTime * uSpeed);
+                    vec2 offset = normalize(dir + 0.001) * ripple * uAmplitude;
+                    uv += offset;
+                    float ring = abs(sin(dist * uFrequency * 3.14159 - uTime * uSpeed));
+                    ring = 1.0 - smoothstep(0.0, 1.0, ring);
+                    float centerGlow = exp(-dist * 4.0);
+                    float edge = 1.0 - smoothstep(0.0, 0.5, dist);
+                    vec3 color = mix(uColor1, uColor2, ring);
+                    color += uColor2 * centerGlow * 0.5;
+                    float alpha = (ring * 0.7 + centerGlow * 0.4) * edge * 0.85;
+                    gl_FragColor = vec4(color, alpha);
+                }
+            `,
             transparent: true,
-            opacity: 0.85,
-            side: THREE.DoubleSide
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide,
+            depthWrite: false
         });
-        const portalPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 2.0), portalPlaneMat);
+        const portalPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 2.0), portalMat);
         portalPlane.position.set(0, 1.2, 0);
         doorGroup.add(portalPlane);
         
@@ -968,6 +1107,35 @@
         const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffaa66, size: 0.035, transparent: true, blending: THREE.AdditiveBlending }));
         dust.position.set(0, 1.2, 0); scene.add(dust);
         
+        // ========== FALLING EMBERS ==========
+        const emberCount = 400;
+        const emberGeo = new THREE.BufferGeometry();
+        const emberPos = new Float32Array(emberCount * 3);
+        const emberData = [];
+        for (let i = 0; i < emberCount; i++) {
+            emberPos[i*3] = (Math.random() - 0.5) * 20;
+            emberPos[i*3+1] = Math.random() * 8 - 2;
+            emberPos[i*3+2] = (Math.random() - 0.5) * 20 - 2;
+            emberData.push({
+                speed: 0.3 + Math.random() * 0.8,
+                phase: Math.random() * Math.PI * 2,
+                driftX: (Math.random() - 0.5) * 0.3,
+                driftZ: (Math.random() - 0.5) * 0.3,
+                origY: emberPos[i*3+1],
+                origX: emberPos[i*3],
+                origZ: emberPos[i*3+2]
+            });
+        }
+        emberGeo.setAttribute('position', new THREE.BufferAttribute(emberPos, 3));
+        const emberMat = new THREE.PointsMaterial({
+            color: 0xff6633, size: 0.06,
+            transparent: true, opacity: 0.6,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        const embers = new THREE.Points(emberGeo, emberMat);
+        scene.add(embers);
+        
         // ========== FLOATING ORBS ==========
         const orbs = [];
         for (let i = 0; i < 16; i++) {
@@ -987,7 +1155,7 @@
         
         // ========== DRAG CONTROLS ==========
         const draggables = [...books, ...planets, ...orbs, capstone];
-        const dragControls = new DragControls(draggables, camera, renderer.domElement);
+        let dragControls = new DragControls(draggables, camera, renderer.domElement);
         dragControls.addEventListener('dragstart', () => { controls.enabled = false; });
         dragControls.addEventListener('dragend', () => { controls.enabled = true; });
         
@@ -1135,10 +1303,9 @@
             const idx = draggables.indexOf(book);
             if (idx > -1) draggables.splice(idx, 1);
             dragControls.dispose();
-            const newDrag = new DragControls(draggables, camera, renderer.domElement);
-            newDrag.addEventListener('dragstart', () => { controls.enabled = false; });
-            newDrag.addEventListener('dragend', () => { controls.enabled = true; });
-            Object.assign(dragControls, newDrag);
+            dragControls = new DragControls(draggables, camera, renderer.domElement);
+            dragControls.addEventListener('dragstart', () => { controls.enabled = false; });
+            dragControls.addEventListener('dragend', () => { controls.enabled = true; });
             
             if (openBookGroup) { scene.remove(openBookGroup); }
             openBookGroup = buildOpenBook(book.userData);
@@ -1197,6 +1364,7 @@
                         openBookGroup.rotation.y += 0.01;
                     } else {
                         scene.remove(openBookGroup);
+                        openBookGroup.traverse(c => { if (c.isMesh) { c.geometry.dispose(); if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); } } });
                         openBookGroup = null;
                     }
                 }
@@ -1457,6 +1625,28 @@
                 g.rotation.x += 0.00005 * (i % 2 === 0 ? 1 : -1);
             });
             
+            // --- rotate nebulae ---
+            nebulae.forEach(n => {
+                n.sprite.material.rotation += n.rotSpeed;
+            });
+            
+            // --- animate embers ---
+            const emberPosAttr = embers.geometry.attributes.position;
+            const epos = emberPosAttr.array;
+            for (let i = 0; i < emberCount; i++) {
+                const d = emberData[i];
+                epos[i*3+1] += Math.sin(time * d.speed + d.phase) * 0.004;
+                epos[i*3] += d.driftX * 0.002;
+                epos[i*3+2] += d.driftZ * 0.002;
+                // wrap all axes to keep embers in bounds
+                if (Math.abs(epos[i*3+1] - d.origY) > 3 || Math.abs(epos[i*3] - d.origX) > 4 || Math.abs(epos[i*3+2] - d.origZ) > 4) {
+                    epos[i*3] = d.origX + (Math.random() - 0.5) * 2;
+                    epos[i*3+1] = d.origY;
+                    epos[i*3+2] = d.origZ + (Math.random() - 0.5) * 2;
+                }
+            }
+            emberPosAttr.needsUpdate = true;
+            
             // --- floating pages ---
             pages.forEach(p => {
                 p.mesh.position.x += p.speedX;
@@ -1494,9 +1684,20 @@
                 }
             });
             
+            // --- portal ripple animation ---
+            if (portalUniforms) portalUniforms.uTime.value = time;
+            
             // --- pulse pyramid glow ---
             pyramidGlow.intensity = 0.9 + Math.sin(time * 1.8) * 0.3;
             capstone.material.emissiveIntensity = 0.5 + Math.sin(time * 2.2) * 0.2;
+            
+            // --- star twinkle (multi-frequency compound) ---
+            const tw1 = Math.sin(time * 0.8) * 0.5 + 0.5;
+            const tw2 = Math.sin(time * 1.7) * 0.3 + 0.3;
+            const tw3 = Math.sin(time * 2.3) * 0.2 + 0.2;
+            const twinkle = (tw1 + tw2 + tw3) / 3;
+            stars.material.size = 0.18 * (0.7 + twinkle * 0.3);
+            stars.material.opacity = 0.6 + twinkle * 0.25;
             
             // --- bloom pulse ---
             bloomPass.strength = 1.1 + Math.sin(time * 0.4) * 0.15;
