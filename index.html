@@ -743,7 +743,8 @@
         }
         drawLogseqGraph();
         const screenTex = new THREE.CanvasTexture(logseqCanvas);
-        const screenMat = new THREE.MeshStandardMaterial({ map: screenTex, emissive: 0x2266aa, emissiveIntensity: 0.3 });
+        screenTex.needsUpdate = true;
+        const screenMat = new THREE.MeshBasicMaterial({ map: screenTex });
         laptopScreen = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 0.05), screenMat);
         laptopScreen.position.set(0, 0.45, 1);
         laptopScreen.castShadow = true;
