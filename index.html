@@ -126,9 +126,11 @@
         document.getElementById('debug').textContent = 'HTML loaded — ' + navigator.userAgent;
         setTimeout(() => {
             const d = document.getElementById('debug');
-            if (!window.__moduleRan) d.textContent += ' | MODULE FAILED TO LOAD';
-        }, 5000);
+            if (window.__moduleNoImportRan && !window.__moduleRan) d.textContent += ' | Module(no-import) worked! Import module FAILED';
+            else if (!window.__moduleNoImportRan) d.textContent += ' | Module(no-import) also FAILED';
+        }, 8000);
     </script>
+    <script type="module">window.__moduleNoImportRan = true; document.getElementById('debug').textContent += ' | NoImport OK';</script>
     <script type="module">
         import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js';
         import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/controls/OrbitControls.js';
