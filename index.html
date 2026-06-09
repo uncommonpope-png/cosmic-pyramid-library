@@ -131,7 +131,13 @@
     </script>
 
     <div id="debug" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:#0f0;background:#000;padding:20px;z-index:9999;font-size:18px;font-family:monospace;">Loading...</div>
-    <script>document.getElementById('debug').textContent = 'HTML loaded — ' + navigator.userAgent;</script>
+    <script>
+        document.getElementById('debug').textContent = 'HTML loaded — ' + navigator.userAgent;
+        setTimeout(() => {
+            const d = document.getElementById('debug');
+            if (!window.__moduleRan) d.textContent += ' | MODULE FAILED TO LOAD';
+        }, 5000);
+    </script>
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -140,6 +146,9 @@
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        window.__moduleRan = true;
+        const dbg = document.getElementById('debug');
+        dbg.textContent += ' | Module OK';
         
         // ========== PLT CONTENT ==========
         const pltBooks = {
@@ -1330,7 +1339,13 @@
             controls.update();
             effectComposer.render();
         }
-        animate();
+        dbg.textContent += ' | Render loop starting';
+        try {
+            animate();
+            dbg.textContent += ' | Render loop OK';
+        } catch(e) {
+            dbg.textContent += ' | ERROR: ' + e.message;
+        }
         
         // ========== RESIZE ==========
         window.addEventListener('resize', () => {
