@@ -138,6 +138,7 @@
         import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         
         // ========== PLT CONTENT ==========
         const pltBooks = {
@@ -617,6 +618,39 @@
         doorGroup.position.set(0, 0, 1.45);
         scene.add(doorGroup);
         
+        // ========== NPC AVATAR ==========
+        let avatar = null;
+        const avatarLoader = new GLTFLoader();
+        avatarLoader.load(
+            'https://models.readyplayer.me/65893b0514f9f5f28e61d783.glb',
+            (gltf) => {
+                avatar = gltf.scene;
+                avatar.scale.set(0.9, 0.9, 0.9);
+                avatar.position.set(-1.8, 0, 2.8);
+                avatar.rotation.y = 0.6;
+                avatar.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                scene.add(avatar);
+            },
+            undefined,
+            () => {
+                const group = new THREE.Group();
+                const bodyMat = new THREE.MeshStandardMaterial({ color: 0xccaa88, metalness: 0.3, roughness: 0.6, emissive: 0x442200, emissiveIntensity: 0.2 });
+                const headMat = new THREE.MeshStandardMaterial({ color: 0xddbb99, roughness: 0.4 });
+                const robeMat = new THREE.MeshStandardMaterial({ color: 0x332244, emissive: 0x221133, emissiveIntensity: 0.1, transparent: true, opacity: 0.85 });
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 1.0, 8), bodyMat);
+                body.position.y = 0.9; group.add(body);
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 12), headMat);
+                head.position.y = 1.6; group.add(head);
+                const robe = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 1.2, 12), robeMat);
+                robe.position.y = 0.5; group.add(robe);
+                group.position.set(-1.8, 0, 2.8);
+                group.rotation.y = 0.6;
+                group.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                avatar = group;
+                scene.add(avatar);
+            }
+        );
+        
         // ========== NEON SOULS ==========
         const soulCount = 40;
         const souls = [];
@@ -1009,6 +1043,7 @@
         function getClickTargets() {
             const targets = [...books, ...souls.map(s => s.obj.children[0])];
             if (!isInside) targets.push(portalPlane);
+            if (avatar && !isInside) targets.push(avatar);
             return targets;
         }
         
@@ -1074,6 +1109,18 @@
                     break;
                 }
             }
+            
+            // check avatar
+            if (avatar) {
+                let isAvatarHit = mouseDownTarget === avatar;
+                if (!isAvatarHit) {
+                    avatar.traverse(c => { if (c === mouseDownTarget) isAvatarHit = true; });
+                }
+                if (isAvatarHit) {
+                    const quote = pltQuotes[Math.floor(Math.random() * pltQuotes.length)];
+                    spawnWhisper(avatar.position, quote);
+                }
+            }
         });
         
         // cursor hover
@@ -1084,7 +1131,9 @@
             raycaster.setFromCamera(pointer, camera);
             const bookHits = raycaster.intersectObjects(books, false);
             const soulHits = raycaster.intersectObjects(souls.map(s => s.obj.children[0]), false);
-            const cursor = bookHits.length > 0 ? 'pointer' : soulHits.length > 0 ? 'grab' : 'default';
+            let avatarHits = { length: 0 };
+            if (avatar) avatarHits = raycaster.intersectObject(avatar, true);
+            const cursor = bookHits.length > 0 ? 'pointer' : (soulHits.length > 0 || avatarHits.length > 0) ? 'grab' : 'default';
             renderer.domElement.style.cursor = cursor;
             
             // update mouse world position for soul proximity
@@ -1160,6 +1209,13 @@
                 s.obj.children[0].scale.set(sc, sc, sc);
             });
             
+            // --- avatar bob ---
+            if (avatar) {
+                const bobY = Math.sin(time * 1.2) * 0.04;
+                avatar.position.y = bobY;
+                avatar.rotation.y += 0.002;
+            }
+            
             // --- rotate stars, wisps, dust ---
             stars.rotation.y += 0.0003;
             stars.rotation.x += 0.0002;
@@ -1225,7 +1281,7 @@
             
             hintEl.textContent = isInside
                 ? '≡ƒôû Click the book | Click wall or press ESC to exit'
-                : '≡ƒû▒∩╕Å Drag objects | Click books | Click souls | Click pyramid door to enter';
+                : '≡ƒû▒∩╕Å Drag objects | Click books | Click souls | Click the guardian | Click pyramid door to enter';
             
             controls.update();
             effectComposer.render();
