@@ -49,6 +49,13 @@
     </style>
 </head>
 <body>
+    <div id="dbg" style="position:fixed;top:0;left:0;z-index:99999;color:#0f0;background:rgba(0,0,0,0.95);padding:8px;font:12px monospace;white-space:pre-wrap;max-height:150px;overflow:auto;pointer-events:none;"></div>
+    <script>
+        function dbg(m){var e=document.getElementById('dbg');if(e)e.textContent+=m+'\n';}
+        window.onerror=function(m,u,l,c,err){dbg('ERR: '+m+' '+l+':'+c);};
+        window.addEventListener('unhandledrejection',function(e){dbg('PROM: '+e.reason);});
+        dbg('Page loaded');
+    </script>
     <div id="info">🌌 NEON PYRAMID · DRAG ANYTHING · CLICK BOOKS 🌌</div>
     <div id="controls-hint">🖱️ Drag objects | Click books for lore | Scroll to zoom</div>
 
@@ -69,14 +76,22 @@
     </script>
 
     <script type="module">
+        dbg('Module started');
         import * as THREE from 'three';
+        dbg('THREE OK');
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        dbg('OrbitControls OK');
         import { DragControls } from 'three/addons/controls/DragControls.js';
+        dbg('DragControls OK');
         import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        dbg('EffectComposer OK');
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        dbg('RenderPass OK');
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        dbg('Imports done');
         
         // --- scene ---
+        dbg('Setting up scene...');
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x010008);
         scene.fog = new THREE.FogExp2(0x010008, 0.006);
@@ -86,6 +101,7 @@
         camera.lookAt(0, 1.5, 0);
         
         const renderer = new THREE.WebGLRenderer({ antialias: true });
+        dbg('Renderer: ' + (renderer ? 'OK' : 'NULL'));
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.toneMapping = THREE.ReinhardToneMapping;
@@ -93,14 +109,17 @@
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
+        dbg('Canvas appended');
         
         // --- postprocessing ---
+        dbg('Creating composer...');
         const renderScene = new RenderPass(scene, camera);
         const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
         bloomPass.threshold = 0.05;
         bloomPass.strength = 1.2;
         bloomPass.radius = 0.6;
         const effectComposer = new EffectComposer(renderer);
+        dbg('Composer OK');
         effectComposer.addPass(renderScene);
         effectComposer.addPass(bloomPass);
         
@@ -518,10 +537,15 @@
             renderer.domElement.style.cursor = hits.length > 0 ? 'pointer' : 'default';
         });
         
+        dbg('Scene built, objects: ' + scene.children.length);
+        
         // --- animation ---
         let time = 0, lastTime = 0;
+        let fc = 0;
         
         function animate() {
+            fc++;
+            if (fc <= 3) dbg('Frame ' + fc);
             requestAnimationFrame(animate);
             const dt = Math.min(0.033, (performance.now() - lastTime) / 1000);
             lastTime = performance.now();
@@ -597,6 +621,7 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
         
+        dbg('Render loop started');
         console.log('Neon Pyramid: drag books/planets/orbs, click books for lore, 12 planets, 40 neon souls');
     </script>
 </body>
