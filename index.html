@@ -618,7 +618,110 @@
         doorGroup.position.set(0, 0, 1.45);
         scene.add(doorGroup);
         
-        // ========== NPC AVATAR ==========
+        // ========== GUARDIAN CHARACTER ==========
+        function createGuardian() {
+            const g = new THREE.Group();
+            
+            function faceTex() {
+                const c = document.createElement('canvas');
+                c.width=256; c.height=256; const x=c.getContext('2d');
+                x.fillStyle='#d4a574'; x.fillRect(0,0,256,256);
+                // eyes
+                x.fillStyle='#e8ddd0'; x.beginPath(); x.ellipse(95,108,14,10,0,0,Math.PI*2); x.fill();
+                x.beginPath(); x.ellipse(161,108,14,10,0,0,Math.PI*2); x.fill();
+                x.fillStyle='#5a3a1a'; x.beginPath(); x.arc(95,108,5,0,Math.PI*2); x.fill();
+                x.beginPath(); x.arc(161,108,5,0,Math.PI*2); x.fill();
+                x.fillStyle='#221100'; x.beginPath(); x.arc(95,108,3,0,Math.PI*2); x.fill();
+                x.beginPath(); x.arc(161,108,3,0,Math.PI*2); x.fill();
+                x.fillStyle='rgba(255,255,255,0.6)'; x.beginPath(); x.arc(92,106,2,0,Math.PI*2); x.fill();
+                x.beginPath(); x.arc(158,106,2,0,Math.PI*2); x.fill();
+                // brows
+                x.strokeStyle='#4a3020'; x.lineWidth=3;
+                x.beginPath(); x.moveTo(78,92); x.lineTo(112,95); x.stroke();
+                x.beginPath(); x.moveTo(144,95); x.lineTo(178,92); x.stroke();
+                // nose
+                x.fillStyle='#bb8a5a'; x.beginPath(); x.ellipse(128,135,5,9,0,0,Math.PI*2); x.fill();
+                x.fillStyle='#a07850'; x.beginPath(); x.ellipse(128,143,5,4,0,0,Math.PI*2); x.fill();
+                // mouth
+                x.strokeStyle='#8a4a3a'; x.lineWidth=2;
+                x.beginPath(); x.arc(128,160,16,0.15,Math.PI-0.15); x.stroke();
+                // cheeks
+                x.fillStyle='rgba(180,100,80,0.12)'; x.beginPath(); x.ellipse(75,140,20,15,0,0,Math.PI*2); x.fill();
+                x.beginPath(); x.ellipse(181,140,20,15,0,0,Math.PI*2); x.fill();
+                return new THREE.CanvasTexture(c);
+            }
+            function robeTex() {
+                const c = document.createElement('canvas');
+                c.width=128; c.height=256; const x=c.getContext('2d');
+                x.fillStyle='#1a1035'; x.fillRect(0,0,128,256);
+                x.fillStyle='#c8943a'; x.fillRect(0,0,4,256); x.fillRect(124,0,4,256);
+                for(let y=0;y<256;y+=48){ x.fillStyle='#c8943a'; x.fillRect(10,y,108,2); }
+                x.font='20px serif'; x.textAlign='center'; x.fillStyle='rgba(200,148,58,0.2)';
+                x.fillText('\u25C8',64,60); x.fillText('\u25C8',64,160); x.fillText('\u25C8',64,240);
+                return new THREE.CanvasTexture(c);
+            }
+            
+            const skin = new THREE.MeshStandardMaterial({ map:faceTex(), roughness:0.5, metalness:0.0 });
+            const robe = new THREE.MeshStandardMaterial({ map:robeTex(), roughness:0.85, metalness:0.05 });
+            const gold = new THREE.MeshStandardMaterial({ color:0xc8943a, metalness:0.9, roughness:0.2 });
+            const armMat = new THREE.MeshStandardMaterial({ map:faceTex(), roughness:0.6 });
+            const hairMat = new THREE.MeshStandardMaterial({ color:0x1a0a00, roughness:0.9 });
+            const bookMat = new THREE.MeshStandardMaterial({ color:0x5a3a1a, roughness:0.9 });
+            const pageMat = new THREE.MeshStandardMaterial({ color:0xeeddcc, roughness:0.9 });
+            const innerMat = new THREE.MeshStandardMaterial({ color:0x2a1a3a, roughness:0.8, transparent:true, opacity:0.7 });
+            
+            // Head
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.28,24,24), skin);
+            head.position.y=1.7; head.castShadow=true; g.add(head);
+            // Hair
+            const hair = new THREE.Mesh(new THREE.SphereGeometry(0.31,16,16,0,Math.PI*2,0,Math.PI*0.5), hairMat);
+            hair.position.set(0,1.75,0.01); hair.scale.set(1,0.35,1); hair.castShadow=true; g.add(hair);
+            // Neck
+            const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.14,0.15,8), skin);
+            neck.position.y=1.55; g.add(neck);
+            // Torso
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.5,0.75,12), robe);
+            torso.position.y=1.1; torso.castShadow=true; g.add(torso);
+            // Inner robe
+            const inner = new THREE.Mesh(new THREE.CylinderGeometry(0.33,0.48,0.70,12), innerMat);
+            inner.position.y=1.1; g.add(inner);
+            // Collar
+            const collar = new THREE.Mesh(new THREE.TorusGeometry(0.22,0.06,8,20), gold);
+            collar.position.y=1.45; collar.rotation.x=Math.PI*0.15; g.add(collar);
+            
+            // Arms
+            const lU = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.09,0.3,8), robe);
+            lU.position.set(-0.38,1.3,0); lU.rotation.z=0.3; lU.castShadow=true; g.add(lU);
+            const lL = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.07,0.25,8), robe);
+            lL.position.set(-0.52,1.0,0); lL.rotation.z=0.1; lL.castShadow=true; g.add(lL);
+            const rU = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.09,0.3,8), robe);
+            rU.position.set(0.38,1.3,0); rU.rotation.z=-0.3; rU.castShadow=true; g.add(rU);
+            const rL = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.07,0.25,8), robe);
+            rL.position.set(0.52,1.0,0); rL.rotation.z=-0.1; rL.castShadow=true; g.add(rL);
+            // Hands
+            const handL = new THREE.Mesh(new THREE.SphereGeometry(0.065,8,8), skin);
+            handL.position.set(-0.56,0.82,0); g.add(handL);
+            const handR = new THREE.Mesh(new THREE.SphereGeometry(0.065,8,8), skin);
+            handR.position.set(0.56,0.82,0); g.add(handR);
+            // Book at chest
+            const book = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.04,0.15), bookMat);
+            book.position.set(0.02,1.35,0.30); g.add(book);
+            const pages = new THREE.Mesh(new THREE.BoxGeometry(0.17,0.03,0.12), pageMat);
+            pages.position.set(0.02,1.36,0.30); g.add(pages);
+            // Glow ring
+            const glow = new THREE.Mesh(new THREE.RingGeometry(0.25,0.35,32),
+                new THREE.MeshBasicMaterial({ color:0xff8844, transparent:true, opacity:0.25, side:THREE.DoubleSide, depthWrite:false }));
+            glow.position.y=2.0; glow.rotation.x=Math.PI*0.6; g.add(glow);
+            const glow2 = new THREE.Mesh(new THREE.RingGeometry(0.28,0.38,32),
+                new THREE.MeshBasicMaterial({ color:0xffaa44, transparent:true, opacity:0.15, side:THREE.DoubleSide, depthWrite:false }));
+            glow2.position.y=1.95; glow2.rotation.x=Math.PI*0.4; glow2.rotation.z=0.3; g.add(glow2);
+            
+            g.position.set(-1.8,0,2.8); g.rotation.y=0.6;
+            g.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; }});
+            return g;
+        }
+        
+        // ========== LOAD AVATAR ==========
         let avatar = null;
         const avatarLoader = new GLTFLoader();
         avatarLoader.load(
@@ -632,23 +735,7 @@
                 scene.add(avatar);
             },
             undefined,
-            () => {
-                const group = new THREE.Group();
-                const bodyMat = new THREE.MeshStandardMaterial({ color: 0xccaa88, metalness: 0.3, roughness: 0.6, emissive: 0x442200, emissiveIntensity: 0.2 });
-                const headMat = new THREE.MeshStandardMaterial({ color: 0xddbb99, roughness: 0.4 });
-                const robeMat = new THREE.MeshStandardMaterial({ color: 0x332244, emissive: 0x221133, emissiveIntensity: 0.1, transparent: true, opacity: 0.85 });
-                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 1.0, 8), bodyMat);
-                body.position.y = 0.9; group.add(body);
-                const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 12), headMat);
-                head.position.y = 1.6; group.add(head);
-                const robe = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 1.2, 12), robeMat);
-                robe.position.y = 0.5; group.add(robe);
-                group.position.set(-1.8, 0, 2.8);
-                group.rotation.y = 0.6;
-                group.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-                avatar = group;
-                scene.add(avatar);
-            }
+            () => { avatar = createGuardian(); scene.add(avatar); }
         );
         
         // ========== NEON SOULS ==========
@@ -1214,6 +1301,14 @@
                 const bobY = Math.sin(time * 1.2) * 0.04;
                 avatar.position.y = bobY;
                 avatar.rotation.y += 0.002;
+                // glow ring spin
+                avatar.children.forEach(c => {
+                    if (c.isMesh && c.geometry && c.geometry.type === 'RingGeometry') {
+                        c.rotation.z += 0.01;
+                        c.rotation.x += 0.003;
+                        c.material.opacity = 0.15 + Math.sin(time * 1.5 + c.position.x) * 0.1;
+                    }
+                });
             }
             
             // --- rotate stars, wisps, dust ---
