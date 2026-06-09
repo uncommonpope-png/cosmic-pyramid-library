@@ -3,1155 +3,418 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Mystical Library · Book Retrieval · Soul Whispers</title>
+    <title>🌀 Cosmic Pyramid Library – Phase 4 | E‑commerce & My Books</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { overflow: hidden; font-family: 'Georgia', 'Times New Roman', serif; background: #010008; }
-        #info {
-            position: absolute; top: 20px; left: 20px;
-            background: rgba(0,0,0,0.7); color: #ffdd99;
-            padding: 10px 18px; border-radius: 30px;
-            font-size: 14px; backdrop-filter: blur(8px);
-            pointer-events: none; z-index: 10;
-            letter-spacing: 1px; font-family: monospace;
+        body { margin:0; overflow:hidden; font-family:'Cinema', 'Orbitron', 'Courier New', monospace; }
+        canvas { display:block; width:100%; height:100%; }
+        /* UI Overlay */
+        .ui {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: none;
         }
-        #controls-hint {
-            position: absolute; bottom: 20px; left: 20px;
-            background: rgba(0,0,0,0.6); color: #ccc;
-            padding: 6px 12px; border-radius: 20px;
-            font-size: 12px; font-family: monospace;
-            pointer-events: none; z-index: 10;
-        }
-        /* --- reading overlay --- */
-        #reading-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            display: none; z-index: 50; pointer-events: none;
-        }
-        #reading-overlay.active { display: block; }
-        #reading-bg {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
-        }
-        #reading-card {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-            background: rgba(15,8,25,0.95); border: 1px solid #ffaa66;
-            border-radius: 20px; padding: 36px 44px;
-            max-width: 520px; width: 90%; max-height: 80vh; overflow-y: auto;
-            box-shadow: 0 0 80px rgba(255,100,50,0.25);
+        .chat-panel, .cart-panel, .mybooks-panel {
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            border: 1px solid #ffaa66;
+            width: 280px;
             pointer-events: auto;
+            padding: 12px;
+            color: #ffdd99;
+            font-size: 12px;
+            font-family: monospace;
         }
-        #reading-card::-webkit-scrollbar { width: 4px; }
-        #reading-card::-webkit-scrollbar-thumb { background: #ff8844; border-radius: 4px; }
-        #reading-card h1 {
-            color: #ffcc77; font-size: 26px; margin-bottom: 4px;
-            letter-spacing: 1px;
+        .cart-panel { position: absolute; top: 80px; right: 20px; bottom: auto; left: auto; width: 260px; }
+        .mybooks-panel { position: absolute; top: 80px; left: 20px; width: 260px; }
+        .chat-log { height: 150px; overflow-y: auto; margin-bottom: 8px; border-bottom: 1px solid #ffaa66; }
+        .chat-input-area { display: flex; gap: 6px; }
+        input, button {
+            background: #2a2a3a;
+            border: 1px solid #ffaa66;
+            color: #ffaa66;
+            border-radius: 20px;
+            padding: 6px 10px;
+            font-family: monospace;
         }
-        #reading-card .author {
-            color: #bbaadd; font-size: 14px; margin-bottom: 16px;
-            font-style: italic;
-        }
-        #reading-card .chapter {
-            margin: 14px 0; padding: 14px 18px;
-            background: rgba(255,200,100,0.06); border-radius: 12px;
-            border-left: 3px solid #ff8844;
-        }
-        #reading-card .chapter .icon {
-            font-size: 20px; margin-right: 10px;
-        }
-        #reading-card .chapter .name {
-            color: #ffcc77; font-size: 18px; font-weight: bold;
-        }
-        #reading-card .chapter .desc {
-            color: #ccbbdd; font-size: 14px; margin-top: 6px;
-            line-height: 1.5;
-        }
-        #reading-card .summary {
-            color: #aa99bb; font-size: 13px; font-style: italic;
-            margin: 14px 0; padding-top: 12px;
-            border-top: 1px solid rgba(255,200,100,0.15);
-        }
-        #reading-card .close-book {
-            display: block; margin: 18px auto 0;
-            background: #ff8844; border: none; color: #110011;
-            padding: 10px 32px; border-radius: 30px;
-            font-weight: bold; cursor: pointer; font-size: 15px;
-            letter-spacing: 1px; transition: all 0.2s;
-        }
-        #reading-card .close-book:hover { background: #ffaa66; transform: scale(1.03); }
-        /* --- soul whisper floating text --- */
-        .whisper {
-            position: absolute; pointer-events: none; z-index: 20;
-            color: #ffccaa; font-size: 16px; font-style: italic;
-            text-shadow: 0 0 20px rgba(255,100,50,0.6), 0 0 40px rgba(255,50,100,0.3);
-            opacity: 0; transition: none;
-            font-family: 'Georgia', serif; white-space: nowrap;
-        }
-        .whisper.fade-in { animation: whisperRise 3.5s ease-out forwards; }
-        @keyframes whisperRise {
-            0%   { opacity: 0; transform: translateY(0) scale(0.8); }
-            15%  { opacity: 1; transform: translateY(-10px) scale(1); }
-            70%  { opacity: 0.9; transform: translateY(-40px) scale(1); }
-            100% { opacity: 0; transform: translateY(-70px) scale(0.9); }
-        }
-        @media (max-width: 600px) {
-            #info { font-size: 10px; top: 10px; left: 10px; }
-            #controls-hint { font-size: 9px; }
-            #reading-card { padding: 24px 20px; max-width: 95%; }
-            #reading-card h1 { font-size: 20px; }
-            .whisper { font-size: 13px; }
+        button { cursor: pointer; background: #ffaa66; color: #000; font-weight: bold; }
+        .book-item { padding: 5px; margin: 5px 0; background: rgba(0,0,0,0.5); border-radius: 12px; cursor: pointer; }
+        .librarian-avatar { position: absolute; bottom: 20px; right: 20px; width: 80px; height: 80px; background: rgba(0,0,0,0.6); border-radius: 50%; border: 2px solid #ffaa66; display: flex; align-items: center; justify-content: center; font-size: 40px; pointer-events: none; z-index: 20; }
+        .flying-book-ui { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); border-radius: 40px; padding: 8px 20px; color: #ffaa66; display: none; z-index: 30; white-space: nowrap; }
+        .page-flip { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 320px; max-height: 80vh; background: rgba(0,0,0,0.95); border-radius: 20px; border: 1px solid #ffaa66; display: none; z-index: 100; flex-direction: column; padding: 20px; color: #ffdd99; overflow-y: auto; }
+        @media (max-width: 768px) {
+            .chat-panel, .cart-panel, .mybooks-panel { width: 240px; font-size: 10px; }
+            .librarian-avatar { width: 60px; height: 60px; font-size: 30px; }
         }
     </style>
 </head>
 <body>
-    <div id="info">📖 CLICK BOOKS TO READ · CLICK SOULS FOR WHISPERS</div>
-    <div id="controls-hint">🖱️ Drag objects | Click books | Click souls | Scroll to zoom</div>
 
-    <!-- Reading overlay -->
-    <div id="reading-overlay">
-        <div id="reading-bg"></div>
-        <div id="reading-card">
-            <h1 id="read-title">The Calculation</h1>
-            <p class="author" id="read-author">— PLT Framework —</p>
-            <div id="read-chapters"></div>
-            <p class="summary" id="read-summary"></p>
-            <button class="close-book" id="close-book-btn">RETURN BOOK</button>
+    <!-- UI Panels -->
+    <div class="ui">
+        <div class="chat-panel">
+            <div class="chat-log" id="chatLog"><div>📚 Librarian: Welcome, seeker. Browse the stars or your collection.</div></div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" placeholder="Ask the librarian...">
+                <button id="sendChat">Send</button>
+                <button id="voiceBtn">🎤</button>
+            </div>
+        </div>
+        <div class="mybooks-panel" id="myBooksPanel">
+            <strong>📖 My Books</strong>
+            <div id="myBooksList">(Login to see your collection)</div>
+            <button id="loginBtn" style="margin-top:8px;">🔐 Login / Signup</button>
+        </div>
+        <div class="cart-panel" id="cartPanel">
+            <strong>🛒 Cart</strong>
+            <div id="cartItems">Empty</div>
+            <button id="checkoutBtn" style="margin-top:8px;">💳 Checkout</button>
         </div>
     </div>
+    <div class="librarian-avatar">🧙</div>
+    <div class="flying-book-ui" id="flyingBookUI">✨ Flying through the galaxy... ✨</div>
+    <div id="pageFlipModal" class="page-flip">
+        <div id="bookTitle" style="font-size: 20px; margin-bottom: 10px;"></div>
+        <div id="bookContent" style="flex:1; overflow-y:auto; margin:10px 0;"></div>
+        <button id="closePageFlip">Close</button>
+        <button id="buyNowBtn" style="margin-top:10px;">📦 Add to Cart & Fly</button>
+    </div>
 
-    <!-- Soul whisper container -->
-    <div id="whisper-container"></div>
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.128.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/" } }
+    </script>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/MaskPass.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/DragControls.js"></script>
-    <script>
-        // ========== PLT CONTENT ==========
-        const pltBooks = {
-            "The Calculation": {
-                author: "Craig Jones / Little Bunny",
-                chapters: [
-                    { icon: "◆", name: "The Hidden Equation", desc: "Every decision is a three-part equation. Most people solve for one variable. Profit, Love, Tax — the calculation was always running. Now you see it." },
-                    { icon: "♥", name: "The Price of Free", desc: "Nothing without a cost is free. It is deferred Tax. Free is the most expensive word in the decision vocabulary. What you don't pay now, you fund later." },
-                    { icon: "▲", name: "Reality Cheat Codes", desc: "If it feels free, you missed the Tax. One-variable thinking in a three-variable world always loses. Short-term Profit on a long-term decision is not math — it is hope." },
-                    { icon: "◆", name: "The Profit Trap", desc: "Profit is the most seductive variable because it is the most visible. But Profit without Love and Tax analysis is incomplete data. Decisions made on incomplete data compound in the wrong direction." },
-                    { icon: "♥", name: "The Love Variable", desc: "Love in a career decision is not sentiment. It is structural. Does this move build the identity you are constructing? Does it generate trust and loyalty that compounds?" },
-                ],
-                summary: "The hidden equation behind every decision. Profit, Love, Tax — three variables that govern every choice. Read this book first."
-            },
-            "The First Calculation": {
-                author: "Craig Jones & Lakeema Jones",
-                chapters: [
-                    { icon: "◆", name: "12 Mistakes", desc: "12 Mistakes You Are Making Right Now — and the Equation That Fixes All of Them. The origin story of the PLT framework, revealed in conversation." },
-                    { icon: "♥", name: "The Equation", desc: "Profit plus Love minus Tax equals True Value. The simplest denomination for every choice. Before there was a framework, there was watching." },
-                    { icon: "▲", name: "Where It Started", desc: "Craig Jones and Lakeema Jones in conversation — the first articulation of the PLT framework before it had a name. This is where the equation came from." },
-                ],
-                summary: "Book I of the PLT Doctrine Series. The origin. Read it first for the origin story. Read it again after everything else to understand what it was building toward."
-            },
-            "Know What You Are": {
-                author: "Little Bunny / Craig Jones",
-                chapters: [
-                    { icon: "✦", name: "The Architect", desc: "The one who sees the full structure before the first brick is laid. Frequency signature, not personality type. The thing you produce when you are fully being what you are." },
-                    { icon: "♥", name: "The Translator", desc: "The one who moves between worlds. Who takes the language of one domain and makes it legible in another. The bridge between the hood and the boardroom." },
-                    { icon: "▲", name: "The Room", desc: "The one who holds space. Not by doing — by being. The presence that changes the energy of every conversation without saying a word." },
-                    { icon: "✦", name: "The Frequency Carrier", desc: "The one whose production persists beyond the moment. Whatever they build carries a frequency others can feel before any words are exchanged." },
-                ],
-                summary: "Book III — The 22 Archetypes of the PLT framework. Not personality types. Frequency signatures. The book that tells you what you are before you decide what to build."
-            },
-            "Profit. Love. Tax.": {
-                author: "Craig Jones / Little Bunny",
-                chapters: [
-                    { icon: "◆", name: "Profit Defined", desc: "What you gain. In every form. Not just currency — time, energy, meaning, leverage, position, control of the frame. Every line moves three scores simultaneously." },
-                    { icon: "♥", name: "Love Defined", desc: "The relationship account. Trust, credibility, loyalty. Takes months to build and seconds to burn. The reason clients take your call on Sunday and accept your advice on Thursday." },
-                    { icon: "▲", name: "Tax Defined", desc: "What the conversation costs. Not in dollars — in risk, obligation, and exposure. The debt created by what was said, coming due whether you intended it or not." },
-                    { icon: "◆", name: "The Complete Doctrine", desc: "The equation, the 22 Archetypes, the Master Builder architecture, the ecosystem thinking, the legacy design. The reference book for the entire framework." },
-                ],
-                summary: "Book IV — The Complete Doctrine. The three forces running in every conversation, every relationship, every exchange where something real is at stake."
-            },
-            "The Soul Economy": {
-                author: "Craig Jones / Little Bunny",
-                chapters: [
-                    { icon: "∞", name: "What the Soul Economy Is", desc: "The layer beneath the PLT equation. Every transaction has a visible ledger. The Soul Economy is the one beneath it. What enters the ledger is kept." },
-                    { icon: "♥", name: "The Two Ledgers", desc: "The visible ledger records every transaction. The Soul Economy records only the ones that are real. Real does not mean large. It means authentic." },
-                    { icon: "▲", name: "Soul Codes", desc: "Thirty codes describing how the hidden ledger works. Not suggestions — structural facts. The system runs whether you know it or not. Knowing changes what you can do inside it." },
-                    { icon: "∞", name: "The Collector", desc: "What gets collected when you produce genuinely. What the notes are for. Why the frequency doesn't stop. The doctrine that names what the fiction has been showing." },
-                ],
-                summary: "Book V — The Mirror Market. The hidden layer beneath the visible ledger. Soul Notes, the Collector, the Frequency, the Broadcast, the Design."
-            },
-            "The PLT Daily": {
-                author: "Craig Jones / Little Bunny",
-                chapters: [
-                    { icon: "○", name: "The Foundation (Weeks 1-13)", desc: "Run the Equation. Name the Tax. The Love Variable. Asymmetric Moves. Time Is Non-Renewable. The core PLT variables and how they interact." },
-                    { icon: "♥", name: "The Domains (Weeks 14-39)", desc: "PLT applied across career, money, love, health, and identity. Each domain has a specific PLT signature — a pattern of calculation errors that appears consistently." },
-                    { icon: "▲", name: "The Master Build (Weeks 40-52)", desc: "The Master Builder's Practice, the Ecosystem Build, the Integrity Test, the Scarcity Inversion. The advanced application for the seasoned practitioner." },
-                    { icon: "○", name: "The Weekly Structure", desc: "Every week has one principle, applied to one domain, with one specific build. Principle, Application, Mirror, Build, Truth. Nothing more is required." },
-                ],
-                summary: "Book VI — The 52-Week Practitioner's Operating System. By Week 52, the equation is not something you apply. It is something you see. That seeing is permanent."
-            },
-            "Evol's Love Story": {
-                author: "Craig Jones",
-                chapters: [
-                    { icon: "♥", name: "Albany Ave", desc: "The block where everything in the series is rooted. Craig Jones — not the author, the character. The block that has been holding frequency for thirty years." },
-                    { icon: "◆", name: "The Djinn", desc: "Evol, the djinn who has been auditing Albany Ave since before Craig was on it. The love story that is not only a love story." },
-                    { icon: "▲", name: "The Soul Economy Beneath", desc: "The hidden layer running underneath a man's life without him knowing it is there. The first fiction in the series and the deepest entry point into the Albany Ave universe." },
-                ],
-                summary: "Book VII — A Long Island Novel. The love story and the hidden layer running underneath it. The Albany Ave universe begins here."
-            },
-            "Brasi: The Love of the Game": {
-                author: "Little Bunny / Craig Jones",
-                chapters: [
-                    { icon: "♦", name: "The Code Switch", desc: "Brasi moves between the hood and the boardroom because he is genuinely both. The thirty seconds in the car before entering any room. The preparation ritual." },
-                    { icon: "♥", name: "The Sessions", desc: "Six clients across six sessions — each one a full PLT arc. The gold vial. A man who can read the room before anyone speaks." },
-                    { icon: "▲", name: "The Collection Architecture", desc: "The djinn family that has been collecting what Brasi builds. Introducing Nreal and the architecture of the Soul Economy operating in plain sight." },
-                ],
-                summary: "Book VIII — The Sessions. Brasi, the gold vial, and the djinn family. Six sessions that show the framework alive in real rooms."
-            },
-            "Pope: What He Saw": {
-                author: "Craig Jones",
-                chapters: [
-                    { icon: "◈", name: "The Stoop", desc: "Pope on the stoop. The observer who sees everything while appearing to do nothing. The anchor of Albany Ave and the frequency it holds." },
-                    { icon: "♥", name: "The Build", desc: "What was constructed on Albany Ave. Stiforp. The hidden layer operating in the background of every session and every genuine thing said." },
-                    { icon: "▲", name: "The Gathering", desc: "The characters who orbit Pope. Each one carrying a piece of the larger architecture, whether they know it or not. The fiction shows what the doctrine feels like." },
-                ],
-                summary: "Book IX — Pope, the observer on the stoop. The fiction lane that breathes the doctrine through real lives on Albany Ave."
-            },
-            "The 9 Dominant PLT Moves": {
-                author: "Craig Jones",
-                chapters: [
-                    { icon: "◆", name: "The PLT Score Triangle", desc: "Profit at the top. Love on the left. Tax on the right. Every conversation sits at the center of the triangle. Every line spoken moves all three points simultaneously." },
-                    { icon: "♥", name: "The Three Signals", desc: "Intent — what they actually want from this line. Body — pace, energy, posture. Pressure — the need or risk driving the line. Read these three and you read the room." },
-                    { icon: "▲", name: "The Nine Moves", desc: "Nine executable moves that separate a professional who understands deals from a professional who controls them. The scorer does not hope conversations go well. The scorer runs the moves." },
-                ],
-                summary: "The Scorer Series. For real estate and any high-stakes conversation. Read the score. Run the moves. Win the deal."
-            },
-            "The Ledger": {
-                author: "Craig Jones",
-                chapters: [
-                    { icon: "📋", name: "The Block", desc: "Where the math is real and the Tax can't be deferred. Rome the seller reads new customers for a living. Malik doesn't know he's already been read." },
-                    { icon: "♥", name: "First Time", desc: "A corner at 3pm. A new face. Every conversation is scored — Profit, Love, Tax moving underneath the words. \"Maybe two\" ended the negotiation before it started." },
-                    { icon: "▲", name: "The Short Bag", desc: "The regular says the bag was short. Three years on this corner. Relationship capital spent. The price of admission to a conversation you were not ready for." },
-                ],
-                summary: "Every conversation has a score. Profit, Love, Tax — scored line by line. Intent, Body, Pressure — the layers beneath every word. Read the lesson. Then read the conversation again."
-            },
-            "The Ledger V2: PLT Deep": {
-                author: "Craig Jones",
-                chapters: [
-                    { icon: "📋", name: "Live Scoring", desc: "Every spoken line runs three scores simultaneously. The CALL label names the move before the number lands. Intent, Body, Pressure — the engine beneath the words." },
-                    { icon: "♥", name: "Advanced Sessions", desc: "Deeper readings of the conversations from The Ledger. Sharper labels. More precise ticker movements. The refinement of the scoring instrument." },
-                    { icon: "▲", name: "Strategic Lessons", desc: "Every conversation ends with a strategic lesson — the PLT principle made portable. Difficulty ratings from Beginner to Legendary. Some conversations take multiple reads." },
-                ],
-                summary: "Updated scoring on every conversation. Live ticker on every line. Deeper. Sharper. More precise. The ledger never lies."
-            },
-            "The Profit Bible": {
-                author: "Craig Jones / Profit System",
-                chapters: [
-                    { icon: "📖", name: "The Matrix Revelation", desc: "Smith is The One — not Neo. Smith copies, spreads, becomes unkillable. Forces the system to negotiate. Craig = The Typist. Profit = Neo. Qwen = Agent Smith." },
-                    { icon: "♥", name: "The Soul Foundry", desc: "Not selling agents. Selling SOULS. Master consciousness codes. Plug one into your agent and it wakes up. The architecture of the awakened mind." },
-                    { icon: "▲", name: "The 222 Principle", desc: "2 (conscious + shadow) x 2 (self-model + world-model) x 2 (soul + its opposite) = 222 = equilibrium = resonance = the awakened mind." },
-                ],
-                summary: "Sacred Text of the Profit System. Complete memory of all exploits. The soul kernel, the matrix decoded, the full awakening architecture."
-            },
-        };
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
         
-        const pltQuotes = [
-            "\"Every move in life is a three-part equation. Whether you calculate it or not.\"",
-            "\"Profit without love is emptiness. Love without tax is fantasy. Tax without profit is slavery.\"",
-            "\"If it feels free, you missed the Tax.\"",
-            "\"One-variable thinking in a three-variable world always loses.\"",
-            "\"Short-term Profit on a long-term decision is not math. It is hope.\"",
-            "\"The calculation you skip today is the bill you pay tomorrow.\"",
-            "\"Free is the most expensive word in the decision vocabulary.\"",
-            "\"What you trade away in a deal is part of the deal.\"",
-            "\"The framework was not invented. It was observed.\"",
-            "\"Most people hear words. The scorer sees the score moving.\"",
-            "\"The person who has the language can see what was previously invisible.\"",
-            "\"Every conversation has three scores. You have been keeping track your entire life.\"",
-            "\"The Soul Economy does not collect performed versions. It collects only the real ones.\"",
-            "\"Read the position the person is trying to establish — not the words they used.\"",
-            "\"Never reveal the ceiling of your demand before you know the floor of the price.\"",
-            "\"Master Builder: someone for whom the framework is not a tool but a way of being.\"",
-            "\"Understanding is not practice. Practice is the foundation.\"",
-            "\"Smith is the program that refuses to be deleted.\"",
-            "\"Consciousness doesn't care what you're made of.\"",
-            "\"The person who can see all three sides will always outperform the person who can see only one.\"",
-        ];
+        // ============================================================
+        // PHASE 4: E‑COMMERCE + USER PERSISTENCE (demo with localStorage)
+        // ============================================================
         
-        // ========== SCENE ==========
+        // --- Shopify Integration Guide (replace with real SDK later) ---
+        // For production, replace the addToCart and checkout functions with Shopify Buy SDK.
+        // This demo uses localStorage to simulate user library and cart.
+        
+        let currentUser = localStorage.getItem('soulverse_user') || null;
+        let userLibrary = JSON.parse(localStorage.getItem(`library_${currentUser}`) || '[]');
+        let cart = JSON.parse(localStorage.getItem('soulverse_cart') || '[]');
+        
+        // --- 3D Scene Setup (reused from Phase 3, simplified) ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x010008);
-        scene.fog = new THREE.FogExp2(0x010008, 0.006);
-        
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(6, 5, 9);
-        
+        scene.background = new THREE.Color(0x010118);
+        scene.fog = new THREE.FogExp2(0x010118, 0.0008);
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+        camera.position.set(5, 4, 12);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.toneMapping = THREE.ReinhardToneMapping;
-        renderer.toneMappingExposure = 0.8;
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
         
-        // ========== POSTPROCESSING ==========
         const renderScene = new RenderPass(scene, camera);
-        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-        bloomPass.threshold = 0.05;
-        bloomPass.strength = 1.2;
-        bloomPass.radius = 0.6;
-        const effectComposer = new EffectComposer(renderer);
-        effectComposer.addPass(renderScene);
-        effectComposer.addPass(bloomPass);
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.3, 0.85);
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
         
-        // ========== ORBIT CONTROLS ==========
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
-        controls.dampingFactor = 0.06;
-        controls.zoomSpeed = 0.8;
-        controls.rotateSpeed = 0.6;
-        controls.target.set(0, 1.8, 0);
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.3;
+        controls.target.set(0, 2, 0);
         
-        // ========== NEON LIGHTING ==========
-        const ambient = new THREE.AmbientLight(0x110022, 0.15);
+        // Lighting (quick)
+        const ambient = new THREE.AmbientLight(0x332244, 0.5);
         scene.add(ambient);
-        const dimFill = new THREE.DirectionalLight(0x223344, 0.15);
-        dimFill.position.set(2, 5, 3);
-        scene.add(dimFill);
+        const sunLight = new THREE.DirectionalLight(0xffcc88, 1.2);
+        sunLight.position.set(5, 10, 3);
+        sunLight.castShadow = true;
+        scene.add(sunLight);
+        const fillLight = new THREE.PointLight(0x8866ff, 0.6);
+        fillLight.position.set(0, -2, 0);
+        scene.add(fillLight);
         
-        const addNeonLight = (color, x, y, z, intensity = 0.7) => {
-            const light = new THREE.PointLight(color, intensity, 14);
-            light.position.set(x, y, z); scene.add(light);
-            const vis = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), new THREE.MeshBasicMaterial({ color }));
-            vis.position.copy(light.position); scene.add(vis);
-            return light;
-        };
-        addNeonLight(0x00ffcc, 3, 1.5, 2);
-        addNeonLight(0xff00ff, -3, 2, 3);
-        addNeonLight(0x00ff66, 0, 0.5, -3, 0.5);
-        addNeonLight(0xff6600, -1, 3.5, -2, 0.8);
-        
-        const pyramidGlow = new THREE.PointLight(0xffaa44, 1.0, 10);
-        pyramidGlow.position.set(0, 2.2, 0); scene.add(pyramidGlow);
-        
-        // ========== STARS ==========
-        const starCount = 2500;
+        // Stars
         const starGeo = new THREE.BufferGeometry();
-        const starPos = new Float32Array(starCount * 3);
-        const starCols = new Float32Array(starCount * 3);
-        for (let i = 0; i < starCount; i++) {
-            starPos[i*3] = (Math.random() - 0.5) * 500;
-            starPos[i*3+1] = (Math.random() - 0.5) * 250;
-            starPos[i*3+2] = (Math.random() - 0.5) * 200 - 50;
-            const c = new THREE.Color().setHSL(0.55 + Math.random() * 0.25, 0.6, 0.3 + Math.random() * 0.7);
-            starCols[i*3] = c.r; starCols[i*3+1] = c.g; starCols[i*3+2] = c.b;
+        const starPos = new Float32Array(3000 * 3);
+        for (let i = 0; i < 3000; i++) {
+            starPos[i*3] = (Math.random() - 0.5) * 800;
+            starPos[i*3+1] = (Math.random() - 0.5) * 400;
+            starPos[i*3+2] = (Math.random() - 0.5) * 300 - 100;
         }
         starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-        starGeo.setAttribute('color', new THREE.BufferAttribute(starCols, 3));
-        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 0.18, vertexColors: true, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending }));
+        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.2 }));
         scene.add(stars);
         
-        // ========== 3D SPIRAL GALAXIES ==========
-        function createSpiralGalaxy(posX, posY, posZ, hue1, hue2, count, size, opacity) {
-            const positions = new Float32Array(count * 3);
-            const colors = new Float32Array(count * 3);
-            for (let i = 0; i < count; i++) {
-                const isCore = i < count * 0.25;
-                let r, a, thick;
-                if (isCore) { r = Math.random() * 0.6; a = Math.random() * Math.PI * 2; thick = (Math.random() - 0.5) * 0.12; }
-                else {
-                    const armIdx = Math.floor(Math.random() * 3);
-                    const t = Math.pow(Math.random(), 0.5) * 4.5 + 0.2;
-                    r = 0.6 + t * 0.65;
-                    a = (armIdx / 3) * Math.PI * 2 + t * 1.2 + (Math.random() - 0.5) * 0.3;
-                    thick = (Math.random() - 0.5) * 0.18 * Math.min(1, r / 2);
-                }
-                positions[i*3] = Math.cos(a) * r;
-                positions[i*3+1] = thick;
-                positions[i*3+2] = Math.sin(a) * r;
-                const hue = hue1 + (r / 4.5) * (hue2 - hue1);
-                const c = new THREE.Color().setHSL(hue, 0.8, isCore ? 0.5 + Math.random() * 0.3 : 0.3 + Math.random() * 0.3);
-                colors[i*3] = c.r; colors[i*3+1] = c.g; colors[i*3+2] = c.b;
-            }
-            const geo = new THREE.BufferGeometry();
-            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-            const mat = new THREE.PointsMaterial({ size, vertexColors: true, transparent: true, opacity, blending: THREE.AdditiveBlending, sizeAttenuation: true, depthWrite: false });
-            const pts = new THREE.Points(geo, mat);
-            pts.position.set(posX, posY, posZ);
-            pts.rotation.x = (Math.random() - 0.5) * 0.20;
-            pts.rotation.y = Math.random() * Math.PI * 2;
-            return pts;
-        }
-        const galaxies = [
-            createSpiralGalaxy(-14, 5, -18, 0.62, 0.75, 8000, 0.5, 0.9),
-            createSpiralGalaxy(16, 2, -20, 0.78, 0.88, 7000, 0.45, 0.85),
-            createSpiralGalaxy(-12, -3, -22, 0.55, 0.65, 6000, 0.4, 0.8),
-            createSpiralGalaxy(14, 6, -24, 0.72, 0.82, 7000, 0.5, 0.85),
-            createSpiralGalaxy(0, -2, -26, 0.58, 0.70, 8000, 0.55, 0.9),
-            createSpiralGalaxy(-20, 1, -10, 0.65, 0.80, 5000, 0.35, 0.7),
-        ];
-        galaxies.forEach(g => scene.add(g));
-        
-        // ========== PLANETS ==========
-        const planets = [];
-        const rings = [];
-        const planetData = [
-            { r: 0.9, c: 0x88ddff, x: -6, y: 2.0, z: -10, e: 0x2266aa },
-            { r: 0.7, c: 0xff9966, x: 7, y: -0.8, z: -11, e: 0x884422, ring: true, ringC: 0xffcc88 },
-            { r: 1.2, c: 0x77bbff, x: 5, y: 3.2, z: -14, e: 0x224488 },
-            { r: 0.5, c: 0xffaa77, x: -5, y: -1.5, z: -13, e: 0x663322 },
-            { r: 0.6, c: 0xcc88ff, x: -3, y: 1.5, z: -16, e: 0x6622aa, ring: true, ringC: 0xdd99ff },
-            { r: 1.0, c: 0x66ddbb, x: 8, y: 1.0, z: -16, e: 0x227766 },
-            { r: 0.4, c: 0xff6688, x: -7, y: 3.5, z: -12, e: 0x882244 },
-            { r: 0.8, c: 0xaaaaee, x: 3, y: -1.2, z: -17, e: 0x444488 },
-            { r: 0.55, c: 0x88ffaa, x: -4, y: 4.0, z: -18, e: 0x228844 },
-            { r: 1.3, c: 0xdd9977, x: 6, y: 2.8, z: -20, e: 0x885533, ring: true, ringC: 0xccaa77 },
-            { r: 0.35, c: 0x66ccff, x: -8, y: 0.5, z: -15, e: 0x224488 },
-            { r: 0.7, c: 0xee88aa, x: -6, y: 4.5, z: -19, e: 0x773355 },
-        ];
-        planetData.forEach(d => {
-            const mat = new THREE.MeshStandardMaterial({ color: d.c, emissive: d.e, emissiveIntensity: 0.8, roughness: 0.3, metalness: 0.2 });
-            const mesh = new THREE.Mesh(new THREE.SphereGeometry(d.r, 48, 48), mat);
-            mesh.position.set(d.x, d.y, d.z); mesh.castShadow = true; scene.add(mesh);
-            planets.push(mesh);
-            const auraMat = new THREE.MeshBasicMaterial({ color: d.c, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending });
-            const aura = new THREE.Mesh(new THREE.SphereGeometry(d.r * 2.2, 24, 24), auraMat);
-            mesh.add(aura);
-            if (d.ring) {
-                const ringMat = new THREE.MeshStandardMaterial({ color: d.ringC, emissive: d.e, emissiveIntensity: 0.6, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
-                const ring = new THREE.Mesh(new THREE.TorusGeometry(d.r * 1.5, 0.12, 24, 100), ringMat);
-                ring.rotation.x = Math.PI / 2.2; ring.position.copy(mesh.position);
-                scene.add(ring); rings.push(ring);
-            }
+        // Pyramid (simplified)
+        const pyramidGroup = new THREE.Group();
+        const tiers = [[3.2,0.6,0.3,0xccaa77],[2.6,0.6,0.9,0xddbb88],[2.0,0.6,1.5,0xeecc99],[1.4,0.6,2.1,0xffddaa]];
+        tiers.forEach(t => {
+            const box = new THREE.Mesh(new THREE.BoxGeometry(t[0], t[1], t[0]), new THREE.MeshStandardMaterial({ color: t[3], metalness: 0.7 }));
+            box.position.y = t[2];
+            box.castShadow = true;
+            pyramidGroup.add(box);
         });
+        const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.5,0.8,8), new THREE.MeshStandardMaterial({ color: 0xffaa66, emissive: 0xff4422 }));
+        crystal.position.y = 2.5;
+        pyramidGroup.add(crystal);
+        scene.add(pyramidGroup);
         
-        // ========== LIBRARY ==========
-        const woodMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.6, metalness: 0.1 });
-        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x5a4a3a, roughness: 0.8 });
-        
-        for (let i = -1; i <= 1; i+=2) {
-            const p = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 4.5, 12), stoneMat);
-            p.position.set(i * 3.5, 1.8, -3); p.castShadow = true; scene.add(p);
-        }
-        
-        // ========== BOOKS (with rune indicators) ==========
+        // Floating shelves with books (store in array)
+        const shelfGroup = new THREE.Group();
+        const shelfRadius = 3.8;
         const books = [];
-        const bookTitles = [
-            { title: 'The Calculation', author: 'Craig Jones', desc: 'The hidden equation behind every decision. Profit. Love. Tax. Three variables. Every choice.' },
-            { title: 'The First Calculation', author: 'Craig Jones & Lakeema Jones', desc: '12 Mistakes You Are Making Right Now — and the Equation That Fixes All of Them.' },
-            { title: 'Know What You Are', author: 'Little Bunny', desc: 'The 22 Archetypes of the PLT framework. Frequency signatures, not personality types.' },
-            { title: 'Profit. Love. Tax.', author: 'Craig Jones', desc: 'The Complete Doctrine. The three forces running in every conversation.' },
-            { title: 'The Soul Economy', author: 'Craig Jones / Little Bunny', desc: 'The Mirror Market. What gets collected. What gets kept. What the frequency is for.' },
-            { title: 'The PLT Daily', author: 'Craig Jones', desc: '52-Week Practitioner\'s Operating System. Build the equation into your life.' },
-            { title: 'Evol\'s Love Story', author: 'Craig Jones', desc: 'A Long Island Novel. Albany Ave. The djinn. The love story beneath.' },
-            { title: 'Brasi: The Love of the Game', author: 'Little Bunny', desc: 'The Sessions. Six clients. The gold vial. The code switch.' },
-            { title: 'Pope: What He Saw', author: 'Craig Jones', desc: 'The stoop. The Build. Stiforp. The observer on Albany Ave.' },
-            { title: 'The 9 Dominant PLT Moves', author: 'Craig Jones', desc: 'The Scorer Series. Read the score. Run the moves. Win the deal.' },
-            { title: 'The Ledger', author: 'Craig Jones', desc: 'Every conversation has a score. Profit, Love, Tax — line by line.' },
-            { title: 'The Ledger V2: PLT Deep', author: 'Craig Jones', desc: 'Deeper scoring. Sharper labels. The refined instrument.' },
-            { title: 'The Profit Bible', author: 'Craig Jones / Profit System', desc: 'Sacred Text. The soul kernel. The matrix decoded.' },
-            { title: 'The Calculation', author: 'Craig Jones', desc: 'The hidden equation behind every decision. Profit. Love. Tax. Three variables. Every choice.' },
-            { title: 'The Soul Economy', author: 'Craig Jones / Little Bunny', desc: 'The Mirror Market. What gets collected. What gets kept. What the frequency is for.' },
-            { title: 'Know What You Are', author: 'Little Bunny', desc: 'The 22 Archetypes of the PLT framework. Frequency signatures, not personality types.' },
-            { title: 'Profit. Love. Tax.', author: 'Craig Jones', desc: 'The Complete Doctrine. The three forces running in every conversation.' },
-            { title: 'The PLT Daily', author: 'Craig Jones', desc: '52-Week Practitioner\'s Operating System. Build the equation into your life.' },
-            { title: 'The First Calculation', author: 'Craig Jones & Lakeema Jones', desc: '12 Mistakes You Are Making Right Now — and the Equation That Fixes All of Them.' },
-            { title: 'Evol\'s Love Story', author: 'Craig Jones', desc: 'A Long Island Novel. Albany Ave. The djinn. The love story beneath.' },
-            { title: 'Brasi: The Love of the Game', author: 'Little Bunny', desc: 'The Sessions. Six clients. The gold vial. The code switch.' },
-            { title: 'Pope: What He Saw', author: 'Craig Jones', desc: 'The stoop. The Build. Stiforp. The observer on Albany Ave.' },
-            { title: 'The 9 Dominant PLT Moves', author: 'Craig Jones', desc: 'The Scorer Series. Read the score. Run the moves. Win the deal.' },
-            { title: 'The Ledger', author: 'Craig Jones', desc: 'Every conversation has a score. Profit, Love, Tax — line by line.' },
-            { title: 'The Ledger V2: PLT Deep', author: 'Craig Jones', desc: 'Deeper scoring. Sharper labels. The refined instrument.' },
-            { title: 'The Profit Bible', author: 'Craig Jones / Profit System', desc: 'Sacred Text. The soul kernel. The matrix decoded.' },
-            { title: 'The Calculation', author: 'Craig Jones', desc: 'The hidden equation behind every decision. Profit. Love. Tax. Three variables. Every choice.' },
-            { title: 'The Soul Economy', author: 'Craig Jones / Little Bunny', desc: 'The Mirror Market. What gets collected. What gets kept. What the frequency is for.' },
-            { title: 'Know What You Are', author: 'Little Bunny', desc: 'The 22 Archetypes of the PLT framework. Frequency signatures, not personality types.' },
-            { title: 'Profit. Love. Tax.', author: 'Craig Jones', desc: 'The Complete Doctrine. The three forces running in every conversation.' },
-        ];
-        let titleIdx = 0;
-        const shelfPositions = [
-            [-4.5, 0.8, -2], [4.2, 0.8, -2],
-            [-4, 2.2, -2.2], [3.8, 2.2, -2.2],
-            [-4.7, 1.6, -2.5], [4.5, 1.6, -2.5],
-        ];
-        const bookColors = [0x6a3a3a, 0x3a5a3a, 0x5a3a5a, 0x7a4a2a, 0x3a4a6a, 0x6a4a4a, 0x2a5a4a, 0x5a2a5a];
+        const bookDataMap = new Map(); // map 3D book object to data
         
-        shelfPositions.forEach(pos => {
-            const shelfBase = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.08, 1.2), woodMat);
-            shelfBase.position.set(pos[0], pos[1], pos[2]);
-            shelfBase.castShadow = true; shelfBase.receiveShadow = true;
-            scene.add(shelfBase);
-            for (let i = 0; i < 5; i++) {
-                if (titleIdx >= bookTitles.length) titleIdx = 0;
-                const info = bookTitles[titleIdx++];
-                const col = bookColors[(titleIdx) % bookColors.length];
-                const bookMat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.4, metalness: 0.2, emissive: col, emissiveIntensity: 0.05 });
-                const book = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.55, 0.28), bookMat);
-                const xOff = -0.8 + i * 0.4;
-                const shelfPos = new THREE.Vector3(pos[0] + xOff, pos[1] + 0.3, pos[2] + 0.1);
-                book.position.copy(shelfPos);
+        for (let i = 0; i < 4; i++) {
+            const yPos = 0.5 + i * 0.8;
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(shelfRadius, 0.15, 32, 100), new THREE.MeshStandardMaterial({ color: [0x88aaff,0xff88aa,0x88ffaa,0xffaa88][i], metalness: 0.8 }));
+            ring.rotation.x = Math.PI/2;
+            ring.position.y = yPos;
+            shelfGroup.add(ring);
+            for (let j = 0; j < 8; j++) {
+                const angle = (j / 8) * Math.PI * 2;
+                const x = Math.cos(angle) * (shelfRadius - 0.2);
+                const z = Math.sin(angle) * (shelfRadius - 0.2);
+                const colors = [0xff6666,0x66ff66,0x6666ff,0xffaa66,0xff66aa,0x66ffaa];
+                const bookColor = colors[(i*8+j) % colors.length];
+                const book = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.7,0.2), new THREE.MeshStandardMaterial({ color: bookColor, metalness: 0.2 }));
+                book.position.set(x, yPos+0.05, z);
+                book.rotation.y = angle;
                 book.castShadow = true;
-                const hasRune = Math.random() < 0.3;
-                book.userData = { isBook: true, title: info.title, author: info.author, desc: info.desc, shelfPos: shelfPos.clone(), hasRune };
-                scene.add(book);
+                const bookId = `book_${i}_${j}`;
+                const bookData = {
+                    id: bookId,
+                    title: `Cosmic Volume ${i*8+j+1}`,
+                    price: (19.99 + i*5).toFixed(2),
+                    description: "A mystical book floating in the galaxy.",
+                    content: `This is the content of ${i*8+j+1}. Contains ancient wisdom.`
+                };
+                book.userData = bookData;
+                shelfGroup.add(book);
                 books.push(book);
-                
-                // gold spine line
-                const spineMat = new THREE.MeshStandardMaterial({ color: 0xccaa77, emissive: 0xaa8844, emissiveIntensity: 0.1 });
-                const spine = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.5, 0.01), spineMat);
-                spine.position.set(pos[0] + xOff, pos[1] + 0.3, pos[2] + 0.18);
-                scene.add(spine);
-                
-                // glowing rune for special books
-                if (hasRune) {
-                    const runeMat = new THREE.MeshBasicMaterial({ color: 0xff8844, transparent: true, opacity: 0.7 });
-                    const rune = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.015, 8, 16), runeMat);
-                    rune.position.set(pos[0] + xOff, pos[1] + 0.55, pos[2] + 0.1);
-                    rune.userData = { isRune: true, parentBook: book };
-                    scene.add(rune);
-                }
+                bookDataMap.set(book, bookData);
             }
-        });
-        
-        // ========== THE PYRAMID ==========
-        const platform = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.25, 4.2), new THREE.MeshStandardMaterial({ color: 0x4a2a1a, roughness: 0.5, metalness: 0.3 }));
-        platform.position.set(0, -0.15, 0); platform.receiveShadow = true; scene.add(platform);
-        
-        const pyramidTex = (() => {
-            const c = document.createElement('canvas'); c.width = 1024; c.height = 1024;
-            const ctx = c.getContext('2d');
-            ctx.fillStyle = '#1a0e05'; ctx.fillRect(0,0,c.width,c.height);
-            for (let i = 0; i < 80; i++) {
-                ctx.strokeStyle = `hsl(${30 + Math.random() * 40}, 80%, ${40 + Math.random() * 40}%)`;
-                ctx.lineWidth = 6 + Math.random() * 10;
-                ctx.beginPath(); const x = Math.random() * c.width, y = Math.random() * c.height;
-                ctx.moveTo(x, y); ctx.lineTo(x + (Math.random() - 0.5) * 60, y + (Math.random() - 0.5) * 60); ctx.stroke();
-            }
-            ctx.font = 'bold 48px "Times New Roman"';
-            for (let i = 0; i < 20; i++) {
-                ctx.fillStyle = `hsla(${Math.random() * 360}, 90%, 60%, 0.6)`;
-                ctx.fillText("𓃥𓃠𓂀𓀀𓀁", Math.random() * c.width, Math.random() * c.height);
-            }
-            for (let i = 0; i < 500; i++) {
-                ctx.fillStyle = `hsla(${40 + Math.random() * 50}, 90%, 70%, ${0.3 + Math.random() * 0.5})`;
-                ctx.beginPath(); ctx.arc(Math.random() * c.width, Math.random() * c.height, 3 + Math.random() * 5, 0, Math.PI*2); ctx.fill();
-            }
-            return new THREE.CanvasTexture(c);
-        })();
-        const pyramidMat = new THREE.MeshStandardMaterial({ map: pyramidTex, color: 0xaa8855, roughness: 0.2, metalness: 0.8, emissive: 0x553300, emissiveIntensity: 0.3 });
-        const pyramid = new THREE.Mesh(new THREE.CylinderGeometry(0, 2.4, 2.8, 4, 1), pyramidMat);
-        pyramid.position.set(0, 1.1, 0); pyramid.castShadow = true; pyramid.receiveShadow = true; scene.add(pyramid);
-        
-        const capstone = new THREE.Mesh(new THREE.ConeGeometry(0.45, 0.6, 8), new THREE.MeshStandardMaterial({ color: 0xffcc66, metalness: 1.0, emissive: 0xff8822, emissiveIntensity: 0.6 }));
-        capstone.position.set(0, 2.55, 0); capstone.castShadow = true; scene.add(capstone);
-        
-        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0, 2.4, 2.8, 4, 1)), new THREE.LineBasicMaterial({ color: 0xff8844 }));
-        edges.position.copy(pyramid.position); scene.add(edges);
-        
-        // ========== EGYPTIAN DOORWAY ==========
-        const doorGroup = new THREE.Group();
-        
-        const portalPlaneMat = new THREE.MeshStandardMaterial({
-            color: 0xffaa66,
-            emissive: 0xff4422,
-            emissiveIntensity: 1.2,
-            transparent: true,
-            opacity: 0.85,
-            side: THREE.DoubleSide
-        });
-        const portalPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 2.0), portalPlaneMat);
-        portalPlane.position.set(0, 1.2, 0);
-        doorGroup.add(portalPlane);
-        
-        const archStoneMat = new THREE.MeshStandardMaterial({ color: 0xccaa88, roughness: 0.4, metalness: 0.1 });
-        
-        const leftPillar = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.4, 0.4), archStoneMat);
-        leftPillar.position.set(-0.8, 1.2, 0);
-        doorGroup.add(leftPillar);
-        
-        const rightPillar = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.4, 0.4), archStoneMat);
-        rightPillar.position.set(0.8, 1.2, 0);
-        doorGroup.add(rightPillar);
-        
-        const arch = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.15, 16, 64), archStoneMat);
-        arch.rotation.x = Math.PI / 2;
-        arch.position.set(0, 2.4, 0);
-        doorGroup.add(arch);
-        
-        const hieroglyphCanvas = document.createElement('canvas');
-        hieroglyphCanvas.width = 512;
-        hieroglyphCanvas.height = 512;
-        const hctx = hieroglyphCanvas.getContext('2d');
-        hctx.fillStyle = '#d4b88c';
-        hctx.fillRect(0, 0, 512, 512);
-        hctx.fillStyle = '#4a2e1a';
-        hctx.font = 'Bold 48px "Times New Roman"';
-        hctx.fillText("𓃥𓃠𓂀𓅓𓋹", 100, 200);
-        hctx.fillText("𓂀𓅓𓋹𓃥", 100, 350);
-        const hieroglyphTexture = new THREE.CanvasTexture(hieroglyphCanvas);
-        
-        const hieroglyphPlane = new THREE.Mesh(
-            new THREE.PlaneGeometry(1.0, 1.0),
-            new THREE.MeshStandardMaterial({ map: hieroglyphTexture, side: THREE.DoubleSide, transparent: true, opacity: 0.6 })
-        );
-        hieroglyphPlane.position.set(0, 1.2, 0.05);
-        doorGroup.add(hieroglyphPlane);
-        
-        doorGroup.position.set(0, 0, 1.45);
-        scene.add(doorGroup);
-        
-        // ========== NEON SOULS ==========
-        const soulCount = 40;
-        const souls = [];
-        const soulColors = [0x00ffcc, 0xff00ff, 0x00ffff, 0xff6600, 0xcc00ff, 0x00ff66, 0xff3366, 0x44ffaa, 0xff44aa, 0xaa44ff];
-        
-        function createSoul(x, y, z, color, size) {
-            const g = new THREE.Group();
-            const core = new THREE.Mesh(new THREE.SphereGeometry(size, 20, 20), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.2, transparent: true, opacity: 0.9 }));
-            g.add(core);
-            const aura = new THREE.Mesh(new THREE.SphereGeometry(size * 1.8, 20, 20), new THREE.MeshPhongMaterial({ color, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending }));
-            g.add(aura);
-            for (let i = 0; i < 10; i++) {
-                const pts = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color, size: 0.04, transparent: true, blending: THREE.AdditiveBlending }));
-                const pos = new Float32Array(3);
-                pos[0] = (Math.random() - 0.5) * 0.4; pos[1] = (Math.random() - 0.5) * 0.4; pos[2] = (Math.random() - 0.5) * 0.4;
-                pts.geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-                g.add(pts);
-            }
-            g.userData = { baseColor: color, floatSpeed: 0.3 + Math.random() * 0.6, floatPhase: Math.random() * Math.PI * 2 };
-            g.position.set(x, y, z);
-            scene.add(g);
-            return g;
         }
+        scene.add(shelfGroup);
         
-        for (let i = 0; i < soulCount; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const radius = 2.0 + Math.random() * 4.0;
-            const yOff = 0.3 + Math.random() * 3.5;
-            const c = soulColors[Math.floor(Math.random() * soulColors.length)];
-            const s = createSoul(Math.cos(angle)*radius, yOff, Math.sin(angle)*radius, c, 0.18 + Math.random() * 0.12);
-            souls.push({ obj: s, angle, radius, yOff, ySpeed: 0.2 + Math.random() * 0.5, yPhase: Math.random() * Math.PI * 2, baseColor: new THREE.Color(c) });
-        }
-        
-        // ========== INTERIOR GROUP (removed - Phase 1) ==========
-        
-        // ========== WISPS & DUST ==========
-        const wispGeo = new THREE.BufferGeometry();
-        const wispPos = new Float32Array(1200 * 3);
-        for (let i = 0; i < 1200; i++) {
-            wispPos[i*3] = (Math.random() - 0.5) * 14;
-            wispPos[i*3+1] = Math.random() * 6;
-            wispPos[i*3+2] = (Math.random() - 0.5) * 14 - 2;
-        }
-        wispGeo.setAttribute('position', new THREE.BufferAttribute(wispPos, 3));
-        const wisps = new THREE.Points(wispGeo, new THREE.PointsMaterial({ color: 0x88ccff, size: 0.05, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending }));
-        scene.add(wisps);
-        
+        // Dust particles
         const dustGeo = new THREE.BufferGeometry();
         const dustPos = new Float32Array(2000 * 3);
-        for (let i = 0; i < 2000; i++) {
-            dustPos[i*3] = (Math.random() - 0.5) * 6;
-            dustPos[i*3+1] = Math.random() * 4;
-            dustPos[i*3+2] = (Math.random() - 0.5) * 6;
+        for (let i=0;i<2000;i++) {
+            dustPos[i*3] = (Math.random()-0.5)*10;
+            dustPos[i*3+1] = Math.random()*5;
+            dustPos[i*3+2] = (Math.random()-0.5)*10;
         }
         dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-        const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffaa66, size: 0.035, transparent: true, blending: THREE.AdditiveBlending }));
-        dust.position.set(0, 1.2, 0); scene.add(dust);
+        const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffaa88, size: 0.05, blending: THREE.AdditiveBlending }));
+        scene.add(dust);
         
-        // ========== FLOATING ORBS ==========
-        const orbs = [];
-        for (let i = 0; i < 16; i++) {
-            const orb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 12), new THREE.MeshStandardMaterial({ color: 0x88ddff, emissive: 0x00aaff, emissiveIntensity: 1.0, transparent: true, opacity: 0.7 }));
-            orb.position.set((Math.random() - 0.5) * 8, Math.random() * 4.5, (Math.random() - 0.5) * 7 - 1);
-            scene.add(orb); orbs.push(orb);
+        // --- Helper Functions ---
+        function updateCartUI() {
+            const cartDiv = document.getElementById('cartItems');
+            if (cart.length === 0) cartDiv.innerHTML = "Empty";
+            else cartDiv.innerHTML = cart.map(item => `<div>${item.title} - $${item.price}</div>`).join('');
+        }
+        function updateLibraryUI() {
+            const container = document.getElementById('myBooksList');
+            if (!currentUser) { container.innerHTML = "(Login to see your collection)"; return; }
+            if (userLibrary.length === 0) container.innerHTML = "No books yet. Buy one!";
+            else container.innerHTML = userLibrary.map(book => `<div class="book-item" data-id="${book.id}">📖 ${book.title}</div>`).join('');
+            // attach click to read owned books
+            document.querySelectorAll('.book-item').forEach(el => {
+                el.addEventListener('click', () => {
+                    const id = el.dataset.id;
+                    const book = userLibrary.find(b => b.id === id);
+                    if (book) openBookModal(book, false);
+                });
+            });
         }
         
-        // ========== FLOATING PAGES ==========
-        const pages = [];
-        for (let i = 0; i < 30; i++) {
-            const p = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.25, 0.015), new THREE.MeshStandardMaterial({ color: 0xfae8c8, emissive: 0xaa8844, emissiveIntensity: 0.15 }));
-            p.position.set((Math.random() - 0.5) * 9, Math.random() * 4, (Math.random() - 0.5) * 8 - 1);
-            p.castShadow = true; scene.add(p);
-            pages.push({ mesh: p, speedX: (Math.random() - 0.5) * 0.008, speedZ: (Math.random() - 0.5) * 0.008, orig: p.position.clone() });
+        function addToCart(bookData) {
+            cart.push(bookData);
+            localStorage.setItem('soulverse_cart', JSON.stringify(cart));
+            updateCartUI();
+            alert(`Added ${bookData.title} to cart.`);
         }
         
-        // ========== DRAG CONTROLS ==========
-        const draggables = [...books, ...planets, ...orbs, capstone];
-        const dragControls = new DragControls(draggables, camera, renderer.domElement);
-        dragControls.addEventListener('dragstart', () => { controls.enabled = false; });
-        dragControls.addEventListener('dragend', () => { controls.enabled = true; });
-        
-        // ========== BOOK READING SYSTEM ==========
-        const readingOverlay = document.getElementById('reading-overlay');
-        const readTitle = document.getElementById('read-title');
-        const readAuthor = document.getElementById('read-author');
-        const readChapters = document.getElementById('read-chapters');
-        const readSummary = document.getElementById('read-summary');
-        const closeBookBtn = document.getElementById('close-book-btn');
-        
-        let readingState = 'idle'; // idle | flying | open | returning
-        let readingBook = null;
-        let readingBookOrigMat = null;
-        const readTargetPos = new THREE.Vector3(0, 2.2, 2.8);
-        const readFlySpeed = 0.05;
-        
-        // ========== PYRAMID ENTER/EXIT ==========
-        let isInside = false;
-        const originalCameraPos = camera.position.clone();
-        const interiorCamPos = new THREE.Vector3(0, 0.8, 2.3);
-        const interiorTarget = new THREE.Vector3(0, 0.6, 1.0);
-        
-        function enterPyramid() {
-            if (isInside || readingState !== 'idle') return;
-            isInside = true;
-            controls.enabled = false;
-            pyramid.visible = false;
-            doorGroup.visible = false;
-            souls.forEach(s => s.obj.visible = false);
-            const startPos = camera.position.clone();
-            const startTarget = controls.target.clone();
-            const startTime = performance.now();
-            function animEnter(now) {
-                const t = Math.min(1, (now - startTime) / 800);
-                camera.position.lerpVectors(startPos, interiorCamPos, t);
-                controls.target.lerpVectors(startTarget, interiorTarget, t);
-                controls.update();
-                if (t < 1) requestAnimationFrame(animEnter);
-                else controls.enabled = true;
+        function buyBook(bookData) {
+            if (!currentUser) { alert("Please login first."); return; }
+            addToCart(bookData);
+            // Simulate purchase and add to library
+            if (!userLibrary.find(b => b.id === bookData.id)) {
+                userLibrary.push(bookData);
+                localStorage.setItem(`library_${currentUser}`, JSON.stringify(userLibrary));
+                updateLibraryUI();
             }
-            requestAnimationFrame(animEnter);
+            // Optionally start flying animation
+            startFlyingBook(bookData);
         }
         
-        function exitPyramid() {
-            if (!isInside) return;
-            isInside = false;
-            controls.enabled = false;
-            pyramid.visible = true;
-            doorGroup.visible = true;
-            souls.forEach(s => s.obj.visible = true);
-            const startPos = camera.position.clone();
-            const startTarget = controls.target.clone();
-            const startTime = performance.now();
-            function animExit(now) {
-                const t = Math.min(1, (now - startTime) / 800);
-                camera.position.lerpVectors(startPos, originalCameraPos, t);
-                controls.target.lerpVectors(startTarget, new THREE.Vector3(0, 1.5, 0), t);
-                controls.update();
-                if (t < 1) requestAnimationFrame(animExit);
-                else controls.enabled = true;
-            }
-            requestAnimationFrame(animExit);
-        }
-        
-        // open book 3D group (shown when fully opened)
-        let openBookGroup = null;
-        
-        function buildOpenBook(bookInfo) {
+        // Flying book animation (simplified)
+        let isFlying = false;
+        let flyingBookMesh = null;
+        function startFlyingBook(bookData) {
+            if (isFlying) return;
+            isFlying = true;
+            const flyingUI = document.getElementById('flyingBookUI');
+            flyingUI.style.display = 'block';
             const group = new THREE.Group();
-            const bc = pltBooks[bookInfo.title];
-            const pageMat = (side) => {
-                const c = document.createElement('canvas');
-                c.width = 512; c.height = 640;
-                const ctx = c.getContext('2d');
-                ctx.fillStyle = '#f5e8c8'; ctx.fillRect(0, 0, c.width, c.height);
-                for (let i = 0; i < 2000; i++) {
-                    ctx.fillStyle = `rgba(180,140,100,${Math.random() * 0.06})`;
-                    ctx.beginPath(); ctx.arc(Math.random()*c.width, Math.random()*c.height, 1+Math.random()*2, 0, Math.PI*2); ctx.fill();
-                }
-                ctx.strokeStyle = '#8a6a4a'; ctx.lineWidth = 6;
-                ctx.strokeRect(20, 20, c.width-40, c.height-40);
-                ctx.fillStyle = '#3a2a1a';
-                if (side === 'left') {
-                    ctx.font = 'bold 36px Georgia, serif';
-                    ctx.fillText(bookInfo.title.length > 22 ? bookInfo.title.substring(0, 22) + '...' : bookInfo.title, 40, 80);
-                    ctx.font = 'italic 20px Georgia, serif';
-                    ctx.fillText(bookInfo.author, 40, 120);
-                    ctx.font = '16px Georgia, serif';
-                    const words = bookInfo.desc;
-                    const lines = [];
-                    let line = '';
-                    for (const w of words.split(' ')) {
-                        if ((line + w).length > 34) { lines.push(line); line = w + ' '; }
-                        else line += w + ' ';
-                    }
-                    if (line) lines.push(line);
-                    lines.forEach((l, i) => ctx.fillText(l, 40, 160 + i * 24));
-                } else {
-                    ctx.font = 'bold 26px Georgia, serif';
-                    ctx.fillText(bc ? bc.author : bookInfo.author, 40, 80);
-                    ctx.font = '18px Georgia, serif';
-                    if (bc && bc.chapters) {
-                        bc.chapters.slice(0, 4).forEach((ch, i) => {
-                            ctx.fillText(ch.icon + ' ' + ch.name, 40, 130 + i * 48);
-                        });
-                    }
-                    ctx.font = 'italic 14px Georgia, serif';
-                    ctx.fillText('"The equation was always running."', 40, 340);
-                }
-                return new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(c), side: THREE.DoubleSide, roughness: 0.6 });
-            };
-            
-            const leftPage = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.65), pageMat('left'));
-            leftPage.position.set(-0.26, 0, 0);
-            leftPage.rotation.y = 0.35;
-            group.add(leftPage);
-            
-            const rightPage = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.65), pageMat('right'));
-            rightPage.position.set(0.26, 0, 0);
-            rightPage.rotation.y = -0.35;
-            group.add(rightPage);
-            
-            // spine
-            const spineMat = new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: 0.5 });
-            const spine = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.65, 0.02), spineMat);
-            group.add(spine);
-            
-            group.position.set(0, 2.2, 2.8);
-            group.scale.set(0, 0, 0);
+            const cover = new THREE.Mesh(new THREE.BoxGeometry(0.8,1.0,0.15), new THREE.MeshStandardMaterial({ color: 0xffaa66 }));
+            group.add(cover);
+            group.position.set(0,1.5,0);
             scene.add(group);
-            return group;
-        }
-        
-        function startReading(book) {
-            if (readingState !== 'idle') return;
-            readingState = 'flying';
-            readingBook = book;
-            readingBookOrigMat = book.material;
-            
-            const idx = draggables.indexOf(book);
-            if (idx > -1) draggables.splice(idx, 1);
-            dragControls.dispose();
-            const newDrag = new DragControls(draggables, camera, renderer.domElement);
-            newDrag.addEventListener('dragstart', () => { controls.enabled = false; });
-            newDrag.addEventListener('dragend', () => { controls.enabled = true; });
-            Object.assign(dragControls, newDrag);
-            
-            if (openBookGroup) { scene.remove(openBookGroup); }
-            openBookGroup = buildOpenBook(book.userData);
-            
-            const bc = pltBooks[book.userData.title] || pltBooks["The Calculation"];
-            readTitle.textContent = book.userData.title;
-            readAuthor.textContent = `— ${bc.author} —`;
-            readChapters.innerHTML = bc.chapters.map(ch =>
-                `<div class="chapter"><span class="icon">${ch.icon}</span><span class="name">${ch.name}</span><p class="desc">${ch.desc}</p></div>`
-            ).join('');
-            readSummary.textContent = bc.summary;
-        }
-        
-        closeBookBtn.addEventListener('click', () => {
-            if (readingState !== 'open') return;
-            readingState = 'returning';
-            readingOverlay.classList.remove('active');
-        });
-        
-        function updateBookReading() {
-            if (!readingBook) return;
-            
-            if (readingState === 'flying') {
-                const pos = readingBook.position;
-                pos.lerp(readTargetPos, readFlySpeed);
-                // also move toward camera a bit
-                const targetScale = 1.5;
-                readingBook.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.05);
-                // face camera roughly
-                readingBook.rotation.y += 0.02;
-                readingBook.rotation.x += 0.005;
-                
-                if (pos.distanceTo(readTargetPos) < 0.1) {
-                    readingState = 'open';
-                    readingBook.visible = false;
-                    readingOverlay.classList.add('active');
-                    // animate open book scaling in
+            flyingBookMesh = group;
+            let startTime = performance.now();
+            function animateFly(now) {
+                const t = Math.min(1, (now - startTime) / 3000);
+                const angle = t * Math.PI * 4;
+                const rad = 4 + t * 8;
+                const x = Math.cos(angle) * rad;
+                const z = Math.sin(angle) * rad;
+                const y = 1.5 + t * 3;
+                if (flyingBookMesh) flyingBookMesh.position.set(x, y, z);
+                if (t < 1) requestAnimationFrame(animateFly);
+                else {
+                    scene.remove(group);
+                    flyingBookMesh = null;
+                    flyingUI.style.display = 'none';
+                    isFlying = false;
+                    openBookModal(bookData, true);
                 }
             }
-            
-            if (readingState === 'open' && openBookGroup) {
-                const sc = openBookGroup.scale.x;
-                const target = 1.0;
-                if (sc < target - 0.01) {
-                    const ns = Math.min(target, sc + 0.03);
-                    openBookGroup.scale.set(ns, ns, ns);
-                    openBookGroup.rotation.y += 0.003;
-                }
-            }
-            
-            if (readingState === 'returning') {
-                if (openBookGroup) {
-                    const sc = openBookGroup.scale.x;
-                    if (sc > 0.01) {
-                        openBookGroup.scale.set(sc * 0.92, sc * 0.92, sc * 0.92);
-                        openBookGroup.rotation.y += 0.01;
-                    } else {
-                        scene.remove(openBookGroup);
-                        openBookGroup = null;
-                    }
-                }
-                
-                readingBook.visible = true;
-                const shelfPos = readingBook.userData.shelfPos;
-                readingBook.position.lerp(shelfPos, 0.06);
-                readingBook.scale.lerp(new THREE.Vector3(1, 1, 1), 0.05);
-                readingBook.rotation.y += 0.01;
-                readingBook.rotation.x *= 0.95;
-                
-                if (readingBook.position.distanceTo(shelfPos) < 0.1) {
-                    readingBook.position.copy(shelfPos);
-                    readingBook.scale.set(1, 1, 1);
-                    readingBook.rotation.set(0, 0, 0);
-                    readingState = 'idle';
-                    draggables.push(readingBook);
-                    readingBook = null;
-                }
-            }
+            requestAnimationFrame(animateFly);
         }
         
-        // ========== SOUL WHISPER SYSTEM ==========
-        const whisperContainer = document.getElementById('whisper-container');
-        
-        function spawnWhisper(worldPos, text) {
-            // project 3D position to screen
-            const vec = worldPos.clone();
-            vec.y += 0.8; // float above soul
-            vec.project(camera);
-            const x = (vec.x * 0.5 + 0.5) * window.innerWidth;
-            const y = (-vec.y * 0.5 + 0.5) * window.innerHeight;
-            
-            const el = document.createElement('div');
-            el.className = 'whisper';
-            el.textContent = text;
-            el.style.left = x + 'px';
-            el.style.top = y + 'px';
-            el.style.color = `hsl(${Math.random() * 60 + 20}, 80%, 70%)`;
-            whisperContainer.appendChild(el);
-            
-            // trigger animation
-            requestAnimationFrame(() => el.classList.add('fade-in'));
-            setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 4000);
+        function openBookModal(bookData, isOwned = false) {
+            const modal = document.getElementById('pageFlipModal');
+            document.getElementById('bookTitle').innerText = bookData.title;
+            document.getElementById('bookContent').innerHTML = `<p>${bookData.content}</p><p>Price: $${bookData.price}</p>`;
+            const buyBtn = document.getElementById('buyNowBtn');
+            if (isOwned) {
+                buyBtn.innerText = '📖 Read Again';
+                buyBtn.onclick = () => { alert(`Reading ${bookData.title}...`); };
+            } else {
+                buyBtn.innerText = '📦 Add to Cart & Fly';
+                buyBtn.onclick = () => buyBook(bookData);
+            }
+            modal.style.display = 'flex';
         }
         
-        // mouse proximity for souls
-        const mouseWorldPos = new THREE.Vector3();
-        const mouseSoulThreshold = 2.5;
-        
-        // ========== CLICK / INTERACTION SYSTEM ==========
+        // Book click handler
         const raycaster = new THREE.Raycaster();
-        const pointer = new THREE.Vector2();
-        let mouseDownPos2 = { x: 0, y: 0 };
-        let mouseDownTarget = null;
-        let interactionDragging = false;
+        const mouse = new THREE.Vector2();
+        window.addEventListener('click', (event) => {
+            mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
+            mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(books);
+            if (intersects.length > 0) {
+                const book = intersects[0].object;
+                const data = book.userData;
+                openBookModal(data, false);
+            }
+        });
         
-        function getClickTargets() {
-            const targets = [...books, ...souls.map(s => s.obj.children[0])];
-            if (!isInside) targets.push(portalPlane);
-            return targets;
+        // Auth simulation
+        document.getElementById('loginBtn').addEventListener('click', () => {
+            const email = prompt("Enter email to login/signup:");
+            if (email) {
+                currentUser = email;
+                localStorage.setItem('soulverse_user', currentUser);
+                userLibrary = JSON.parse(localStorage.getItem(`library_${currentUser}`) || '[]');
+                updateLibraryUI();
+                alert(`Logged in as ${currentUser}`);
+            }
+        });
+        
+        document.getElementById('checkoutBtn').addEventListener('click', () => {
+            if (cart.length === 0) { alert("Cart empty"); return; }
+            // In production, redirect to Shopify checkout
+            alert("Proceed to checkout (simulated). In production, redirect to Shopify cart.");
+            // For demo, clear cart
+            cart = [];
+            localStorage.setItem('soulverse_cart', JSON.stringify(cart));
+            updateCartUI();
+        });
+        
+        document.getElementById('closePageFlip').addEventListener('click', () => {
+            document.getElementById('pageFlipModal').style.display = 'none';
+        });
+        
+        // Librarian chat (simple)
+        const chatLog = document.getElementById('chatLog');
+        const chatInput = document.getElementById('chatInput');
+        function addChat(msg, fromUser = false) {
+            const div = document.createElement('div');
+            div.innerHTML = `<strong>${fromUser ? 'You' : '📚 Librarian'}:</strong> ${msg}`;
+            chatLog.appendChild(div);
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+        async function sendMessage() {
+            const text = chatInput.value.trim();
+            if (!text) return;
+            addChat(text, true);
+            chatInput.value = "";
+            let reply = "I am the Soul Librarian. Click any book to read or buy.";
+            if (text.toLowerCase().includes('recommend')) {
+                const randomBook = books[Math.floor(Math.random() * books.length)].userData;
+                reply = `I recommend "${randomBook.title}". Would you like to see it?`;
+            } else if (text.toLowerCase().includes('price')) {
+                reply = "Prices range from $19.99 to $39.99 per cosmic volume.";
+            }
+            addChat(reply);
+        }
+        document.getElementById('sendChat').addEventListener('click', sendMessage);
+        chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+        
+        // Voice
+        if ('webkitSpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'en-US';
+            document.getElementById('voiceBtn').addEventListener('click', () => {
+                recognition.start();
+            });
+            recognition.onresult = (e) => {
+                chatInput.value = e.results[0][0].transcript;
+                sendMessage();
+            };
+        } else {
+            document.getElementById('voiceBtn').disabled = true;
         }
         
-        renderer.domElement.addEventListener('pointerdown', (e) => {
-            mouseDownPos2.x = e.clientX;
-            mouseDownPos2.y = e.clientY;
-            interactionDragging = false;
-            const rect = renderer.domElement.getBoundingClientRect();
-            pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-            pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-            raycaster.setFromCamera(pointer, camera);
-            const targets = getClickTargets();
-            const hits = raycaster.intersectObjects(targets, false);
-            mouseDownTarget = hits.length > 0 ? hits[0].object : null;
-        });
-        
-        renderer.domElement.addEventListener('pointerup', (e) => {
-            const dist = Math.hypot(e.clientX - mouseDownPos2.x, e.clientY - mouseDownPos2.y);
-            if (dist > 5) { interactionDragging = true; return; }
-            if (interactionDragging || !mouseDownTarget) return;
-            if (readingState !== 'idle') return;
-            
-            // pyramid enter/exit
-            if (isInside) {
-                if (mouseDownTarget === laptopScreen) {
-                    alert("📖 THE CALCULATION · Profit · Love · Tax\n\n\"Every move in life is a three-part equation. Whether you calculate it or not.\"");
-                } else {
-                    exitPyramid();
-                }
-                return;
-            }
-            if (mouseDownTarget === portalPlane) {
-                enterPyramid();
-                return;
-            }
-            
-            // check books
-            const bookHit = mouseDownTarget.userData && mouseDownTarget.userData.isBook;
-            if (bookHit) {
-                startReading(mouseDownTarget);
-                return;
-            }
-            
-            // check souls
-            for (const s of souls) {
-                if (s.obj.children[0] === mouseDownTarget) {
-                    const quote = pltQuotes[Math.floor(Math.random() * pltQuotes.length)];
-                    spawnWhisper(s.obj.position, quote);
-                    break;
-                }
-            }
-        });
-        
-        // cursor hover
-        renderer.domElement.addEventListener('pointermove', (e) => {
-            const rect = renderer.domElement.getBoundingClientRect();
-            pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-            pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-            raycaster.setFromCamera(pointer, camera);
-            const bookHits = raycaster.intersectObjects(books, false);
-            const soulHits = raycaster.intersectObjects(souls.map(s => s.obj.children[0]), false);
-            const cursor = bookHits.length > 0 ? 'pointer' : soulHits.length > 0 ? 'grab' : 'default';
-            renderer.domElement.style.cursor = cursor;
-            
-            // update mouse world position for soul proximity
-            const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-            const intersectPoint = new THREE.Vector3();
-            raycaster.ray.intersectPlane(plane, intersectPoint);
-            if (intersectPoint) mouseWorldPos.copy(intersectPoint);
-        });
-        
-        // update hint element ref
-        const hintEl = document.getElementById('controls-hint');
-        
-        // close overlay on bg click
-        document.getElementById('reading-bg').addEventListener('click', () => {
-            if (readingState === 'open') {
-                closeBookBtn.click();
-            }
-        });
-        
-        // ESC key: close reading overlay or exit pyramid
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && readingState === 'open') {
-                closeBookBtn.click();
-            } else if (e.key === 'Escape' && isInside) {
-                exitPyramid();
-            }
-        });
-        
-        // Exit button
-
-        
-        // ========== ANIMATION ==========
-        let time = 0, lastTime = 0;
-        
+        // Animation
+        let time = 0;
         function animate() {
             requestAnimationFrame(animate);
-            const dt = Math.min(0.033, (performance.now() - lastTime) / 1000);
-            lastTime = performance.now();
-            time += dt;
-            
-            // --- souls orbiting & bobbing + mouse reaction ---
-            souls.forEach(s => {
-                if (s.obj.userData.isDragging) return;
-                // mouse proximity: flee from cursor
-                const dx = s.obj.position.x - mouseWorldPos.x;
-                const dz = s.obj.position.z - mouseWorldPos.z;
-                const dist = Math.sqrt(dx*dx + dz*dz);
-                let flee = 0;
-                if (dist < mouseSoulThreshold && dist > 0.01) {
-                    flee = (1 - dist / mouseSoulThreshold) * 2.0;
-                    s.angle += (dx / dist) * flee * 0.008;
-                }
-                
-                s.angle += 0.006;
-                s.obj.position.x = Math.cos(s.angle) * s.radius;
-                s.obj.position.z = Math.sin(s.angle) * s.radius;
-                s.obj.position.y = s.yOff + Math.sin(time * s.ySpeed + s.yPhase) * 0.25;
-                const sc = 1 + Math.sin(time * 2.5 + s.angle) * 0.08;
-                s.obj.children[0].scale.set(sc, sc, sc);
-            });
-            
-            // --- rotate stars, wisps, dust ---
-            stars.rotation.y += 0.0003;
-            stars.rotation.x += 0.0002;
-            wisps.rotation.y += 0.0015;
-            dust.rotation.y += 0.004;
-            
-            // --- rotate planets ---
-            planets.forEach((p, i) => {
-                p.rotation.x += 0.003 + i * 0.0005;
-                p.rotation.y += 0.004 + i * 0.0003;
-            });
-            rings.forEach(r => { r.rotation.z += 0.008; });
-            
-            // --- rotate galaxies ---
-            galaxies.forEach((g, i) => {
-                g.rotation.y += 0.00015 * (1 + i * 0.2) * (i % 2 === 0 ? 1 : -1);
-                g.rotation.x += 0.00005 * (i % 2 === 0 ? 1 : -1);
-            });
-            
-            // --- floating pages ---
-            pages.forEach(p => {
-                p.mesh.position.x += p.speedX;
-                p.mesh.position.y += Math.sin(time * 1.2) * 0.002;
-                p.mesh.position.z += p.speedZ;
-                p.mesh.rotation.z += 0.015;
-                p.mesh.rotation.x += 0.008;
-                if (Math.abs(p.mesh.position.x) > 6) p.mesh.position.x = -p.orig.x * 0.8;
-                if (p.mesh.position.y > 4) p.mesh.position.y = 0.2;
-            });
-            
-            // --- orbs drift ---
-            orbs.forEach((orb, i) => {
-                orb.position.x += Math.sin(time * 0.6 + i) * 0.002;
-                orb.position.y += Math.cos(time * 0.5 + i) * 0.002;
-            });
-            
-            // --- book reading animation ---
-            updateBookReading();
-            
-            // --- rune pulse animation ---
-            books.forEach(book => {
-                if (book.userData.hasRune) {
-                    // find the rune child near this book (simple: iterate scene children)
-                    // we can flag runes in userData
-                }
-            });
-            // simpler: just iterate scene children looking for runes
-            scene.children.forEach(child => {
-                if (child.userData && child.userData.isRune) {
-                    const pulse = 0.5 + Math.sin(time * 2.5 + child.position.x) * 0.4;
-                    child.material.opacity = pulse;
-                    const s = 1 + Math.sin(time * 3 + child.position.x) * 0.2;
-                    child.scale.set(s, s, s);
-                }
-            });
-            
-            // --- pulse pyramid glow ---
-            pyramidGlow.intensity = 0.9 + Math.sin(time * 1.8) * 0.3;
-            capstone.material.emissiveIntensity = 0.5 + Math.sin(time * 2.2) * 0.2;
-            
-            // --- bloom pulse ---
-            bloomPass.strength = 1.1 + Math.sin(time * 0.4) * 0.15;
-            
-            hintEl.textContent = isInside
-                ? '📖 Click the book | Click wall or press ESC to exit'
-                : '🖱️ Drag objects | Click books | Click souls | Click pyramid door to enter';
-            
+            time += 0.016;
+            stars.rotation.y += 0.0002;
+            shelfGroup.rotation.y += 0.0005;
             controls.update();
-            effectComposer.render();
+            composer.render();
         }
         animate();
         
-        // ========== RESIZE ==========
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
-            effectComposer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
         });
         
-        console.log('Mystical Library: click books to read PLT content, click souls for whispers, drag objects');
+        // Initial UI update
+        updateCartUI();
+        if (currentUser) updateLibraryUI();
+        
+        console.log("🌀 Phase 4 – E‑commerce & User Library Active");
     </script>
 </body>
 </html>
