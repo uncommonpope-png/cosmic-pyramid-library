@@ -3,442 +3,601 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>🌀 Cosmic Pyramid Library – Phase 4 | E‑commerce & My Books</title>
+    <title>Neon Pyramid · Souls · Drag & Click</title>
     <style>
-        body { margin:0; overflow:hidden; font-family:'Cinema', 'Orbitron', 'Courier New', monospace; }
-        canvas { display:block; width:100%; height:100%; }
-        /* UI Overlay */
-        .ui {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            z-index: 20;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            pointer-events: none;
+        body { margin: 0; overflow: hidden; font-family: 'Georgia', 'Times New Roman', serif; }
+        #info {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(0,0,0,0.7); color: #ffdd99;
+            padding: 10px 18px; border-radius: 30px;
+            font-size: 14px; font-weight: bold;
+            backdrop-filter: blur(8px); pointer-events: none;
+            z-index: 10; letter-spacing: 1px; font-family: monospace;
         }
-        .chat-panel, .cart-panel, .mybooks-panel {
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(12px);
-            border-radius: 20px;
-            border: 1px solid #ffaa66;
-            width: 280px;
-            pointer-events: auto;
-            padding: 12px;
-            color: #ffdd99;
-            font-size: 12px;
-            font-family: monospace;
+        #controls-hint {
+            position: absolute; bottom: 20px; left: 20px;
+            background: rgba(0,0,0,0.6); color: #ccc;
+            padding: 6px 12px; border-radius: 20px;
+            font-size: 12px; font-family: monospace;
+            pointer-events: none; z-index: 10;
         }
-        .cart-panel { position: absolute; top: 80px; right: 20px; bottom: auto; left: auto; width: 260px; }
-        .mybooks-panel { position: absolute; top: 80px; left: 20px; width: 260px; }
-        .chat-log { height: 150px; overflow-y: auto; margin-bottom: 8px; border-bottom: 1px solid #ffaa66; }
-        .chat-input-area { display: flex; gap: 6px; }
-        input, button {
-            background: #2a2a3a;
-            border: 1px solid #ffaa66;
-            color: #ffaa66;
-            border-radius: 20px;
-            padding: 6px 10px;
-            font-family: monospace;
+        #book-modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            background: rgba(10,5,20,0.92); color: #f0e6d0;
+            padding: 30px 40px; border-radius: 16px;
+            backdrop-filter: blur(12px); border: 1px solid #ffaa66;
+            box-shadow: 0 0 60px rgba(255,100,50,0.3);
+            z-index: 100; display: none; max-width: 380px;
+            text-align: center; pointer-events: auto;
+            font-family: 'Times New Roman', serif;
         }
-        button { cursor: pointer; background: #ffaa66; color: #000; font-weight: bold; }
-        .book-item { padding: 5px; margin: 5px 0; background: rgba(0,0,0,0.5); border-radius: 12px; cursor: pointer; }
-        .librarian-avatar { position: absolute; bottom: 20px; right: 20px; width: 80px; height: 80px; background: rgba(0,0,0,0.6); border-radius: 50%; border: 2px solid #ffaa66; display: flex; align-items: center; justify-content: center; font-size: 40px; pointer-events: none; z-index: 20; }
-        .flying-book-ui { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); border-radius: 40px; padding: 8px 20px; color: #ffaa66; display: none; z-index: 30; white-space: nowrap; }
-        .page-flip { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 320px; max-height: 80vh; background: rgba(0,0,0,0.95); border-radius: 20px; border: 1px solid #ffaa66; display: none; z-index: 100; flex-direction: column; padding: 20px; color: #ffdd99; overflow-y: auto; }
-        @media (max-width: 768px) {
-            .chat-panel, .cart-panel, .mybooks-panel { width: 240px; font-size: 10px; }
-            .librarian-avatar { width: 60px; height: 60px; font-size: 30px; }
+        #book-modal h2 { margin: 0 0 8px; color: #ffcc77; font-size: 22px; }
+        #book-modal p { margin: 6px 0; color: #bbaadd; font-size: 14px; line-height: 1.5; }
+        #book-modal .close-btn {
+            margin-top: 16px; background: #ff8844; border: none;
+            color: #110011; padding: 8px 24px; border-radius: 30px;
+            font-weight: bold; cursor: pointer; font-size: 14px;
+            letter-spacing: 1px;
+        }
+        #book-modal .close-btn:hover { background: #ffaa66; }
+        @media (max-width: 600px) {
+            #info { font-size: 10px; top: 10px; left: 10px; }
+            #controls-hint { font-size: 9px; }
+            #book-modal { padding: 20px 24px; max-width: 280px; }
+            #book-modal h2 { font-size: 18px; }
         }
     </style>
 </head>
 <body>
-    <div id="dbg" style="position:fixed;top:0;left:0;z-index:99999;color:#0f0;background:rgba(0,0,0,0.95);padding:8px;font:12px monospace;white-space:pre-wrap;max-height:120px;overflow:auto;pointer-events:none;"></div>
-    <script>
-        function dbg(m){var e=document.getElementById('dbg');if(e)e.textContent+=m+'\n';}
-        window.onerror=function(m,u,l,c,err){dbg('ERR: '+m+' '+l+':'+c);};
-        window.addEventListener('unhandledrejection',function(e){dbg('PROM: '+e.reason);});
-        dbg('Page loaded');
-    </script>
+    <div id="info">🌌 NEON PYRAMID · DRAG ANYTHING · CLICK BOOKS 🌌</div>
+    <div id="controls-hint">🖱️ Drag objects | Click books for lore | Scroll to zoom</div>
 
-    <!-- UI Panels -->
-    <div class="ui">
-        <div class="chat-panel">
-            <div class="chat-log" id="chatLog"><div>📚 Librarian: Welcome, seeker. Browse the stars or your collection.</div></div>
-            <div class="chat-input-area">
-                <input type="text" id="chatInput" placeholder="Ask the librarian...">
-                <button id="sendChat">Send</button>
-                <button id="voiceBtn">🎤</button>
-            </div>
-        </div>
-        <div class="mybooks-panel" id="myBooksPanel">
-            <strong>📖 My Books</strong>
-            <div id="myBooksList">(Login to see your collection)</div>
-            <button id="loginBtn" style="margin-top:8px;">🔐 Login / Signup</button>
-        </div>
-        <div class="cart-panel" id="cartPanel">
-            <strong>🛒 Cart</strong>
-            <div id="cartItems">Empty</div>
-            <button id="checkoutBtn" style="margin-top:8px;">💳 Checkout</button>
-        </div>
-    </div>
-    <div class="librarian-avatar">🧙</div>
-    <div class="flying-book-ui" id="flyingBookUI">✨ Flying through the galaxy... ✨</div>
-    <div id="pageFlipModal" class="page-flip">
-        <div id="bookTitle" style="font-size: 20px; margin-bottom: 10px;"></div>
-        <div id="bookContent" style="flex:1; overflow-y:auto; margin:10px 0;"></div>
-        <button id="closePageFlip">Close</button>
-        <button id="buyNowBtn" style="margin-top:10px;">📦 Add to Cart & Fly</button>
+    <div id="book-modal">
+        <h2 id="book-title">Ancient Tome</h2>
+        <p id="book-author">by Unknown</p>
+        <p id="book-desc">A dusty grimoire filled with cryptic symbols...</p>
+        <button class="close-btn" id="modal-close">CLOSE</button>
     </div>
 
     <script type="importmap">
-        { "imports": { "three": "https://unpkg.com/three@0.128.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/" } }
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+            }
+        }
     </script>
 
     <script type="module">
-        dbg('Module script started');
         import * as THREE from 'three';
-        dbg('THREE imported');
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        dbg('OrbitControls imported');
+        import { DragControls } from 'three/addons/controls/DragControls.js';
         import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-        dbg('EffectComposer imported');
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-        dbg('RenderPass imported');
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-        dbg('All imports done');
         
-        // ============================================================
-        // PHASE 4: E‑COMMERCE + USER PERSISTENCE (demo with localStorage)
-        // ============================================================
-        
-        // --- Shopify Integration Guide (replace with real SDK later) ---
-        // For production, replace the addToCart and checkout functions with Shopify Buy SDK.
-        // This demo uses localStorage to simulate user library and cart.
-        
-        let currentUser = localStorage.getItem('soulverse_user') || null;
-        let userLibrary = JSON.parse(localStorage.getItem(`library_${currentUser}`) || '[]');
-        let cart = JSON.parse(localStorage.getItem('soulverse_cart') || '[]');
-        
-        // --- 3D Scene Setup (reused from Phase 3, simplified) ---
-        dbg('Creating scene...');
+        // --- scene ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x010118);
-        scene.fog = new THREE.FogExp2(0x010118, 0.0008);
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
-        camera.position.set(5, 4, 12);
+        scene.background = new THREE.Color(0x010008);
+        scene.fog = new THREE.FogExp2(0x010008, 0.006);
+        
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(6, 5, 9);
+        camera.lookAt(0, 1.5, 0);
+        
         const renderer = new THREE.WebGLRenderer({ antialias: true });
-        dbg('Renderer: ' + (renderer ? 'OK' : 'NULL'));
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+        renderer.toneMappingExposure = 0.8;
         renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
-        dbg('Canvas appended: ' + (document.body.contains(renderer.domElement)));
         
-        dbg('Creating composer...');
+        // --- postprocessing ---
         const renderScene = new RenderPass(scene, camera);
-        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.3, 0.85);
-        const composer = new EffectComposer(renderer);
-        composer.addPass(renderScene);
-        composer.addPass(bloomPass);
-        dbg('Composer OK');
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0.05;
+        bloomPass.strength = 1.2;
+        bloomPass.radius = 0.6;
+        const effectComposer = new EffectComposer(renderer);
+        effectComposer.addPass(renderScene);
+        effectComposer.addPass(bloomPass);
         
+        // --- orbit controls ---
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
-        controls.autoRotate = true;
-        controls.autoRotateSpeed = 0.3;
-        controls.target.set(0, 2, 0);
-        dbg('Controls OK');
+        controls.dampingFactor = 0.06;
+        controls.zoomSpeed = 0.8;
+        controls.rotateSpeed = 0.6;
+        controls.target.set(0, 1.8, 0);
         
-        // Lighting (quick)
-        const ambient = new THREE.AmbientLight(0x332244, 0.5);
+        // --- NEON LIGHTING: dark scene with colored accent lights ---
+        const ambient = new THREE.AmbientLight(0x110022, 0.15);
         scene.add(ambient);
-        const sunLight = new THREE.DirectionalLight(0xffcc88, 1.2);
-        sunLight.position.set(5, 10, 3);
-        sunLight.castShadow = true;
-        scene.add(sunLight);
-        const fillLight = new THREE.PointLight(0x8866ff, 0.6);
-        fillLight.position.set(0, -2, 0);
-        scene.add(fillLight);
         
-        // Stars
+        // weak directional fill (very dim)
+        const dimFill = new THREE.DirectionalLight(0x223344, 0.15);
+        dimFill.position.set(2, 5, 3);
+        scene.add(dimFill);
+        
+        // Neon accent lights
+        const neonCyan = new THREE.PointLight(0x00ffcc, 0.7, 14);
+        neonCyan.position.set(3, 1.5, 2);
+        scene.add(neonCyan);
+        const neonCyanVis = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), new THREE.MeshBasicMaterial({ color: 0x00ffcc }));
+        neonCyanVis.position.copy(neonCyan.position);
+        scene.add(neonCyanVis);
+        
+        const neonMagenta = new THREE.PointLight(0xff00ff, 0.6, 14);
+        neonMagenta.position.set(-3, 2, 3);
+        scene.add(neonMagenta);
+        const neonMagentaVis = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff00ff }));
+        neonMagentaVis.position.copy(neonMagenta.position);
+        scene.add(neonMagentaVis);
+        
+        const neonGreen = new THREE.PointLight(0x00ff66, 0.5, 12);
+        neonGreen.position.set(0, 0.5, -3);
+        scene.add(neonGreen);
+        const neonGreenVis = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), new THREE.MeshBasicMaterial({ color: 0x00ff66 }));
+        neonGreenVis.position.copy(neonGreen.position);
+        scene.add(neonGreenVis);
+        
+        const neonOrange = new THREE.PointLight(0xff6600, 0.8, 12);
+        neonOrange.position.set(-1, 3.5, -2);
+        scene.add(neonOrange);
+        const neonOrangeVis = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff6600 }));
+        neonOrangeVis.position.copy(neonOrange.position);
+        scene.add(neonOrangeVis);
+        
+        const pyramidGlow = new THREE.PointLight(0xffaa44, 1.0, 10);
+        pyramidGlow.position.set(0, 2.2, 0);
+        scene.add(pyramidGlow);
+        
+        // --- stars ---
+        const starCount = 2500;
         const starGeo = new THREE.BufferGeometry();
-        const starPos = new Float32Array(3000 * 3);
-        for (let i = 0; i < 3000; i++) {
-            starPos[i*3] = (Math.random() - 0.5) * 800;
-            starPos[i*3+1] = (Math.random() - 0.5) * 400;
-            starPos[i*3+2] = (Math.random() - 0.5) * 300 - 100;
+        const starPos = new Float32Array(starCount * 3);
+        const starCols = new Float32Array(starCount * 3);
+        for (let i = 0; i < starCount; i++) {
+            starPos[i*3] = (Math.random() - 0.5) * 500;
+            starPos[i*3+1] = (Math.random() - 0.5) * 250;
+            starPos[i*3+2] = (Math.random() - 0.5) * 200 - 50;
+            const c = new THREE.Color().setHSL(0.55 + Math.random() * 0.25, 0.6, 0.3 + Math.random() * 0.7);
+            starCols[i*3] = c.r; starCols[i*3+1] = c.g; starCols[i*3+2] = c.b;
         }
         starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.2 }));
+        starGeo.setAttribute('color', new THREE.BufferAttribute(starCols, 3));
+        const starMat = new THREE.PointsMaterial({ size: 0.18, vertexColors: true, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
+        const stars = new THREE.Points(starGeo, starMat);
         scene.add(stars);
         
-        // Pyramid (simplified)
-        const pyramidGroup = new THREE.Group();
-        const tiers = [[3.2,0.6,0.3,0xccaa77],[2.6,0.6,0.9,0xddbb88],[2.0,0.6,1.5,0xeecc99],[1.4,0.6,2.1,0xffddaa]];
-        tiers.forEach(t => {
-            const box = new THREE.Mesh(new THREE.BoxGeometry(t[0], t[1], t[0]), new THREE.MeshStandardMaterial({ color: t[3], metalness: 0.7 }));
-            box.position.y = t[2];
-            box.castShadow = true;
-            pyramidGroup.add(box);
-        });
-        const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.5,0.8,8), new THREE.MeshStandardMaterial({ color: 0xffaa66, emissive: 0xff4422 }));
-        crystal.position.y = 2.5;
-        pyramidGroup.add(crystal);
-        scene.add(pyramidGroup);
-        
-        // Floating shelves with books (store in array)
-        const shelfGroup = new THREE.Group();
-        const shelfRadius = 3.8;
-        const books = [];
-        const bookDataMap = new Map(); // map 3D book object to data
-        
-        for (let i = 0; i < 4; i++) {
-            const yPos = 0.5 + i * 0.8;
-            const ring = new THREE.Mesh(new THREE.TorusGeometry(shelfRadius, 0.15, 32, 100), new THREE.MeshStandardMaterial({ color: [0x88aaff,0xff88aa,0x88ffaa,0xffaa88][i], metalness: 0.8 }));
-            ring.rotation.x = Math.PI/2;
-            ring.position.y = yPos;
-            shelfGroup.add(ring);
-            for (let j = 0; j < 8; j++) {
-                const angle = (j / 8) * Math.PI * 2;
-                const x = Math.cos(angle) * (shelfRadius - 0.2);
-                const z = Math.sin(angle) * (shelfRadius - 0.2);
-                const colors = [0xff6666,0x66ff66,0x6666ff,0xffaa66,0xff66aa,0x66ffaa];
-                const bookColor = colors[(i*8+j) % colors.length];
-                const book = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.7,0.2), new THREE.MeshStandardMaterial({ color: bookColor, metalness: 0.2 }));
-                book.position.set(x, yPos+0.05, z);
-                book.rotation.y = angle;
-                book.castShadow = true;
-                const bookId = `book_${i}_${j}`;
-                const bookData = {
-                    id: bookId,
-                    title: `Cosmic Volume ${i*8+j+1}`,
-                    price: (19.99 + i*5).toFixed(2),
-                    description: "A mystical book floating in the galaxy.",
-                    content: `This is the content of ${i*8+j+1}. Contains ancient wisdom.`
-                };
-                book.userData = bookData;
-                shelfGroup.add(book);
-                books.push(book);
-                bookDataMap.set(book, bookData);
+        // --- 3D SPIRAL GALAXIES (actual particle systems, visible while orbiting) ---
+        function createSpiralGalaxy(posX, posY, posZ, hue1, hue2, count, size, opacity) {
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+                const isCore = i < count * 0.25;
+                let r, a, thick;
+                if (isCore) {
+                    r = Math.random() * 0.6;
+                    a = Math.random() * Math.PI * 2;
+                    thick = (Math.random() - 0.5) * 0.12;
+                } else {
+                    const armIdx = Math.floor(Math.random() * 3);
+                    const t = Math.pow(Math.random(), 0.5) * 4.5 + 0.2;
+                    r = 0.6 + t * 0.65;
+                    a = (armIdx / 3) * Math.PI * 2 + t * 1.2 + (Math.random() - 0.5) * 0.3;
+                    thick = (Math.random() - 0.5) * 0.18 * Math.min(1, r / 2);
+                }
+                positions[i*3] = Math.cos(a) * r;
+                positions[i*3+1] = thick;
+                positions[i*3+2] = Math.sin(a) * r;
+                const hue = hue1 + (r / 4.5) * (hue2 - hue1);
+                const c = new THREE.Color().setHSL(hue, 0.8, isCore ? 0.5 + Math.random() * 0.3 : 0.3 + Math.random() * 0.3);
+                colors[i*3] = c.r; colors[i*3+1] = c.g; colors[i*3+2] = c.b;
             }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const mat = new THREE.PointsMaterial({
+                size, vertexColors: true, transparent: true, opacity,
+                blending: THREE.AdditiveBlending, sizeAttenuation: true, depthWrite: false,
+            });
+            const pts = new THREE.Points(geo, mat);
+            pts.position.set(posX, posY, posZ);
+            pts.rotation.x = (Math.random() - 0.5) * 0.20;
+            pts.rotation.y = Math.random() * Math.PI * 2;
+            return pts;
         }
-        scene.add(shelfGroup);
         
-        // Dust particles
+        const galaxies = [
+            createSpiralGalaxy(-14, 5, -18, 0.62, 0.75, 8000, 0.5, 0.9),   // blue/cyan
+            createSpiralGalaxy(16, 2, -20, 0.78, 0.88, 7000, 0.45, 0.85),  // pink/purple
+            createSpiralGalaxy(-12, -3, -22, 0.55, 0.65, 6000, 0.4, 0.8),  // green/teal
+            createSpiralGalaxy(14, 6, -24, 0.72, 0.82, 7000, 0.5, 0.85),   // magenta/pink
+            createSpiralGalaxy(0, -2, -26, 0.58, 0.70, 8000, 0.55, 0.9),   // teal/blue
+            createSpiralGalaxy(-20, 1, -10, 0.65, 0.80, 5000, 0.35, 0.7),  // distant blue/purple
+        ];
+        galaxies.forEach(g => scene.add(g));
+        
+        // --- PLANETS (many, with variety) ---
+        const planets = [];
+        const planetData = [
+            { r: 0.9, c: 0x88ddff, x: -6, y: 2.0, z: -10, e: 0x2266aa, ring: false },
+            { r: 0.7, c: 0xff9966, x: 7, y: -0.8, z: -11, e: 0x884422, ring: true, ringC: 0xffcc88 },
+            { r: 1.2, c: 0x77bbff, x: 5, y: 3.2, z: -14, e: 0x224488, ring: false },
+            { r: 0.5, c: 0xffaa77, x: -5, y: -1.5, z: -13, e: 0x663322, ring: false },
+            { r: 0.6, c: 0xcc88ff, x: -3, y: 1.5, z: -16, e: 0x6622aa, ring: true, ringC: 0xdd99ff },
+            { r: 1.0, c: 0x66ddbb, x: 8, y: 1.0, z: -16, e: 0x227766, ring: false },
+            { r: 0.4, c: 0xff6688, x: -7, y: 3.5, z: -12, e: 0x882244, ring: false },
+            { r: 0.8, c: 0xaaaaee, x: 3, y: -1.2, z: -17, e: 0x444488, ring: false },
+            { r: 0.55, c: 0x88ffaa, x: -4, y: 4.0, z: -18, e: 0x228844, ring: false },
+            { r: 1.3, c: 0xdd9977, x: 6, y: 2.8, z: -20, e: 0x885533, ring: true, ringC: 0xccaa77 },
+            { r: 0.35, c: 0x66ccff, x: -8, y: 0.5, z: -15, e: 0x224488, ring: false },
+            { r: 0.7, c: 0xee88aa, x: -6, y: 4.5, z: -19, e: 0x773355, ring: false },
+        ];
+        const rings = [];
+        planetData.forEach(d => {
+            const mat = new THREE.MeshStandardMaterial({ color: d.c, emissive: d.e, emissiveIntensity: 0.8, roughness: 0.3, metalness: 0.2 });
+            const mesh = new THREE.Mesh(new THREE.SphereGeometry(d.r, 48, 48), mat);
+            mesh.position.set(d.x, d.y, d.z);
+            mesh.castShadow = true;
+            scene.add(mesh);
+            planets.push(mesh);
+            // glow aura (child of planet, follows automatically)
+            const auraMat = new THREE.MeshBasicMaterial({ color: d.c, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending });
+            const aura = new THREE.Mesh(new THREE.SphereGeometry(d.r * 2.2, 24, 24), auraMat);
+            mesh.add(aura);
+            if (d.ring) {
+                const ringMat = new THREE.MeshStandardMaterial({ color: d.ringC, emissive: d.e, emissiveIntensity: 0.6, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(d.r * 1.5, 0.12, 24, 100), ringMat);
+                ring.rotation.x = Math.PI / 2.2;
+                ring.position.copy(mesh.position);
+                scene.add(ring);
+                rings.push(ring);
+            }
+        });
+        
+        // --- library: pillars, shelves, books ---
+        const woodMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.6, metalness: 0.1 });
+        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x5a4a3a, roughness: 0.8 });
+        
+        for (let i = -1; i <= 1; i+=2) {
+            const p = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 4.5, 12), stoneMat);
+            p.position.set(i * 3.5, 1.8, -3); p.castShadow = true;
+            scene.add(p);
+        }
+        
+        // clickable & draggable books
+        const books = [];
+        const bookTitles = [
+            { title: 'The Necronomicon', author: 'Abdul Alhazred', desc: 'A maddening grimoire bound in unknown flesh. Whispers escape its pages.' },
+            { title: 'Cosmic Harmonics', author: 'Pythagoras of Samos', desc: 'The mathematics of the spheres, revealing the music of the cosmos.' },
+            { title: 'Soul Alchemy', author: 'Hermes Trismegistus', desc: 'On the transmutation of spirit into matter and back again.' },
+            { title: 'Astral Navigation', author: 'Hypatia of Alexandria', desc: 'A guide to charting courses through the celestial planes.' },
+            { title: 'The Void Gospel', author: 'Unknown', desc: 'Scriptures from beyond the known universe, written in anti-light.' },
+            { title: 'Pyramid Codex', author: 'Imhotep', desc: 'Architectural blueprints for structures that channel raw cosmic energy.' },
+            { title: 'Ethereal Botany', author: 'Sage of the Nebula', desc: 'A catalogue of flora that grows in the space between worlds.' },
+            { title: 'Chronomancy', author: 'The Time Weaver', desc: 'Temporal manipulation through harmonic resonance and will.' },
+            { title: 'Dream Oracles', author: 'Morpheus', desc: 'Interpreting the symbols that appear in the collective unconscious.' },
+            { title: 'Stellar Cartography', author: 'Tycho Brahe', desc: 'Maps of star systems beyond the observable veil.' },
+            { title: 'The Lumenary', author: 'Lucifer', desc: 'A controversial treatise on illumination and forbidden knowledge.' },
+            { title: 'Elemental Compendium', author: 'Paracelsus', desc: 'On the spirits of earth, air, fire, water, and the fifth essence.' },
+            { title: 'Quantum Mysticism', author: 'Erwin Schrödinger', desc: 'Bridging the gap between wave functions and the soul.' },
+            { title: 'The Outer Gods', author: 'H.P. Lovecraft', desc: 'A dangerous collection of eyewitness accounts of primordial entities.' },
+            { title: 'Celestial Mechanics', author: 'Johannes Kepler', desc: 'The geometry of planetary motion as a reflection of divine order.' },
+            { title: 'Shadow Work', author: 'Carl Jung', desc: 'Integrating the dark aspects of the psyche through alchemical processes.' },
+            { title: 'The Akashic Records', author: 'Ancient Collective', desc: 'A primer on accessing the ethereal library of all knowledge.' },
+            { title: 'Philosopher\'s Stone', author: 'Nicolas Flamel', desc: 'Practical instructions for the great work of transmutation.' },
+            { title: 'Lunar Tides', author: 'Selene', desc: 'How the moon\'s phases influence magical energy and consciousness.' },
+            { title: 'The Infinite Corridor', author: 'Borges', desc: 'A metaphysical exploration of labyrinths, mirrors, and endless libraries.' },
+        ];
+        let titleIdx = 0;
+        
+        const shelfPositions = [
+            [-4.5, 0.8, -2], [4.2, 0.8, -2],
+            [-4, 2.2, -2.2], [3.8, 2.2, -2.2],
+            [-4.7, 1.6, -2.5], [4.5, 1.6, -2.5],
+        ];
+        const bookColors = [0x6a3a3a, 0x3a5a3a, 0x5a3a5a, 0x7a4a2a, 0x3a4a6a, 0x6a4a4a, 0x2a5a4a, 0x5a2a5a];
+        shelfPositions.forEach(pos => {
+            const shelfBase = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.08, 1.2), woodMat);
+            shelfBase.position.set(pos[0], pos[1], pos[2]);
+            shelfBase.castShadow = true; shelfBase.receiveShadow = true;
+            scene.add(shelfBase);
+            for (let i = 0; i < 5; i++) {
+                if (titleIdx >= bookTitles.length) titleIdx = 0;
+                const info = bookTitles[titleIdx++];
+                const col = bookColors[(titleIdx) % bookColors.length];
+                const bookMat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.4, metalness: 0.2, emissive: col, emissiveIntensity: 0.05 });
+                const book = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.55, 0.28), bookMat);
+                const xOff = -0.8 + i * 0.4;
+                book.position.set(pos[0] + xOff, pos[1] + 0.3, pos[2] + 0.1);
+                book.castShadow = true;
+                book.userData = { isBook: true, title: info.title, author: info.author, desc: info.desc, shelfPos: book.position.clone() };
+                scene.add(book);
+                books.push(book);
+                
+                // gold spine line
+                const spineMat = new THREE.MeshStandardMaterial({ color: 0xccaa77, emissive: 0xaa8844, emissiveIntensity: 0.1 });
+                const spine = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.5, 0.01), spineMat);
+                spine.position.set(pos[0] + xOff, pos[1] + 0.3, pos[2] + 0.18);
+                scene.add(spine);
+            }
+        });
+        
+        // --- THE PYRAMID ---
+        const platform = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.25, 4.2), new THREE.MeshStandardMaterial({ color: 0x4a2a1a, roughness: 0.5, metalness: 0.3 }));
+        platform.position.set(0, -0.15, 0); platform.receiveShadow = true;
+        scene.add(platform);
+        
+        // pyramid texture with neon hieroglyphs
+        const pyramidTex = (() => {
+            const c = document.createElement('canvas'); c.width = 1024; c.height = 1024;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#1a0e05'; ctx.fillRect(0,0,c.width,c.height);
+            // neon glowing hieroglyphs
+            for (let i = 0; i < 80; i++) {
+                ctx.strokeStyle = `hsl(${30 + Math.random() * 40}, 80%, ${40 + Math.random() * 40}%)`;
+                ctx.lineWidth = 6 + Math.random() * 10;
+                ctx.beginPath();
+                const x = Math.random() * c.width, y = Math.random() * c.height;
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + (Math.random() - 0.5) * 60, y + (Math.random() - 0.5) * 60);
+                ctx.stroke();
+            }
+            // neon symbols
+            ctx.font = 'bold 48px "Times New Roman"';
+            for (let i = 0; i < 20; i++) {
+                ctx.fillStyle = `hsla(${Math.random() * 360}, 90%, 60%, 0.6)`;
+                ctx.fillText("𓃥𓃠𓂀𓀀𓀁", Math.random() * c.width, Math.random() * c.height);
+            }
+            // glowing dots
+            for (let i = 0; i < 500; i++) {
+                ctx.fillStyle = `hsla(${40 + Math.random() * 50}, 90%, 70%, ${0.3 + Math.random() * 0.5})`;
+                ctx.beginPath(); ctx.arc(Math.random() * c.width, Math.random() * c.height, 3 + Math.random() * 5, 0, Math.PI*2); ctx.fill();
+            }
+            return new THREE.CanvasTexture(c);
+        })();
+        const pyramidMat = new THREE.MeshStandardMaterial({ map: pyramidTex, color: 0xaa8855, roughness: 0.2, metalness: 0.8, emissive: 0x553300, emissiveIntensity: 0.3 });
+        const pyramid = new THREE.Mesh(new THREE.CylinderGeometry(0, 2.4, 2.8, 4, 1), pyramidMat);
+        pyramid.position.set(0, 1.1, 0); pyramid.castShadow = true; pyramid.receiveShadow = true;
+        scene.add(pyramid);
+        
+        const capstone = new THREE.Mesh(new THREE.ConeGeometry(0.45, 0.6, 8), new THREE.MeshStandardMaterial({ color: 0xffcc66, metalness: 1.0, emissive: 0xff8822, emissiveIntensity: 0.6 }));
+        capstone.position.set(0, 2.55, 0); capstone.castShadow = true;
+        scene.add(capstone);
+        
+        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0, 2.4, 2.8, 4, 1)), new THREE.LineBasicMaterial({ color: 0xff8844 }));
+        edges.position.copy(pyramid.position);
+        scene.add(edges);
+        
+        // --- NEON SOULS (vibrant colors) ---
+        const soulCount = 40;
+        const souls = [];
+        const soulColors = [0x00ffcc, 0xff00ff, 0x00ffff, 0xff6600, 0xcc00ff, 0x00ff66, 0xff3366, 0x44ffaa, 0xff44aa, 0xaa44ff];
+        
+        function createSoul(x, y, z, color, size) {
+            const g = new THREE.Group();
+            const core = new THREE.Mesh(new THREE.SphereGeometry(size, 20, 20), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.2, transparent: true, opacity: 0.9 }));
+            g.add(core);
+            const aura = new THREE.Mesh(new THREE.SphereGeometry(size * 1.8, 20, 20), new THREE.MeshPhongMaterial({ color, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending }));
+            g.add(aura);
+            // trail particles
+            for (let i = 0; i < 10; i++) {
+                const pts = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color, size: 0.04, transparent: true, blending: THREE.AdditiveBlending }));
+                const pos = new Float32Array(3);
+                pos[0] = (Math.random() - 0.5) * 0.4; pos[1] = (Math.random() - 0.5) * 0.4; pos[2] = (Math.random() - 0.5) * 0.4;
+                pts.geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                g.add(pts);
+            }
+            g.userData = { floatSpeed: 0.3 + Math.random() * 0.6, floatPhase: Math.random() * Math.PI * 2, radius: 0.6 };
+            g.position.set(x, y, z);
+            scene.add(g);
+            return g;
+        }
+        
+        for (let i = 0; i < soulCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 2.0 + Math.random() * 4.0;
+            const yOff = 0.3 + Math.random() * 3.5;
+            const c = soulColors[Math.floor(Math.random() * soulColors.length)];
+            const s = createSoul(Math.cos(angle)*radius, yOff, Math.sin(angle)*radius, c, 0.18 + Math.random() * 0.12);
+            souls.push({ obj: s, angle, radius, yOff, ySpeed: 0.2 + Math.random() * 0.5, yPhase: Math.random() * Math.PI * 2 });
+        }
+        
+        // --- wisps ---
+        const wispGeo = new THREE.BufferGeometry();
+        const wispPos = new Float32Array(1200 * 3);
+        for (let i = 0; i < 1200; i++) {
+            wispPos[i*3] = (Math.random() - 0.5) * 14;
+            wispPos[i*3+1] = Math.random() * 6;
+            wispPos[i*3+2] = (Math.random() - 0.5) * 14 - 2;
+        }
+        wispGeo.setAttribute('position', new THREE.BufferAttribute(wispPos, 3));
+        const wisps = new THREE.Points(wispGeo, new THREE.PointsMaterial({ color: 0x88ccff, size: 0.05, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending }));
+        scene.add(wisps);
+        
+        // dust particles
         const dustGeo = new THREE.BufferGeometry();
         const dustPos = new Float32Array(2000 * 3);
-        for (let i=0;i<2000;i++) {
-            dustPos[i*3] = (Math.random()-0.5)*10;
-            dustPos[i*3+1] = Math.random()*5;
-            dustPos[i*3+2] = (Math.random()-0.5)*10;
+        for (let i = 0; i < 2000; i++) {
+            dustPos[i*3] = (Math.random() - 0.5) * 6;
+            dustPos[i*3+1] = Math.random() * 4;
+            dustPos[i*3+2] = (Math.random() - 0.5) * 6;
         }
         dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-        const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffaa88, size: 0.05, blending: THREE.AdditiveBlending }));
+        const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffaa66, size: 0.035, transparent: true, blending: THREE.AdditiveBlending }));
+        dust.position.set(0, 1.2, 0);
         scene.add(dust);
         
-        // --- Helper Functions ---
-        function updateCartUI() {
-            const cartDiv = document.getElementById('cartItems');
-            if (cart.length === 0) cartDiv.innerHTML = "Empty";
-            else cartDiv.innerHTML = cart.map(item => `<div>${item.title} - $${item.price}</div>`).join('');
-        }
-        function updateLibraryUI() {
-            const container = document.getElementById('myBooksList');
-            if (!currentUser) { container.innerHTML = "(Login to see your collection)"; return; }
-            if (userLibrary.length === 0) container.innerHTML = "No books yet. Buy one!";
-            else container.innerHTML = userLibrary.map(book => `<div class="book-item" data-id="${book.id}">📖 ${book.title}</div>`).join('');
-            // attach click to read owned books
-            document.querySelectorAll('.book-item').forEach(el => {
-                el.addEventListener('click', () => {
-                    const id = el.dataset.id;
-                    const book = userLibrary.find(b => b.id === id);
-                    if (book) openBookModal(book, false);
-                });
-            });
+        // floating orbs (also draggable)
+        const orbs = [];
+        for (let i = 0; i < 16; i++) {
+            const orb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 12), new THREE.MeshStandardMaterial({ color: 0x88ddff, emissive: 0x00aaff, emissiveIntensity: 1.0, transparent: true, opacity: 0.7 }));
+            orb.position.set((Math.random() - 0.5) * 8, Math.random() * 4.5, (Math.random() - 0.5) * 7 - 1);
+            scene.add(orb);
+            orbs.push(orb);
         }
         
-        function addToCart(bookData) {
-            cart.push(bookData);
-            localStorage.setItem('soulverse_cart', JSON.stringify(cart));
-            updateCartUI();
-            alert(`Added ${bookData.title} to cart.`);
+        // floating magical pages (atmospheric, not draggable)
+        const pages = [];
+        for (let i = 0; i < 30; i++) {
+            const p = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.25, 0.015), new THREE.MeshStandardMaterial({ color: 0xfae8c8, emissive: 0xaa8844, emissiveIntensity: 0.15 }));
+            p.position.set((Math.random() - 0.5) * 9, Math.random() * 4, (Math.random() - 0.5) * 8 - 1);
+            p.castShadow = true;
+            scene.add(p);
+            pages.push({ mesh: p, speedX: (Math.random() - 0.5) * 0.008, speedZ: (Math.random() - 0.5) * 0.008, orig: p.position.clone() });
         }
         
-        function buyBook(bookData) {
-            if (!currentUser) { alert("Please login first."); return; }
-            addToCart(bookData);
-            // Simulate purchase and add to library
-            if (!userLibrary.find(b => b.id === bookData.id)) {
-                userLibrary.push(bookData);
-                localStorage.setItem(`library_${currentUser}`, JSON.stringify(userLibrary));
-                updateLibraryUI();
-            }
-            // Optionally start flying animation
-            startFlyingBook(bookData);
-        }
+        // --- DRAG CONTROLS ---
+        const draggables = [...books, ...planets, ...orbs, capstone];
+        const dragControls = new DragControls(draggables, camera, renderer.domElement);
+        dragControls.addEventListener('dragstart', () => { controls.enabled = false; });
+        dragControls.addEventListener('dragend', () => { controls.enabled = true; });
         
-        // Flying book animation (simplified)
-        let isFlying = false;
-        let flyingBookMesh = null;
-        function startFlyingBook(bookData) {
-            if (isFlying) return;
-            isFlying = true;
-            const flyingUI = document.getElementById('flyingBookUI');
-            flyingUI.style.display = 'block';
-            const group = new THREE.Group();
-            const cover = new THREE.Mesh(new THREE.BoxGeometry(0.8,1.0,0.15), new THREE.MeshStandardMaterial({ color: 0xffaa66 }));
-            group.add(cover);
-            group.position.set(0,1.5,0);
-            scene.add(group);
-            flyingBookMesh = group;
-            let startTime = performance.now();
-            function animateFly(now) {
-                const t = Math.min(1, (now - startTime) / 3000);
-                const angle = t * Math.PI * 4;
-                const rad = 4 + t * 8;
-                const x = Math.cos(angle) * rad;
-                const z = Math.sin(angle) * rad;
-                const y = 1.5 + t * 3;
-                if (flyingBookMesh) flyingBookMesh.position.set(x, y, z);
-                if (t < 1) requestAnimationFrame(animateFly);
-                else {
-                    scene.remove(group);
-                    flyingBookMesh = null;
-                    flyingUI.style.display = 'none';
-                    isFlying = false;
-                    openBookModal(bookData, true);
-                }
-            }
-            requestAnimationFrame(animateFly);
-        }
+        // --- BOOK CLICK MODAL ---
+        const modal = document.getElementById('book-modal');
+        const modalTitle = document.getElementById('book-title');
+        const modalAuthor = document.getElementById('book-author');
+        const modalDesc = document.getElementById('book-desc');
+        const modalClose = document.getElementById('modal-close');
+        modalClose.addEventListener('click', () => { modal.style.display = 'none'; });
+        modal.addEventListener('click', (e) => { e.stopPropagation(); });
         
-        function openBookModal(bookData, isOwned = false) {
-            const modal = document.getElementById('pageFlipModal');
-            document.getElementById('bookTitle').innerText = bookData.title;
-            document.getElementById('bookContent').innerHTML = `<p>${bookData.content}</p><p>Price: $${bookData.price}</p>`;
-            const buyBtn = document.getElementById('buyNowBtn');
-            if (isOwned) {
-                buyBtn.innerText = '📖 Read Again';
-                buyBtn.onclick = () => { alert(`Reading ${bookData.title}...`); };
-            } else {
-                buyBtn.innerText = '📦 Add to Cart & Fly';
-                buyBtn.onclick = () => buyBook(bookData);
-            }
-            modal.style.display = 'flex';
-        }
-        
-        // Book click handler
+        // raycasting for book clicks (distinguish from drag)
         const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-        window.addEventListener('click', (event) => {
-            mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
-            mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
-            raycaster.setFromCamera(mouse, camera);
+        const pointer = new THREE.Vector2();
+        let mouseDownPos = { x: 0, y: 0 };
+        let mouseDownObj = null;
+        let isDragging = false;
+        
+        renderer.domElement.addEventListener('pointerdown', (e) => {
+            mouseDownPos.x = e.clientX;
+            mouseDownPos.y = e.clientY;
+            isDragging = false;
+            // find what was clicked
+            const rect = renderer.domElement.getBoundingClientRect();
+            pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(pointer, camera);
             const intersects = raycaster.intersectObjects(books);
-            if (intersects.length > 0) {
-                const book = intersects[0].object;
-                const data = book.userData;
-                openBookModal(data, false);
+            mouseDownObj = intersects.length > 0 ? intersects[0].object : null;
+        });
+        
+        renderer.domElement.addEventListener('pointerup', (e) => {
+            const dist = Math.hypot(e.clientX - mouseDownPos.x, e.clientY - mouseDownPos.y);
+            if (dist > 5) { isDragging = true; return; }
+            if (isDragging) return;
+            if (!mouseDownObj) return;
+            
+            const info = mouseDownObj.userData;
+            if (info && info.isBook) {
+                modalTitle.textContent = info.title;
+                modalAuthor.textContent = `— ${info.author} —`;
+                modalDesc.textContent = info.desc;
+                modal.style.display = 'block';
             }
+            mouseDownObj = null;
         });
         
-        // Auth simulation
-        document.getElementById('loginBtn').addEventListener('click', () => {
-            const email = prompt("Enter email to login/signup:");
-            if (email) {
-                currentUser = email;
-                localStorage.setItem('soulverse_user', currentUser);
-                userLibrary = JSON.parse(localStorage.getItem(`library_${currentUser}`) || '[]');
-                updateLibraryUI();
-                alert(`Logged in as ${currentUser}`);
-            }
+        // close modal on click outside
+        document.addEventListener('click', (e) => {
+            if (e.target === modal || modal.contains(e.target)) return;
+            modal.style.display = 'none';
         });
         
-        document.getElementById('checkoutBtn').addEventListener('click', () => {
-            if (cart.length === 0) { alert("Cart empty"); return; }
-            // In production, redirect to Shopify checkout
-            alert("Proceed to checkout (simulated). In production, redirect to Shopify cart.");
-            // For demo, clear cart
-            cart = [];
-            localStorage.setItem('soulverse_cart', JSON.stringify(cart));
-            updateCartUI();
+        // --- cursor hover effect ---
+        renderer.domElement.addEventListener('pointermove', (e) => {
+            const rect = renderer.domElement.getBoundingClientRect();
+            pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(pointer, camera);
+            const hits = raycaster.intersectObjects(books);
+            renderer.domElement.style.cursor = hits.length > 0 ? 'pointer' : 'default';
         });
         
-        document.getElementById('closePageFlip').addEventListener('click', () => {
-            document.getElementById('pageFlipModal').style.display = 'none';
-        });
+        // --- animation ---
+        let time = 0, lastTime = 0;
         
-        // Librarian chat (simple)
-        const chatLog = document.getElementById('chatLog');
-        const chatInput = document.getElementById('chatInput');
-        function addChat(msg, fromUser = false) {
-            const div = document.createElement('div');
-            div.innerHTML = `<strong>${fromUser ? 'You' : '📚 Librarian'}:</strong> ${msg}`;
-            chatLog.appendChild(div);
-            chatLog.scrollTop = chatLog.scrollHeight;
-        }
-        async function sendMessage() {
-            const text = chatInput.value.trim();
-            if (!text) return;
-            addChat(text, true);
-            chatInput.value = "";
-            let reply = "I am the Soul Librarian. Click any book to read or buy.";
-            if (text.toLowerCase().includes('recommend')) {
-                const randomBook = books[Math.floor(Math.random() * books.length)].userData;
-                reply = `I recommend "${randomBook.title}". Would you like to see it?`;
-            } else if (text.toLowerCase().includes('price')) {
-                reply = "Prices range from $19.99 to $39.99 per cosmic volume.";
-            }
-            addChat(reply);
-        }
-        document.getElementById('sendChat').addEventListener('click', sendMessage);
-        chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
-        
-        // Voice
-        if ('webkitSpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            const recognition = new SpeechRecognition();
-            recognition.lang = 'en-US';
-            document.getElementById('voiceBtn').addEventListener('click', () => {
-                recognition.start();
-            });
-            recognition.onresult = (e) => {
-                chatInput.value = e.results[0][0].transcript;
-                sendMessage();
-            };
-        } else {
-            document.getElementById('voiceBtn').disabled = true;
-        }
-        
-        // Animation
-        let time = 0;
-        let frameCount = 0;
         function animate() {
-            frameCount++;
-            if (frameCount <= 3) dbg('Frame ' + frameCount);
             requestAnimationFrame(animate);
-            time += 0.016;
-            stars.rotation.y += 0.0002;
-            shelfGroup.rotation.y += 0.0005;
+            const dt = Math.min(0.033, (performance.now() - lastTime) / 1000);
+            lastTime = performance.now();
+            time += dt;
+            
+            // souls orbiting & bobbing
+            souls.forEach(s => {
+                if (s.obj.userData.isDragging) return;
+                s.angle += 0.006;
+                s.obj.position.x = Math.cos(s.angle) * s.radius;
+                s.obj.position.z = Math.sin(s.angle) * s.radius;
+                s.obj.position.y = s.yOff + Math.sin(time * s.ySpeed + s.yPhase) * 0.25;
+                const sc = 1 + Math.sin(time * 2.5 + s.angle) * 0.08;
+                s.obj.children[0].scale.set(sc, sc, sc);
+            });
+            
+            // rotate stars, wisps, dust
+            stars.rotation.y += 0.0003;
+            stars.rotation.x += 0.0002;
+            wisps.rotation.y += 0.0015;
+            dust.rotation.y += 0.004;
+            
+            // rotate planets
+            planets.forEach((p, i) => {
+                p.rotation.x += 0.003 + i * 0.0005;
+                p.rotation.y += 0.004 + i * 0.0003;
+            });
+            rings.forEach((r, i) => {
+                r.rotation.z += 0.008;
+            });
+            
+            // rotate galaxies slowly (each at different speeds, opposite directions)
+            galaxies.forEach((g, i) => {
+                g.rotation.y += 0.00015 * (1 + i * 0.2) * (i % 2 === 0 ? 1 : -1);
+                g.rotation.x += 0.00005 * (i % 2 === 0 ? 1 : -1);
+            });
+            
+            // floating pages
+            pages.forEach(p => {
+                p.mesh.position.x += p.speedX;
+                p.mesh.position.y += Math.sin(time * 1.2) * 0.002;
+                p.mesh.position.z += p.speedZ;
+                p.mesh.rotation.z += 0.015;
+                p.mesh.rotation.x += 0.008;
+                if (Math.abs(p.mesh.position.x) > 6) p.mesh.position.x = -p.orig.x * 0.8;
+                if (p.mesh.position.y > 4) p.mesh.position.y = 0.2;
+            });
+            
+            // orbs gentle drift
+            orbs.forEach((orb, i) => {
+                if (dragControls.getObjects().includes(orb) && orb.userData.isDragging) return;
+                orb.position.x += Math.sin(time * 0.6 + i) * 0.002;
+                orb.position.y += Math.cos(time * 0.5 + i) * 0.002;
+            });
+            
+            // pulse pyramid glow
+            pyramidGlow.intensity = 0.9 + Math.sin(time * 1.8) * 0.3;
+            capstone.material.emissiveIntensity = 0.5 + Math.sin(time * 2.2) * 0.2;
+            
+            // bloom pulse
+            bloomPass.strength = 1.1 + Math.sin(time * 0.4) * 0.15;
+            
             controls.update();
-            composer.render();
+            effectComposer.render();
         }
-        dbg('Calling animate()...');
         animate();
-        dbg('animate() called');
         
+        // resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
-            composer.setSize(window.innerWidth, window.innerHeight);
+            effectComposer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setSize(window.innerWidth, window.innerHeight);
         });
         
-        // Initial UI update
-        updateCartUI();
-        if (currentUser) updateLibraryUI();
-        
-        console.log("🌀 Phase 4 – E‑commerce & User Library Active");
+        console.log('Neon Pyramid: drag books/planets/orbs, click books for lore, 12 planets, 40 neon souls');
     </script>
 </body>
 </html>
