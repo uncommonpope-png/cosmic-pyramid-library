@@ -54,6 +54,13 @@
     </style>
 </head>
 <body>
+    <div id="dbg" style="position:fixed;top:0;left:0;z-index:99999;color:#0f0;background:rgba(0,0,0,0.95);padding:8px;font:12px monospace;white-space:pre-wrap;max-height:120px;overflow:auto;pointer-events:none;"></div>
+    <script>
+        function dbg(m){var e=document.getElementById('dbg');if(e)e.textContent+=m+'\n';}
+        window.onerror=function(m,u,l,c,err){dbg('ERR: '+m+' '+l+':'+c);};
+        window.addEventListener('unhandledrejection',function(e){dbg('PROM: '+e.reason);});
+        dbg('Page loaded');
+    </script>
 
     <!-- UI Panels -->
     <div class="ui">
@@ -90,11 +97,17 @@
     </script>
 
     <script type="module">
+        dbg('Module script started');
         import * as THREE from 'three';
+        dbg('THREE imported');
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        dbg('OrbitControls imported');
         import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        dbg('EffectComposer imported');
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        dbg('RenderPass imported');
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        dbg('All imports done');
         
         // ============================================================
         // PHASE 4: E‑COMMERCE + USER PERSISTENCE (demo with localStorage)
@@ -109,27 +122,33 @@
         let cart = JSON.parse(localStorage.getItem('soulverse_cart') || '[]');
         
         // --- 3D Scene Setup (reused from Phase 3, simplified) ---
+        dbg('Creating scene...');
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x010118);
         scene.fog = new THREE.FogExp2(0x010118, 0.0008);
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
         camera.position.set(5, 4, 12);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
+        dbg('Renderer: ' + (renderer ? 'OK' : 'NULL'));
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
+        dbg('Canvas appended: ' + (document.body.contains(renderer.domElement)));
         
+        dbg('Creating composer...');
         const renderScene = new RenderPass(scene, camera);
         const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.3, 0.85);
         const composer = new EffectComposer(renderer);
         composer.addPass(renderScene);
         composer.addPass(bloomPass);
+        dbg('Composer OK');
         
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.autoRotate = true;
         controls.autoRotateSpeed = 0.3;
         controls.target.set(0, 2, 0);
+        dbg('Controls OK');
         
         // Lighting (quick)
         const ambient = new THREE.AmbientLight(0x332244, 0.5);
@@ -394,7 +413,10 @@
         
         // Animation
         let time = 0;
+        let frameCount = 0;
         function animate() {
+            frameCount++;
+            if (frameCount <= 3) dbg('Frame ' + frameCount);
             requestAnimationFrame(animate);
             time += 0.016;
             stars.rotation.y += 0.0002;
@@ -402,7 +424,9 @@
             controls.update();
             composer.render();
         }
+        dbg('Calling animate()...');
         animate();
+        dbg('animate() called');
         
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
