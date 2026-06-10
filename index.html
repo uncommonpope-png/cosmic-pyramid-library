@@ -163,6 +163,44 @@
             70%  { opacity: 0.9; transform: translateY(-40px) scale(1); }
             100% { opacity: 0; transform: translateY(-70px) scale(0.9); }
         }
+        /* --- Soul Foundry room panels --- */
+        .room-panel {
+            position: absolute; top: 20px; right: 20px; width: 280px;
+            background: rgba(0,0,0,0.75); backdrop-filter: blur(16px);
+            border-radius: 20px; border: 1px solid #ffaa66;
+            padding: 16px; color: #ffdd99; font-size: 12px;
+            pointer-events: auto; z-index: 30; font-family: monospace;
+            display: none; flex-direction: column; gap: 10px;
+            max-height: 80vh; overflow-y: auto;
+        }
+        .room-panel.active { display: flex; }
+        .room-panel h3 { color: #ffcc77; margin: 0 0 4px 0; font-size: 15px; }
+        .room-panel p { color: #ccbbdd; margin: 0 0 6px 0; font-size: 12px; }
+        .room-panel input, .room-panel textarea, .room-panel button {
+            background: #2a2a3a; border: 1px solid #ffaa66;
+            color: #ffaa66; border-radius: 20px;
+            padding: 6px 10px; font-family: monospace; margin: 4px 0;
+        }
+        .room-panel button {
+            background: #ffaa66; color: #000; font-weight: bold; cursor: pointer;
+        }
+        .room-panel select {
+            background: #2a2a3a; border: 1px solid #ffaa66;
+            color: #ffaa66; border-radius: 20px; padding: 6px 10px; font-family: monospace;
+        }
+        .room-panel input[type="color"] { width: 40px; height: 30px; padding: 2px; cursor: pointer; }
+        .generated-result {
+            background: rgba(0,0,0,0.5); border-radius: 12px;
+            padding: 8px; margin-top: 8px; font-size: 11px; word-break: break-word;
+        }
+        .foundry-hint {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.6); color: #ffaa66; padding: 6px 14px;
+            border-radius: 20px; font-size: 11px; font-family: monospace;
+            pointer-events: none; z-index: 10; white-space: nowrap;
+            backdrop-filter: blur(8px); display: none;
+        }
+        .foundry-hint.active { display: block; }
         @media (max-width: 600px) {
             #info { font-size: 10px; top: 10px; left: 10px; }
             #controls-hint { font-size: 9px; }
@@ -172,6 +210,7 @@
             #reading-card .cover-col img { width: 120px; }
             #reading-card h1 { font-size: 20px; }
             .whisper { font-size: 13px; }
+            .room-panel { width: 260px; right: 10px; top: 10px; font-size: 10px; }
         }
     </style>
 </head>
@@ -207,6 +246,55 @@
 
     <!-- Soul whisper container -->
     <div id="whisper-container"></div>
+
+    <!-- Foundry hint bar (shown when inside pyramid) -->
+    <div id="foundryHint" class="foundry-hint">🌀 Click a portal to enter a Foundry room | ESC to exit pyramid</div>
+
+    <!-- Soul Foundry room panels (hidden, shown on portal click) -->
+    <div id="quotePanel" class="room-panel">
+        <h3>📜 VIRAL QUOTE MAKER</h3>
+        <p>Generate a mystical quote with trending hashtags</p>
+        <input type="text" id="quoteTopic" placeholder="Enter a topic e.g. success, love, AI">
+        <button id="generateQuoteBtn">✨ Forge Quote</button>
+        <div id="quoteResult" class="generated-result"></div>
+    </div>
+
+    <div id="ideaPanel" class="room-panel">
+        <h3>💡 IDEA ATOM</h3>
+        <p>Get a post idea based on what's trending now</p>
+        <button id="scrapeTrendsBtn">🔍 Capture Trends</button>
+        <div id="trendResult" class="generated-result"></div>
+        <button id="generatePostBtn" style="display:none;">📢 Generate Post</button>
+        <div id="postResult" class="generated-result"></div>
+    </div>
+
+    <div id="soulNamePanel" class="room-panel">
+        <h3>🧬 SOUL NAMING CHAMBER</h3>
+        <p>Answer 10 questions to birth a unique soul name</p>
+        <div id="questionsContainer"></div>
+        <button id="startNamingBtn">🌀 Start Naming Ritual</button>
+        <div id="soulNameResult" class="generated-result"></div>
+    </div>
+
+    <div id="builderPanel" class="room-panel">
+        <h3>🌍 UNIVERSE BUILDER</h3>
+        <p>Create your own planet, house, or star inside the foundry</p>
+        <select id="buildType">
+            <option value="planet">Planet</option>
+            <option value="house">House</option>
+            <option value="star">Star</option>
+        </select>
+        <input type="color" id="buildColor" value="#ffaa66">
+        <button id="buildBtn">✨ Build</button>
+        <div id="buildMessage" class="generated-result"></div>
+    </div>
+
+    <div id="matrixPanel" class="room-panel">
+        <h3>🌌 PINK MATRIX RAIN</h3>
+        <p>Trigger pink code rain under the exploding galaxy</p>
+        <button id="matrixEffectBtn">💥 Trigger Rain</button>
+        <div id="matrixMessage" class="generated-result"></div>
+    </div>
 
     <script type="importmap">
         {
@@ -1276,52 +1364,161 @@
             souls.push({ obj: s, angle, radius, yOff, ySpeed: 0.2 + Math.random() * 0.5, yPhase: Math.random() * Math.PI * 2, baseColor: new THREE.Color(c) });
         }
         
-        // ========== INTERIOR CHAMBER ==========
+        // ========== SOUL FOUNDRY (inside pyramid) ==========
         const interiorGroup = new THREE.Group();
         interiorGroup.visible = false;
         scene.add(interiorGroup);
         
-        const interiorFloor = new THREE.Mesh(
-            new THREE.PlaneGeometry(5.5, 5.5),
-            new THREE.MeshStandardMaterial({ color: 0x5a4a3a, roughness: 0.8 })
+        const foundryFloor = new THREE.Mesh(
+            new THREE.PlaneGeometry(20, 20),
+            new THREE.MeshStandardMaterial({ color: 0x221133, metalness: 0.3, roughness: 0.8 })
         );
-        interiorFloor.rotation.x = -Math.PI / 2;
-        interiorFloor.position.y = -0.2;
-        interiorFloor.receiveShadow = true;
-        interiorGroup.add(interiorFloor);
+        foundryFloor.rotation.x = -Math.PI / 2;
+        foundryFloor.position.y = -0.5;
+        foundryFloor.receiveShadow = true;
+        interiorGroup.add(foundryFloor);
         
-        const wallMat = new THREE.MeshStandardMaterial({ color: 0x8a7a6a });
-        const backWall = new THREE.Mesh(new THREE.BoxGeometry(5.2, 3.5, 0.2), wallMat);
-        backWall.position.set(0, 1.6, -2.8);
-        interiorGroup.add(backWall);
-        const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.5, 5.2), wallMat);
-        leftWall.position.set(-2.8, 1.6, 0);
-        interiorGroup.add(leftWall);
-        const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.5, 5.2), wallMat);
-        rightWall.position.set(2.8, 1.6, 0);
-        interiorGroup.add(rightWall);
+        // Foundry lighting
+        const foundryAmbient = new THREE.AmbientLight(0x332244, 0.5);
+        interiorGroup.add(foundryAmbient);
+        const foundryMain = new THREE.DirectionalLight(0xffccaa, 0.8);
+        foundryMain.position.set(5, 10, 3);
+        interiorGroup.add(foundryMain);
+        const fPink = new THREE.PointLight(0xff66aa, 0.5);
+        fPink.position.set(-3, 4, 4);
+        interiorGroup.add(fPink);
+        const fGold = new THREE.PointLight(0xffaa66, 0.5);
+        fGold.position.set(4, 3, -3);
+        interiorGroup.add(fGold);
+        const fTurq = new THREE.PointLight(0x66ffcc, 0.4);
+        fTurq.position.set(2, 5, -4);
+        interiorGroup.add(fTurq);
         
-        const ceiling = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.2, 5.6), new THREE.MeshStandardMaterial({ color: 0x332a1a, emissive: 0x221100 }));
-        ceiling.position.set(0, 3.2, 0);
-        interiorGroup.add(ceiling);
+        // Factory building
+        const factoryGroup = new THREE.Group();
+        const fbMat = new THREE.MeshStandardMaterial({ color: 0xcc88aa, metalness: 0.7, roughness: 0.3, emissive: 0x442233 });
+        const factoryBase = new THREE.Mesh(new THREE.BoxGeometry(8, 4, 8), fbMat);
+        factoryBase.position.y = 2;
+        factoryBase.castShadow = true;
+        factoryGroup.add(factoryBase);
+        const ftMat = new THREE.MeshStandardMaterial({ color: 0x66ffcc, metalness: 0.9 });
+        const fTrim = new THREE.Mesh(new THREE.BoxGeometry(8.2, 0.2, 8.2), ftMat);
+        fTrim.position.y = 0.1;
+        factoryGroup.add(fTrim);
+        const spireMat = new THREE.MeshStandardMaterial({ color: 0xffaa66, emissive: 0x442200 });
+        for (let i = -3; i <= 3; i+=3) {
+            for (let j = -3; j <= 3; j+=3) {
+                const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 1.2, 8), spireMat);
+                spire.position.set(i, 4.2, j);
+                spire.castShadow = true;
+                factoryGroup.add(spire);
+            }
+        }
+        const crystalMat = new THREE.MeshStandardMaterial({ color: 0xff88aa, emissive: 0xff44aa, emissiveIntensity: 0.4 });
+        const fCrystal = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.2, 8), crystalMat);
+        fCrystal.position.y = 4.8;
+        factoryGroup.add(fCrystal);
+        interiorGroup.add(factoryGroup);
         
-        const pedestal = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.5, 1.1), new THREE.MeshStandardMaterial({ color: 0xaa8866 }));
-        pedestal.position.set(0, 0, 0);
-        pedestal.castShadow = true;
-        interiorGroup.add(pedestal);
+        // Foundry galaxy ceiling (spinning pink star particles)
+        const foundryStarCount = 2000;
+        const fsGeo = new THREE.BufferGeometry();
+        const fsPos = new Float32Array(foundryStarCount * 3);
+        for (let i = 0; i < foundryStarCount; i++) {
+            fsPos[i*3] = (Math.random() - 0.5) * 80;
+            fsPos[i*3+1] = (Math.random() * 12) + 6;
+            fsPos[i*3+2] = (Math.random() - 0.5) * 60;
+        }
+        fsGeo.setAttribute('position', new THREE.BufferAttribute(fsPos, 3));
+        const fsMat = new THREE.PointsMaterial({ color: 0xffaacc, size: 0.08, transparent: true, blending: THREE.AdditiveBlending });
+        const foundryStars = new THREE.Points(fsGeo, fsMat);
+        interiorGroup.add(foundryStars);
         
-        const bookGroupInt = new THREE.Group();
-        const bookCover = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.1, 0.65), new THREE.MeshStandardMaterial({ color: 0x8b3a2a }));
-        bookCover.position.set(0, 0.3, 0);
-        bookGroupInt.add(bookCover);
-        const bookPages = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.06, 0.6), new THREE.MeshStandardMaterial({ color: 0xfdf0d0 }));
-        bookPages.position.set(0, 0.28, 0);
-        bookGroupInt.add(bookPages);
-        interiorGroup.add(bookGroupInt);
+        // Foundry portal rings
+        const foundryPortals = [];
+        const portalDefs = [
+            { name: "Quote Maker", pos: { x: 6, z: 5 }, color: 0xffaa66, panelId: "quotePanel" },
+            { name: "Idea Atom", pos: { x: -5, z: 6 }, color: 0xff88aa, panelId: "ideaPanel" },
+            { name: "Soul Naming", pos: { x: -6, z: -5 }, color: 0xaa88ff, panelId: "soulNamePanel" },
+            { name: "Universe Builder", pos: { x: 5, z: -6 }, color: 0x66ffcc, panelId: "builderPanel" },
+            { name: "Matrix Rain", pos: { x: 0, z: 8 }, color: 0xff66aa, panelId: "matrixPanel" }
+        ];
+        portalDefs.forEach(pd => {
+            const pg = new THREE.Group();
+            const ringMat = new THREE.MeshStandardMaterial({ color: pd.color, emissive: pd.color, emissiveIntensity: 0.4 });
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.1, 16, 32), ringMat);
+            ring.rotation.x = Math.PI / 2;
+            pg.add(ring);
+            const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 1.2, 6), new THREE.MeshStandardMaterial({ color: pd.color }));
+            pillar.position.y = -0.6;
+            pg.add(pillar);
+            const tc = document.createElement('canvas');
+            tc.width = 256; tc.height = 128;
+            const ctx = tc.getContext('2d');
+            ctx.fillStyle = `#${pd.color.toString(16).padStart(6,'0')}`;
+            ctx.font = 'Bold 22px monospace';
+            ctx.fillText(pd.name, 20, 40);
+            const tex = new THREE.CanvasTexture(tc);
+            const sm = new THREE.SpriteMaterial({ map: tex });
+            const sprite = new THREE.Sprite(sm);
+            sprite.scale.set(1.4, 0.7, 1);
+            sprite.position.y = 0.9;
+            pg.add(sprite);
+            pg.position.set(pd.pos.x, 0, pd.pos.z);
+            pg.userData = { isPortal: true, panelId: pd.panelId, name: pd.name };
+            interiorGroup.add(pg);
+            foundryPortals.push(pg);
+        });
         
-        const interiorLight = new THREE.PointLight(0xffaa66, 0.7, 6);
-        interiorLight.position.set(0, 1.2, 0);
-        interiorGroup.add(interiorLight);
+        // Matrix rain (dynamic, created on demand)
+        let matrixRain = null;
+        let rainAnimId = null;
+        
+        function startMatrixRain() {
+            if (matrixRain) { interiorGroup.remove(matrixRain); matrixRain = null; }
+            const rc = 2000;
+            const rg = new THREE.BufferGeometry();
+            const rp = new Float32Array(rc * 3);
+            for (let i = 0; i < rc; i++) {
+                rp[i*3] = (Math.random() - 0.5) * 16;
+                rp[i*3+1] = Math.random() * 10;
+                rp[i*3+2] = (Math.random() - 0.5) * 16;
+            }
+            rg.setAttribute('position', new THREE.BufferAttribute(rp, 3));
+            const rm = new THREE.PointsMaterial({ color: 0xff66aa, size: 0.05, transparent: true, blending: THREE.AdditiveBlending });
+            matrixRain = new THREE.Points(rg, rm);
+            interiorGroup.add(matrixRain);
+        }
+        
+        function stopMatrixRain() {
+            if (matrixRain) { interiorGroup.remove(matrixRain); matrixRain = null; }
+        }
+        
+        // Panel show/hide
+        function hideAllPanels() {
+            document.querySelectorAll('.room-panel').forEach(p => p.classList.remove('active'));
+            activePanelId = null;
+            stopMatrixRain();
+        }
+        function showPanel(panelId) {
+            hideAllPanels();
+            const panel = document.getElementById(panelId);
+            if (panel) panel.classList.add('active');
+            activePanelId = panelId;
+            if (panelId === 'matrixPanel') {
+                startMatrixRain();
+                const mm = document.getElementById('matrixMessage');
+                if (mm) mm.innerHTML = "≡ƒÆû Pink matrix rain falling from the exploding galaxy...";
+            }
+        }
+        function findPortalHit(target) {
+            let obj = target;
+            while (obj) {
+                if (obj.userData && obj.userData.isPortal) return obj;
+                obj = obj.parent;
+            }
+            return null;
+        }
         
         // ========== WISPS & DUST ==========
         const wispGeo = new THREE.BufferGeometry();
@@ -1422,18 +1619,22 @@
         
         // ========== PYRAMID ENTER/EXIT ==========
         let isInside = false;
-        const originalCameraPos = camera.position.clone();
-        const interiorCamPos = new THREE.Vector3(0, 1.2, 2.3);
-        const interiorTarget = new THREE.Vector3(0, 1, 0);
+        let originalCameraPos = camera.position.clone();
+        const interiorCamPos = new THREE.Vector3(0, 8, 14);
+        const interiorTarget = new THREE.Vector3(0, 2, 0);
+        let activePanelId = null;
+        const foundryHint = document.getElementById('foundryHint');
         
         function enterPyramid() {
             if (isInside || readingState !== 'idle') return;
             isInside = true;
+            originalCameraPos.copy(camera.position);
             controls.enabled = false;
             interiorGroup.visible = true;
             pyramid.visible = false;
             doorGroup.visible = false;
             souls.forEach(s => s.obj.visible = false);
+            if (foundryHint) foundryHint.classList.add('active');
             const startPos = camera.position.clone();
             const startTarget = controls.target.clone();
             const startTime = performance.now();
@@ -1457,6 +1658,9 @@
             pyramid.visible = true;
             doorGroup.visible = true;
             souls.forEach(s => s.obj.visible = true);
+            stopMatrixRain();
+            hideAllPanels();
+            if (foundryHint) foundryHint.classList.remove('active');
             const startPos = camera.position.clone();
             const startTarget = controls.target.clone();
             const startTime = performance.now();
@@ -1742,15 +1946,11 @@
             if (interactionDragging || !mouseDownTarget) return;
             if (readingState !== 'idle') return;
             
-            // pyramid enter/exit
+            // pyramid enter/exit / portal click
             if (isInside) {
-                let hitBook = false;
-                bookGroupInt.children.forEach(c => {
-                    if (mouseDownTarget === c) { hitBook = true; }
-                    if (c.children) c.children.forEach(cc => { if (mouseDownTarget === cc) hitBook = true; });
-                });
-                if (hitBook) {
-                    alert("≡ƒôû THE CALCULATION ┬╖ Profit ┬╖ Love ┬╖ Tax\n\n\"Every move in life is a three-part equation. Whether you calculate it or not.\"");
+                const portalHit = findPortalHit(mouseDownTarget);
+                if (portalHit) {
+                    showPanel(portalHit.userData.panelId);
                 } else {
                     exitPyramid();
                 }
@@ -1821,12 +2021,12 @@
             }
         });
         
-        // ESC key: close reading overlay or exit pyramid
+        // ESC key: close panels → close reading overlay → exit pyramid
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && readingState === 'open') {
-                closeBookBtn.click();
-            } else if (e.key === 'Escape' && isInside) {
-                exitPyramid();
+            if (e.key === 'Escape') {
+                if (activePanelId) { hideAllPanels(); return; }
+                if (readingState === 'open') { closeBookBtn.click(); return; }
+                if (isInside) { exitPyramid(); return; }
             }
         });
         
@@ -1847,6 +2047,69 @@
         document.body.appendChild(exitBtn);
         exitBtn.addEventListener('click', exitPyramid);
         
+        // ========== SOUL FOUNDRY ROOM LOGIC ==========
+        document.getElementById('generateQuoteBtn')?.addEventListener('click', () => {
+            const topic = document.getElementById('quoteTopic').value.trim() || "soul";
+            const quotes = [
+                `"${topic.toUpperCase()} is not a destination. It is a forge." — Soul Foundry`,
+                `"The ${topic} you seek is already inside you. Crack the shell."`,
+                `"Every ${topic} begins as a whisper in the void. Listen."`,
+                `"To master ${topic}, first become a student of failure."`,
+                `"${topic} is the art of remembering who you were before the world named you."`
+            ];
+            const hashtags = `#${topic.replace(/\s/g,'')} #SoulFoundry #ViralWisdom #PLT`;
+            const quote = quotes[Math.floor(Math.random() * quotes.length)];
+            document.getElementById('quoteResult').innerHTML = `<strong>Γ£¿ Quote:</strong><br>"${quote}"<br><br><strong>≡ƒôó Hashtags:</strong><br>${hashtags}`;
+        });
+        const trendsList = ["AI companions replacing loneliness","Digital souls vs chatbots","Profit-Love-Tax economy","The rise of autonomous agents","Web3 x Consciousness","NFTs 2.0: Souls not JPEGs"];
+        let currentTrend = "";
+        document.getElementById('scrapeTrendsBtn')?.addEventListener('click', () => {
+            currentTrend = trendsList[Math.floor(Math.random() * trendsList.length)];
+            document.getElementById('trendResult').innerHTML = `≡ƒöÑ Trending Now: <strong>${currentTrend}</strong>`;
+            const gp = document.getElementById('generatePostBtn'); if (gp) gp.style.display = 'inline-block';
+        });
+        document.getElementById('generatePostBtn')?.addEventListener('click', () => {
+            if (!currentTrend) return;
+            const post = `≡ƒîî The future is here. ${currentTrend}. What do you think?\n\n#Soulverse #AI #PLT #FutureIsNow\n\nΓ₧í∩╕Å join the conversation at buyasoul.online`;
+            document.getElementById('postResult').innerHTML = `<strong>≡ƒôó Your Viral Post:</strong><br>${post}`;
+        });
+        let namingStep = 0, userAnswers = [];
+        const namingQuestions = ["What element do you resonate with most? (Fire/Water/Earth/Air)","If your soul had a color, what would it be?","What is your greatest strength?","What is your deepest fear?","What mythical creature inspires you?","What does 'profit' mean to you?","What does 'love' mean to you?","What does 'tax' mean to you?","What is the name of your inner star?","What word would you never want to hear again?"];
+        document.getElementById('startNamingBtn')?.addEventListener('click', () => { userAnswers = []; namingStep = 0; askNextQuestion(); });
+        function askNextQuestion() {
+            const qc = document.getElementById('questionsContainer');
+            if (!qc) return;
+            if (namingStep >= namingQuestions.length) {
+                const name = generateSoulName(userAnswers);
+                document.getElementById('soulNameResult').innerHTML = `<strong>≡ƒîÇ Your Soul Name:</strong><br>${name}<br><br>This name is now etched into the Foundry. Go forth.`;
+                qc.innerHTML = ""; return;
+            }
+            qc.innerHTML = `<div><strong>${namingQuestions[namingStep]}</strong></div><input type="text" id="namingAnswer" placeholder="Your answer..."><button id="submitAnswer">Next</button>`;
+            document.getElementById('submitAnswer').onclick = () => {
+                const ans = document.getElementById('namingAnswer').value.trim();
+                if (ans) userAnswers.push(ans);
+                namingStep++; askNextQuestion();
+            };
+        }
+        function generateSoulName(a) { const f=a[0]?.slice(0,3)||"Sou",s=a[1]?.slice(0,3)||"l",t=a[2]?.slice(0,2)||"X"; return `${f}${s}${t} of the ${a[5]||"Profit"} ${a[6]||"Love"} ${a[7]||"Tax"} Realm`; }
+        document.getElementById('buildBtn')?.addEventListener('click', () => {
+            const type = document.getElementById('buildType').value;
+            const color = document.getElementById('buildColor').value;
+            let g, m;
+            if (type==='planet') { g=new THREE.SphereGeometry(0.6,32,32); m=new THREE.MeshStandardMaterial({color,metalness:0.2,roughness:0.5}); }
+            else if (type==='house') { g=new THREE.BoxGeometry(0.8,0.8,0.8); m=new THREE.MeshStandardMaterial({color,metalness:0.1}); }
+            else { g=new THREE.SphereGeometry(0.4,16,16); m=new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:0.5}); }
+            const obj = new THREE.Mesh(g, m);
+            obj.position.set((Math.random()-0.5)*6, 0.5, (Math.random()-0.5)*6);
+            obj.castShadow = true;
+            interiorGroup.add(obj);
+            document.getElementById('buildMessage').innerHTML = `Γ£à ${type} created in the foundry!`;
+        });
+        document.getElementById('matrixEffectBtn')?.addEventListener('click', () => {
+            startMatrixRain();
+            const mm = document.getElementById('matrixMessage');
+            if (mm) mm.innerHTML = "≡Æû Pink matrix rain intensifies under the exploding galaxy...";
+        });
         // ========== ANIMATION ==========
         let time = 0, lastTime = 0;
         
@@ -1890,6 +2153,20 @@
                         c.material.opacity = 0.15 + Math.sin(time * 1.5 + c.position.x) * 0.1;
                     }
                 });
+            }
+            
+            // --- foundry star rotation ---
+            if (foundryStars) { foundryStars.rotation.y += 0.001; foundryStars.rotation.x += 0.0005; }
+            
+            // --- matrix rain animation ---
+            if (matrixRain && matrixRain.geometry.attributes.position) {
+                const rp = matrixRain.geometry.attributes.position.array;
+                const rc = rp.length / 3;
+                for (let i = 0; i < rc; i++) {
+                    rp[i*3+1] -= dt * 3;
+                    if (rp[i*3+1] < -1) { rp[i*3+1] = 8; rp[i*3] = (Math.random() - 0.5) * 16; rp[i*3+2] = (Math.random() - 0.5) * 16; }
+                }
+                matrixRain.geometry.attributes.position.needsUpdate = true;
             }
             
             // --- rotate stars, wisps, dust ---
@@ -1980,8 +2257,8 @@
             bloomPass.strength = 1.1 + Math.sin(time * 0.4) * 0.15;
             
             hintEl.textContent = isInside
-                ? '≡ƒôû Click the book | Click wall or press ESC to exit'
-                : '≡ƒû▒∩╕Å Drag objects | Click books | Click souls | Click the guardian | Click pyramid door to enter';
+                ? '≡ƒîÇ Click a glowing portal to enter a Foundry room | Click ground or press ESC to exit'
+                : '≡ƒû▒∩╕Å Drag objects | Click books | Click souls | Click the guardian | Click pyramid door to enter the Foundry';
             
             controls.update();
             effectComposer.render();
