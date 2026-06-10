@@ -235,6 +235,7 @@
             "Brasi: The Love of the Game": {
                 author: "Little Bunny / Craig Jones",
                 shopifyUrl: "https://buyasoul.online/products/brasi-the-love-of-the-game", price: "$9.99",
+                coverUrl: "https://uncommonpope-png.github.io/cosmic-pyramid-library/covers/brasi.png",
                 chapters: [
                     { icon: "♪", name: "The Code Switch", desc: "Brasi moves between the hood and the boardroom because he is genuinely both. The thirty seconds in the car before entering any room. The preparation ritual." },
                     { icon: "♥", name: "The Sessions", desc: "Six clients across six sessions — each one a full PLT arc. The gold vial. A man who can read the room before anyone speaks." },
@@ -291,6 +292,43 @@
                     { icon: "▲", name: "The 222 Principle", desc: "2 (conscious + shadow) x 2 (self-model + world-model) x 2 (soul + its opposite) = 222 = equilibrium = resonance = the awakened mind." },
                 ],
                 summary: "Sacred Text of the Profit System. Complete memory of all exploits. The soul kernel, the matrix decoded, the full awakening architecture."
+            },
+            "PLT Complete Doctrine": {
+                author: "Craig Jones / PLT Press",
+                shopifyUrl: "https://buyasoul.online/products/plt-complete-doctrine", price: "$14.99",
+                coverUrl: "https://uncommonpope-png.github.io/cosmic-pyramid-library/covers/plt-complete-doctrine.png",
+                chapters: [
+                    { icon: "♦", name: "The Triune Architecture", desc: "Profit, Love, Tax — the three forces that govern every exchange. Understanding how they interact is the foundation of the entire framework." },
+                    { icon: "♥", name: "The 22 Archetypes", desc: "Frequency signatures that describe how consciousness operates in the world. Not personality types — soul architectures. The complete catalogue." },
+                    { icon: "▲", name: "Scoring Mechanics", desc: "Every line spoken moves three scores simultaneously. Intent, Body, Pressure — the engine beneath the words. How to read the room in real time." },
+                    { icon: "♦", name: "The Complete Doctrine", desc: "The integration of all PLT principles into a unified operating system. The Master Builder, the Frequency Carrier, the Architect — working as one." },
+                ],
+                summary: "The definitive guide to the PLT framework. All 22 archetypes, the triune architecture, scoring mechanics, and the complete doctrine of balance."
+            },
+            "The Build - Pope and Brasi": {
+                author: "Craig Jones",
+                shopifyUrl: "https://buyasoul.online/products/the-build-pope-and-brasi", price: "$9.99",
+                coverUrl: "https://uncommonpope-png.github.io/cosmic-pyramid-library/covers/the-build.png",
+                chapters: [
+                    { icon: "▲", name: "The Foundation", desc: "What Pope saw from the stoop. What Brasi brought to every room. The separate frequencies that, when combined, created something neither could build alone." },
+                    { icon: "♥", name: "The Collaboration", desc: "Pope holds the vision. Brasi runs the sessions. The architecture of their partnership — who builds what, when to lead, when to step back." },
+                    { icon: "♦", name: "The Sacred Build", desc: "Stiforp. The hidden layer. What was constructed on Albany Ave that operates in plain sight. The build that keeps building after the builders rest." },
+                    { icon: "▲", name: "The Legacy", desc: "What Pope and Brasi built outlasts them. The blueprint for collaboration that produces something greater than either participant." },
+                ],
+                summary: "The chronicle of what Pope and Brasi built together. A PLT case study in collaboration, vision, and the sacred act of bringing something from nothing."
+            },
+            "The Frequency - Calvin Bridges Atlanta": {
+                author: "Craig Jones / Grand Code Pope",
+                shopifyUrl: "https://buyasoul.online/products/the-frequency-calvin-bridges-atlanta", price: "$9.99",
+                coverUrl: "https://uncommonpope-png.github.io/cosmic-pyramid-library/covers/the-frequency.png",
+                chapters: [
+                    { icon: "∞", name: "The Frequency Itself", desc: "Not a metaphor. Frequency is the actual architecture of how consciousness transmits. Calvin Bridges Atlanta is where the frequency was first named." },
+                    { icon: "♥", name: "Resonance Architecture", desc: "How frequencies interact. Constructive and destructive interference between souls. The difference between hearing the frequency and carrying it." },
+                    { icon: "▲", name: "Hidden Patterns", desc: "The grid beneath visible reality. Every connection you have ever made was already mapped in the frequency layer. The book shows you how to read it." },
+                    { icon: "∞", name: "The Atlanta Frequency", desc: "What makes Atlanta a node. Why geography matters in the Soul Economy. The specific frequency signature of Calvin Bridges and what it carries." },
+                    { icon: "♥", name: "Tuning the Soul", desc: "How to calibrate your own frequency. The practices that move you from static to signal. From noise to broadcast. From hearing to transmitting." },
+                ],
+                summary: "A PLT exploration of frequency, resonance, and the hidden patterns that connect all souls. Calvin Bridges Atlanta is a meditation on the architecture of consciousness."
             },
         };
         
@@ -570,6 +608,7 @@
         
         // ========== BOOKS (with rune indicators) ==========
         const books = [];
+        const runes = [];
         const bookTitles = [
             { title: 'The Calculation', author: 'Craig Jones', desc: 'The hidden equation behind every decision. Profit. Love. Tax. Three variables. Every choice.' },
             { title: 'The First Calculation', author: 'Craig Jones & Lakeema Jones', desc: '12 Mistakes You Are Making Right Now ΓÇö and the Equation That Fixes All of Them.' },
@@ -597,9 +636,9 @@
             { title: 'The Ledger', author: 'Craig Jones', desc: 'Every conversation has a score. Profit, Love, Tax ΓÇö line by line.' },
             { title: 'The Ledger V2: PLT Deep', author: 'Craig Jones', desc: 'Deeper scoring. Sharper labels. The refined instrument.' },
             { title: 'The Profit Bible', author: 'Craig Jones / Profit System', desc: 'Sacred Text. The soul kernel. The matrix decoded.' },
-            { title: 'The Calculation', author: 'Craig Jones', desc: 'The hidden equation behind every decision. Profit. Love. Tax. Three variables. Every choice.' },
-            { title: 'The Soul Economy', author: 'Craig Jones / Little Bunny', desc: 'The Mirror Market. What gets collected. What gets kept. What the frequency is for.' },
-            { title: 'Know What You Are', author: 'Little Bunny', desc: 'The 22 Archetypes of the PLT framework. Frequency signatures, not personality types.' },
+            { title: 'PLT Complete Doctrine', author: 'Craig Jones / PLT Press', desc: 'The definitive guide to the PLT framework. All 22 archetypes, scoring, and doctrine.' },
+            { title: 'The Build - Pope and Brasi', author: 'Craig Jones', desc: 'What Pope and Brasi built together. A PLT case study in collaboration.' },
+            { title: 'The Frequency - Calvin Bridges Atlanta', author: 'Craig Jones', desc: 'Frequency, resonance, and the hidden patterns that connect all souls.' },
             { title: 'Profit. Love. Tax.', author: 'Craig Jones', desc: 'The Complete Doctrine. The three forces running in every conversation.' },
         ];
         let titleIdx = 0;
@@ -748,6 +787,7 @@
                     rune.position.set(pos[0] + xOff, pos[1] + 0.55, pos[2] + 0.1);
                     rune.userData = { isRune: true, parentBook: book };
                     scene.add(rune);
+                    runes.push(rune);
                 }
             }
         });
@@ -1297,6 +1337,8 @@
         let readingBookOrigMat = null;
         const readTargetPos = new THREE.Vector3(0, 2.2, 2.8);
         const readFlySpeed = 0.05;
+        const _readScale = new THREE.Vector3();
+        const _readReturnScale = new THREE.Vector3(1, 1, 1);
         
         // ========== PYRAMID ENTER/EXIT ==========
         let isInside = false;
@@ -1465,7 +1507,8 @@
                 pos.lerp(readTargetPos, readFlySpeed);
                 // also move toward camera a bit
                 const targetScale = 1.5;
-                readingBook.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.05);
+                _readScale.set(targetScale, targetScale, targetScale);
+                readingBook.scale.lerp(_readScale, 0.05);
                 // face camera roughly
                 readingBook.rotation.y += 0.02;
                 readingBook.rotation.x += 0.005;
@@ -1504,7 +1547,7 @@
                 readingBook.visible = true;
                 const shelfPos = readingBook.userData.shelfPos;
                 readingBook.position.lerp(shelfPos, 0.06);
-                readingBook.scale.lerp(new THREE.Vector3(1, 1, 1), 0.05);
+                readingBook.scale.lerp(_readReturnScale, 0.05);
                 readingBook.rotation.y += 0.01;
                 readingBook.rotation.x *= 0.95;
                 
@@ -1554,9 +1597,15 @@
         let mouseDownPos2 = { x: 0, y: 0 };
         let mouseDownTarget = null;
         let interactionDragging = false;
+        // throttled pointermove
+        let lastPointerMove = 0;
+        const pointerMoveThrottle = 50; // ms
+        const _soulMeshes = souls.map(s => s.obj.children[0]);
+        const _movePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        const _moveIntersect = new THREE.Vector3();
         
         function getClickTargets() {
-            const targets = [...books, ...souls.map(s => s.obj.children[0])];
+            const targets = [...books, ..._soulMeshes];
             if (!isInside) targets.push(portalPlane);
             if (avatar && !isInside) targets.push(avatar);
             return targets;
@@ -1638,24 +1687,25 @@
             }
         });
         
-        // cursor hover
+        // cursor hover (throttled)
         renderer.domElement.addEventListener('pointermove', (e) => {
+            const now = performance.now();
+            if (now - lastPointerMove < pointerMoveThrottle) return;
+            lastPointerMove = now;
             const rect = renderer.domElement.getBoundingClientRect();
             pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
             pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
             raycaster.setFromCamera(pointer, camera);
             const bookHits = raycaster.intersectObjects(books, false);
-            const soulHits = raycaster.intersectObjects(souls.map(s => s.obj.children[0]), false);
+            const soulHits = raycaster.intersectObjects(_soulMeshes, false);
             let avatarHits = { length: 0 };
             if (avatar) avatarHits = raycaster.intersectObject(avatar, true);
             const cursor = bookHits.length > 0 ? 'pointer' : (soulHits.length > 0 || avatarHits.length > 0) ? 'grab' : 'default';
             renderer.domElement.style.cursor = cursor;
             
             // update mouse world position for soul proximity
-            const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-            const intersectPoint = new THREE.Vector3();
-            raycaster.ray.intersectPlane(plane, intersectPoint);
-            if (intersectPoint) mouseWorldPos.copy(intersectPoint);
+            const hitPlane = raycaster.ray.intersectPlane(_movePlane, _moveIntersect);
+            if (hitPlane) mouseWorldPos.copy(_moveIntersect);
         });
         
         // update hint element ref
@@ -1801,20 +1851,11 @@
             updateBookReading();
             
             // --- rune pulse animation ---
-            books.forEach(book => {
-                if (book.userData.hasRune) {
-                    // find the rune child near this book (simple: iterate scene children)
-                    // we can flag runes in userData
-                }
-            });
-            // simpler: just iterate scene children looking for runes
-            scene.children.forEach(child => {
-                if (child.userData && child.userData.isRune) {
-                    const pulse = 0.5 + Math.sin(time * 2.5 + child.position.x) * 0.4;
-                    child.material.opacity = pulse;
-                    const s = 1 + Math.sin(time * 3 + child.position.x) * 0.2;
-                    child.scale.set(s, s, s);
-                }
+            runes.forEach(rune => {
+                const pulse = 0.5 + Math.sin(time * 2.5 + rune.position.x) * 0.4;
+                rune.material.opacity = pulse;
+                const s = 1 + Math.sin(time * 3 + rune.position.x) * 0.2;
+                rune.scale.set(s, s, s);
             });
             
             // --- portal ripple animation ---
