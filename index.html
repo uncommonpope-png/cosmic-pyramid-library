@@ -13,6 +13,8 @@
     <meta name="twitter:description" content="Explore 16 sacred PLT texts inside an interactive 3D mystical library. Click books to read, click souls for whispers, click the pyramid to enter.">
     <meta name="twitter:image" content="https://uncommonpope-png.github.io/cosmic-pyramid-library/covers/the-soul-economy.png">
     <meta name="description" content="Interactive 3D mystical library featuring the PLT Doctrine, The Soul Economy, and 16 sacred texts. Read books, collect wisdom from floating souls, explore the pyramid.">
+    <!-- Free analytics: sign up at https://plausible.io/#register, add your domain, and this starts working -->
+    <script defer data-domain="uncommonpope-png.github.io" src="https://plausible.io/js/script.js"></script>
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
@@ -130,6 +132,14 @@
             font-family: inherit; transition: transform 0.2s, box-shadow 0.2s;
         }
         .buy-book:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,215,0,0.5); }
+        .share-btn {
+            display: inline-block; background: rgba(255,255,255,0.08); color: #ccbbdd;
+            border: 1px solid rgba(255,170,102,0.3); padding: 8px 14px; border-radius: 30px;
+            font-size: 12px; cursor: pointer; text-decoration: none; font-family: inherit;
+            transition: all 0.2s;
+        }
+        .share-btn:hover { background: rgba(255,255,255,0.15); border-color: #ffaa66; color: #ffddcc; }
+        .share-btn.copied { background: rgba(100,255,100,0.15); border-color: #66ff66; color: #88ff88; }
         .close-book {
             display: block; margin: 18px auto 0;
             background: #ff8844; border: none; color: #110011;
@@ -184,6 +194,11 @@
                     <div class="reading-actions">
                         <a class="buy-book" id="buy-book-btn" target="_blank" rel="noopener" style="display:none">BUY ON BUYaSOUL</a>
                         <button class="close-book" id="close-book-btn">RETURN BOOK</button>
+                    </div>
+                    <div class="reading-actions" style="margin-top:10px;gap:8px">
+                        <a class="share-btn" id="share-bsky" target="_blank" rel="noopener" style="display:none">Share on Bluesky</a>
+                        <a class="share-btn" id="share-x" target="_blank" rel="noopener" style="display:none">Share on X</a>
+                        <button class="share-btn" id="share-copy" style="display:none">Copy Link</button>
                     </div>
                 </div>
             </div>
@@ -1393,6 +1408,9 @@
         const readSummary = document.getElementById('read-summary');
         const closeBookBtn = document.getElementById('close-book-btn');
         const buyBookBtn = document.getElementById('buy-book-btn');
+        const shareBsky = document.getElementById('share-bsky');
+        const shareX = document.getElementById('share-x');
+        const shareCopy = document.getElementById('share-copy');
         
         let readingState = 'idle'; // idle | flying | open | returning
         let readingBook = null;
@@ -1554,6 +1572,7 @@
                 readCover.style.display = 'none';
                 readingCard.classList.remove('with-cover');
             }
+            const shareUrl = bc.shopifyUrl || 'https://buyasoul.online/';
             if (bc.shopifyUrl) {
                 buyBookBtn.href = bc.shopifyUrl;
                 buyBookBtn.textContent = `BUY ON BUYaSOUL ${bc.price || ''}`;
@@ -1561,6 +1580,19 @@
             } else {
                 buyBookBtn.style.display = 'none';
             }
+            const shareText = `${book.userData.title} — ${bc.author}. Part of the PLT Doctrine.`;
+            shareBsky.href = `https://bsky.app/intent/compose?text=${encodeURIComponent(shareText + ' ' + shareUrl)}`;
+            shareBsky.style.display = 'inline-block';
+            shareX.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText + ' ' + shareUrl)}`;
+            shareX.style.display = 'inline-block';
+            shareCopy.style.display = 'inline-block';
+            shareCopy.onclick = () => {
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    shareCopy.textContent = 'Copied!';
+                    shareCopy.classList.add('copied');
+                    setTimeout(() => { shareCopy.textContent = 'Copy Link'; shareCopy.classList.remove('copied'); }, 2000);
+                });
+            };
         }
         
         closeBookBtn.addEventListener('click', () => {
