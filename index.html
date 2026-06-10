@@ -40,6 +40,10 @@
             box-shadow: 0 0 80px rgba(255,100,50,0.25);
             pointer-events: auto;
         }
+        #reading-card.with-cover { max-width: 720px; }
+        #reading-card .cover-col { display: flex; gap: 28px; align-items: flex-start; }
+        #reading-card .cover-col img { width: 160px; border-radius: 8px; border: 2px solid #ccaa77; flex-shrink: 0; }
+        #reading-card .text-col { flex: 1; min-width: 0; }
         #reading-card::-webkit-scrollbar { width: 4px; }
         #reading-card::-webkit-scrollbar-thumb { background: #ff8844; border-radius: 4px; }
         #reading-card h1 {
@@ -105,6 +109,9 @@
             #info { font-size: 10px; top: 10px; left: 10px; }
             #controls-hint { font-size: 9px; }
             #reading-card { padding: 24px 20px; max-width: 95%; }
+            #reading-card.with-cover { max-width: 95%; }
+            #reading-card .cover-col { flex-direction: column; align-items: center; }
+            #reading-card .cover-col img { width: 120px; }
             #reading-card h1 { font-size: 20px; }
             .whisper { font-size: 13px; }
         }
@@ -119,13 +126,18 @@
     <div id="reading-overlay">
         <div id="reading-bg"></div>
         <div id="reading-card">
-            <h1 id="read-title">The Calculation</h1>
-            <p class="author" id="read-author">ΓÇö PLT Framework ΓÇö</p>
-            <div id="read-chapters"></div>
-            <p class="summary" id="read-summary"></p>
-            <div class="reading-actions">
-                <a class="buy-book" id="buy-book-btn" target="_blank" rel="noopener" style="display:none">BUY ON BUYaSOUL</a>
-                <button class="close-book" id="close-book-btn">RETURN BOOK</button>
+            <div class="cover-col">
+                <img id="read-cover" src="" alt="Book cover" style="display:none">
+                <div class="text-col">
+                    <h1 id="read-title">The Calculation</h1>
+                    <p class="author" id="read-author">ΓÇö PLT Framework ΓÇö</p>
+                    <div id="read-chapters"></div>
+                    <p class="summary" id="read-summary"></p>
+                    <div class="reading-actions">
+                        <a class="buy-book" id="buy-book-btn" target="_blank" rel="noopener" style="display:none">BUY ON BUYaSOUL</a>
+                        <button class="close-book" id="close-book-btn">RETURN BOOK</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1325,6 +1337,8 @@
         
         // ========== BOOK READING SYSTEM ==========
         const readingOverlay = document.getElementById('reading-overlay');
+        const readingCard = document.getElementById('reading-card');
+        const readCover = document.getElementById('read-cover');
         const readTitle = document.getElementById('read-title');
         const readAuthor = document.getElementById('read-author');
         const readChapters = document.getElementById('read-chapters');
@@ -1484,6 +1498,14 @@
                 `<div class="chapter"><span class="icon">${ch.icon}</span><span class="name">${ch.name}</span><p class="desc">${ch.desc}</p></div>`
             ).join('');
             readSummary.textContent = bc.summary;
+            if (bc.coverUrl) {
+                readCover.src = bc.coverUrl;
+                readCover.style.display = 'block';
+                readingCard.classList.add('with-cover');
+            } else {
+                readCover.style.display = 'none';
+                readingCard.classList.remove('with-cover');
+            }
             if (bc.shopifyUrl) {
                 buyBookBtn.href = bc.shopifyUrl;
                 buyBookBtn.textContent = `BUY ON BUYaSOUL ${bc.price || ''}`;
@@ -1497,6 +1519,7 @@
             if (readingState !== 'open') return;
             readingState = 'returning';
             readingOverlay.classList.remove('active');
+            readingCard.classList.remove('with-cover');
         });
         
         function updateBookReading() {
