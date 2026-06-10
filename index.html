@@ -202,6 +202,7 @@
             "The Soul Economy": {
                 author: "Craig Jones / Little Bunny",
                 shopifyUrl: "https://buyasoul.online/products/the-soul-economy", price: "$9.99",
+                coverUrl: "https://cdn.shopify.com/s/files/1/0959/9670/7131/files/ChatGPTImageJun9_2026_01_44_32PM_442ad071-53bc-4f5a-98f3-9497aa3c0d3e.png?v=1781031364",
                 chapters: [
                     { icon: "∞", name: "What the Soul Economy Is", desc: "The layer beneath the PLT equation. Every transaction has a visible ledger. The Soul Economy is the one beneath it. What enters the ledger is kept." },
                     { icon: "♥", name: "The Two Ledgers", desc: "The visible ledger records every transaction. The Soul Economy records only the ones that are real. Real does not mean large. It means authentic." },
@@ -609,6 +610,101 @@
         ];
         const bookColors = [0x6a3a3a, 0x3a5a3a, 0x5a3a5a, 0x7a4a2a, 0x3a4a6a, 0x6a4a4a, 0x2a5a4a, 0x5a2a5a];
         
+        // ===== Book cover texture generators =====
+        function hexToRgb(hex) { return { r: (hex>>16)&0xff, g: (hex>>8)&0xff, b: hex&0xff }; }
+        
+        function generateCoverTexture(title, author, coverUrl, colorIdx) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 384;
+            const ctx = canvas.getContext('2d');
+            const c = hexToRgb(bookColors[colorIdx % bookColors.length]);
+            
+            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grad.addColorStop(0, `rgb(${c.r},${c.g},${c.b})`);
+            grad.addColorStop(0.5, `rgb(${Math.floor(c.r*0.7)},${Math.floor(c.g*0.7)},${Math.floor(c.b*0.7)})`);
+            grad.addColorStop(1, `rgb(${Math.floor(c.r*0.5)},${Math.floor(c.g*0.5)},${Math.floor(c.b*0.5)})`);
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.strokeStyle = '#ccaa77'; ctx.lineWidth = 4;
+            ctx.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
+            ctx.strokeStyle = 'rgba(204,170,119,0.25)'; ctx.lineWidth = 1;
+            ctx.strokeRect(16, 16, canvas.width - 32, canvas.height - 32);
+            
+            const words = title.split(' ');
+            const fontSize = title.length > 20 ? 20 : title.length > 12 ? 24 : 28;
+            ctx.fillStyle = '#ccaa77'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.font = `bold ${fontSize}px Georgia,serif`;
+            const lines = []; let line = '';
+            for (const w of words) {
+                const t = line ? line + ' ' + w : w;
+                if (ctx.measureText(t).width > canvas.width - 60) { lines.push(line); line = w; }
+                else { line = t; }
+            }
+            lines.push(line);
+            const lh = fontSize * 1.3;
+            let y = (canvas.height - lines.length * lh) / 2 - 15;
+            for (const l of lines) { ctx.fillText(l, canvas.width/2, y); y += lh; }
+            
+            ctx.fillStyle = 'rgba(204,170,119,0.6)'; ctx.font = '14px Georgia,serif';
+            ctx.fillText(author, canvas.width/2, y + 25);
+            
+            ctx.fillStyle = 'rgba(204,170,119,0.15)'; ctx.font = '36px Georgia,serif';
+            ctx.fillText('♦', canvas.width/2, canvas.height - 40);
+            
+            const tex = new THREE.CanvasTexture(canvas); tex.anisotropy = 4;
+            
+            if (coverUrl) {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    const ia = img.width / img.height, ca = canvas.width / canvas.height;
+                    let dw, dh, dx, dy;
+                    if (ia > ca) { dh = canvas.height; dw = dh * ia; dx = (canvas.width - dw) / 2; dy = 0; }
+                    else { dw = canvas.width; dh = dw / ia; dx = 0; dy = (canvas.height - dh) / 2; }
+                    ctx.drawImage(img, dx, dy, dw, dh);
+                    tex.needsUpdate = true;
+                };
+                img.src = coverUrl;
+            }
+            return tex;
+        }
+        
+        function generateSpineTexture(title) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 80; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#1a0a05'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#ccaa77'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(4, 4); ctx.lineTo(canvas.width-4, 4); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(4, canvas.height-4); ctx.lineTo(canvas.width-4, canvas.height-4); ctx.stroke();
+            ctx.save();
+            ctx.translate(canvas.width/2, canvas.height/2); ctx.rotate(Math.PI/2);
+            ctx.fillStyle = '#ccaa77'; ctx.font = 'bold 13px Georgia,serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(title.length > 18 ? title.substring(0,16)+'…' : title, 0, 0);
+            ctx.restore();
+            const tex = new THREE.CanvasTexture(canvas); tex.anisotropy = 4;
+            return tex;
+        }
+        
+        // Pre-compute textures for all book entries
+        const coverTexCache = {};
+        const spineTexCache = {};
+        const bookMatCache = [];
+        bookTitles.forEach((info, idx) => {
+            if (!coverTexCache[info.title]) {
+                const bookData = pltBooks[info.title];
+                coverTexCache[info.title] = generateCoverTexture(info.title, info.author, bookData?.coverUrl, idx);
+                spineTexCache[info.title] = generateSpineTexture(info.title);
+            }
+            bookMatCache.push({
+                cover: coverTexCache[info.title],
+                spine: spineTexCache[info.title],
+                color: bookColors[idx % bookColors.length]
+            });
+        });
+        
         shelfPositions.forEach(pos => {
             const shelfBase = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.08, 1.2), woodMat);
             shelfBase.position.set(pos[0], pos[1], pos[2]);
@@ -616,26 +712,36 @@
             scene.add(shelfBase);
             for (let i = 0; i < 5; i++) {
                 if (titleIdx >= bookTitles.length) titleIdx = 0;
-                const info = bookTitles[titleIdx++];
-                const col = bookColors[(titleIdx) % bookColors.length];
-                const bookMat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.4, metalness: 0.2, emissive: col, emissiveIntensity: 0.05 });
-                const book = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.55, 0.28), bookMat);
+                const info = bookTitles[titleIdx];
+                const mats = bookMatCache[titleIdx];
+                const c = hexToRgb(mats.color);
+                const sideCol = `rgb(${Math.floor(c.r*0.3)},${Math.floor(c.g*0.3)},${Math.floor(c.b*0.3)})`;
+                
+                const frontMat = new THREE.MeshStandardMaterial({ map: mats.cover, roughness: 0.6, metalness: 0.05 });
+                const spineMat = new THREE.MeshStandardMaterial({ map: mats.spine, roughness: 0.5, metalness: 0.2 });
+                const sideMat = new THREE.MeshStandardMaterial({ color: sideCol, roughness: 0.8 });
+                const backMat = new THREE.MeshStandardMaterial({ color: sideCol, roughness: 0.8 });
+                const topMat = new THREE.MeshStandardMaterial({ color: sideCol, roughness: 0.8 });
+                const bottomMat = new THREE.MeshStandardMaterial({ color: sideCol, roughness: 0.8 });
+                
+                // right-shelf books rotate so spines face center
+                const isRightShelf = pos[0] > 0;
+                // +x(spine), -x, +y(top), -y(bottom), +z(front), -z(back)
+                const matsOrder = isRightShelf
+                    ? [sideMat, spineMat, topMat, bottomMat, backMat, frontMat]
+                    : [spineMat, sideMat, topMat, bottomMat, frontMat, backMat];
+                const book = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.55, 0.28), matsOrder);
                 const xOff = -0.8 + i * 0.4;
                 const shelfPos = new THREE.Vector3(pos[0] + xOff, pos[1] + 0.3, pos[2] + 0.1);
                 book.position.copy(shelfPos);
+                if (isRightShelf) book.rotation.y = Math.PI;
                 book.castShadow = true;
                 const hasRune = Math.random() < 0.3;
-                book.userData = { isBook: true, title: info.title, author: info.author, desc: info.desc, shelfPos: shelfPos.clone(), hasRune };
+                book.userData = { isBook: true, title: info.title, author: info.author, desc: info.desc, shelfPos: shelfPos.clone(), hasRune, materials: matsOrder };
                 scene.add(book);
                 books.push(book);
+                titleIdx++;
                 
-                // gold spine line
-                const spineMat = new THREE.MeshStandardMaterial({ color: 0xccaa77, emissive: 0xaa8844, emissiveIntensity: 0.1 });
-                const spine = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.5, 0.01), spineMat);
-                spine.position.set(pos[0] + xOff, pos[1] + 0.3, pos[2] + 0.18);
-                scene.add(spine);
-                
-                // glowing rune for special books
                 if (hasRune) {
                     const runeMat = new THREE.MeshBasicMaterial({ color: 0xff8844, transparent: true, opacity: 0.7 });
                     const rune = new THREE.Mesh(new THREE.TorusGeometry(0.04, 0.015, 8, 16), runeMat);
