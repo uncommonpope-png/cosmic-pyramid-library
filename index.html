@@ -1576,10 +1576,12 @@
             if (bc.shopifyUrl) {
                 buyBookBtn.href = bc.shopifyUrl;
                 buyBookBtn.textContent = `BUY ON BUYaSOUL ${bc.price || ''}`;
-                buyBookBtn.style.display = 'inline-block';
             } else {
-                buyBookBtn.style.display = 'none';
+                buyBookBtn.href = 'https://buyasoul.online/';
+                buyBookBtn.textContent = 'BROWSE BUYaSOUL';
             }
+            buyBookBtn.style.display = 'inline-block';
+            buyBookBtn.target = '_parent';
             const shareText = `${book.userData.title} — ${bc.author}. Part of the PLT Doctrine.`;
             shareBsky.href = `https://bsky.app/intent/compose?text=${encodeURIComponent(shareText + ' ' + shareUrl)}`;
             shareBsky.style.display = 'inline-block';
