@@ -7,27 +7,40 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            overflow: hidden;
             font-family: 'Times New Roman', Times, serif;
             background: #010008;
             color: #f0e6d0;
         }
+        #canvas-container {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+        .form-section {
+            position: relative;
+            z-index: 20;
+            width: 100%;
+            padding: 60px 20px 80px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(ellipse at center top, rgba(15,8,25,0.95), #010008 70%);
+        }
         .vignette {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none; z-index: 10;
             background: radial-gradient(circle at center, transparent 55%, rgba(0,0,0,0.8) 100%);
         }
         .form-container {
-            position: fixed; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 20; width: auto; max-width: 320px;
-            background: rgba(8, 4, 18, 0.5);
-            backdrop-filter: blur(4px);
-            border: 1px solid rgba(0, 212, 255, 0.4);
-            border-radius: 24px; padding: 20px 24px;
+            width: 100%; max-width: 380px;
+            background: rgba(20, 10, 35, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 24px; padding: 28px 32px;
             text-align: center;
-            box-shadow: 0 0 60px rgba(0, 212, 255, 0.15);
-            transition: opacity 0.8s ease, transform 0.5s ease;
+            box-shadow: 0 0 60px rgba(0, 212, 255, 0.1);
+            transition: opacity 0.6s ease;
+            margin: 0 auto;
         }
         .form-container h1 {
             font-size: 1.3rem; margin-bottom: 0.2rem;
@@ -80,7 +93,7 @@
         }
         .free-gift a:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,215,0,0.4); }
         .attribution {
-            position: fixed; bottom: 12px; left: 50%;
+            position: absolute; bottom: 12px; left: 50%;
             transform: translateX(-50%);
             font-size: 10px; z-index: 5;
             background: rgba(0,0,0,0.4);
@@ -88,31 +101,34 @@
             pointer-events: none; font-family: monospace;
             color: #665577;
         }
+        #canvas-container { position: relative; }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @media (max-width: 600px) { .form-container { padding: 16px 14px; } .form-container h1 { font-size: 1.1rem; } }
     </style>
 </head>
 <body>
-    <div class="vignette"></div>
-
-    <!-- Email form -->
-    <div class="form-container" id="formContainer">
-        <h1>DRINK FROM THE FOUNTAIN</h1>
-        <p>Enter your email to receive living water</p>
-        <div class="form-group">
-            <input type="email" id="emailInput" placeholder="your@soul.com" autocomplete="email">
-            <button id="submitBtn">DRINK</button>
-        </div>
-        <div class="success-message" id="successMsg">
-            Your soul is now watered. Check your inbox.
-        </div>
-        <div class="free-gift" id="freeGift">
-            Claim your free soul gift:<br>
-            <a href="free-soul-gift.gif" download target="_blank">Download Free GIF</a>
-        </div>
+    <div id="canvas-container">
+        <div class="vignette"></div>
+        <div class="attribution">Pyramid of the Living Fountain</div>
     </div>
 
-    <div class="attribution">Pyramid of the Living Fountain</div>
+    <div class="form-section">
+        <div class="form-container" id="formContainer">
+            <h1>DRINK FROM THE FOUNTAIN</h1>
+            <p>Enter your email to receive living water</p>
+            <div class="form-group">
+                <input type="email" id="emailInput" placeholder="your@soul.com" autocomplete="email">
+                <button id="submitBtn">DRINK</button>
+            </div>
+            <div class="success-message" id="successMsg">
+                Your soul is now watered. Check your inbox.
+            </div>
+            <div class="free-gift" id="freeGift">
+                Claim your free soul gift:<br>
+                <a href="free-soul-gift.gif" download target="_blank">Download Free GIF</a>
+            </div>
+        </div>
+    </div>
 
     <!-- Hidden iframe for cross-origin form POST to Shopify -->
     <iframe name="hidden-frame" style="display:none"></iframe>
@@ -152,7 +168,7 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.shadowMap.enabled = true;
         renderer.toneMapping = THREE.ReinhardToneMapping;
-        document.body.prepend(renderer.domElement);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
 
         // Postprocessing
         const renderScene = new RenderPass(scene, camera);
@@ -390,15 +406,11 @@
             notifyBot(email);
 
             // Show success + free gift
-            formContainer.style.opacity = '0';
-            setTimeout(() => {
-                formContainer.querySelector('h1').style.display = 'none';
-                formContainer.querySelector('p').style.display = 'none';
-                document.querySelector('.form-group').style.display = 'none';
-                successMsg.classList.add('show');
-                freeGift.classList.add('show');
-                formContainer.style.opacity = '1';
-            }, 600);
+            formContainer.querySelector('h1').style.display = 'none';
+            formContainer.querySelector('p').style.display = 'none';
+            document.querySelector('.form-group').style.display = 'none';
+            successMsg.classList.add('show');
+            freeGift.classList.add('show');
         }
 
         submitBtn.addEventListener('click', handleSubmit);
