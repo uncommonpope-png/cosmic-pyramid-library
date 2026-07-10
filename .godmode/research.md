@@ -121,3 +121,14 @@ second-brain (linked from `RESEARCH - CPL perf.md`):
 ## NEXT
 BUILD phase (separate session, per second-brain Rule 2): implement Tiers 0–4, measure vs gates,
 verify black-screen protocol.
+
+---
+
+## BUILD LOG — DONE (2026-07-10) → commit b493087
+- Tier 0: `gltfpack -cc` on 134 GLBs (-90.2 MB). Eager 10: ~129 MB → ~38 MB. `world.glb` 66→10.6.
+  `MeshoptDecoder` via `makeGLTF()`; paths → `.opt.glb`.
+- Tier 1: byte-accurate progress overlay + nebula LQIP.
+- Tier 4 partial: pixelRatio cap 1.5 + high-performance.
+- Tier 3: service-worker.js cache-first for /assets/**.
+- Deferred: Tier 2 defer-order; InstancedMesh (see render-perf note).
+- HTTP smoke test: index 200, world.opt.glb 200 (10.6MB), sw 200.
