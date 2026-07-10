@@ -148,6 +148,130 @@
             letter-spacing: 1px; transition: all 0.2s;
         }
         #reading-card .close-book:hover { background: #ffaa66; transform: scale(1.03); }
+        /* --- spawn overlay --- */
+        #spawn-overlay {
+            position: absolute; inset: 0;
+            display: none; z-index: 50; pointer-events: none;
+        }
+        #spawn-overlay.active { display: block; pointer-events: auto; }
+        #spawn-bg {
+            position: absolute; inset: 0;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+        }
+        #spawn-card {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            background: rgba(15,8,25,0.95); border: 1px solid #ffaa66;
+            border-radius: 20px; padding: 36px 44px;
+            max-width: 480px; width: 90%;
+            box-shadow: 0 0 80px rgba(255,100,50,0.25);
+            pointer-events: auto;
+        }
+        #spawn-card h2 {
+            color: #ffcc77; font-size: 22px; margin-bottom: 20px;
+            letter-spacing: 1px; text-align: center;
+        }
+        #spawn-card label {
+            color: #bbaadd; font-size: 13px; display: block;
+            margin-bottom: 4px; margin-top: 14px;
+        }
+        #spawn-card input, #spawn-card select, #spawn-card textarea {
+            width: 100%; padding: 10px 14px; border-radius: 10px;
+            border: 1px solid rgba(255,170,102,0.3);
+            background: rgba(255,255,255,0.05); color: #ffddcc;
+            font-family: monospace; font-size: 14px; outline: none;
+        }
+        #spawn-card textarea { resize: vertical; min-height: 60px; }
+        #spawn-card input:focus, #spawn-card select:focus, #spawn-card textarea:focus {
+            border-color: #ff8844;
+        }
+        #spawn-card select option { background: #1a0e1a; color: #ffddcc; }
+        .spawn-btn {
+            display: block; margin: 20px auto 0;
+            background: linear-gradient(135deg, #ffd700, #ff8c00);
+            color: #000; border: none; padding: 12px 36px; border-radius: 30px;
+            font-size: 15px; font-weight: bold; cursor: pointer;
+            letter-spacing: 1px; transition: all 0.2s;
+        }
+        .spawn-btn:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,215,0,0.5); }
+        .close-spawn {
+            display: block; margin: 10px auto 0;
+            background: rgba(255,255,255,0.08); color: #ccbbdd;
+            border: 1px solid rgba(255,170,102,0.3); padding: 8px 24px; border-radius: 30px;
+            font-size: 13px; cursor: pointer; font-family: inherit; transition: all 0.2s;
+        }
+        .close-spawn:hover { background: rgba(255,255,255,0.15); border-color: #ffaa66; }
+        /* --- task overlay --- */
+        #task-overlay {
+            position: absolute; inset: 0;
+            display: none; z-index: 50; pointer-events: none;
+        }
+        #task-overlay.active { display: block; pointer-events: auto; }
+        #task-bg {
+            position: absolute; inset: 0;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+        }
+        #task-card {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            background: rgba(15,8,25,0.95); border: 1px solid #ffaa66;
+            border-radius: 20px; padding: 36px 44px;
+            max-width: 480px; width: 90%;
+            box-shadow: 0 0 80px rgba(255,100,50,0.25);
+            pointer-events: auto;
+        }
+        #task-card h2 {
+            color: #ffcc77; font-size: 22px; margin-bottom: 12px;
+            letter-spacing: 1px; text-align: center;
+        }
+        #task-card .task-info {
+            margin: 10px 0; padding: 12px 16px;
+            background: rgba(255,200,100,0.06); border-radius: 12px;
+            border-left: 3px solid #ff8844;
+        }
+        #task-card .task-info .label {
+            color: #bbaadd; font-size: 12px; text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        #task-card .task-info .value {
+            color: #ffddcc; font-size: 15px; margin-top: 4px;
+            font-family: monospace;
+        }
+        #task-card .task-info .value.status-idle { color: #88ff88; }
+        #task-card .task-info .value.status-working { color: #ffaa44; }
+        #task-card .task-info .value.status-paused { color: #88aaff; }
+        #task-card label {
+            color: #bbaadd; font-size: 13px; display: block;
+            margin-bottom: 4px; margin-top: 14px;
+        }
+        #task-card input, #task-card textarea {
+            width: 100%; padding: 10px 14px; border-radius: 10px;
+            border: 1px solid rgba(255,170,102,0.3);
+            background: rgba(255,255,255,0.05); color: #ffddcc;
+            font-family: monospace; font-size: 14px; outline: none;
+        }
+        #task-card textarea { resize: vertical; min-height: 50px; }
+        #task-card input:focus, #task-card textarea:focus { border-color: #ff8844; }
+        .task-actions { display: flex; gap: 12px; justify-content: center; margin-top: 18px; }
+        .task-btn {
+            padding: 10px 24px; border-radius: 30px; font-size: 14px;
+            font-weight: bold; cursor: pointer; border: none;
+            letter-spacing: 1px; transition: all 0.2s;
+        }
+        .task-btn.update {
+            background: linear-gradient(135deg, #ffd700, #ff8c00); color: #000;
+        }
+        .task-btn.update:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,215,0,0.5); }
+        .task-btn.pause {
+            background: rgba(255,255,255,0.08); color: #ccbbdd;
+            border: 1px solid rgba(255,170,102,0.3);
+        }
+        .task-btn.pause:hover { background: rgba(255,255,255,0.15); border-color: #ffaa66; }
+        .close-task {
+            display: block; margin: 12px auto 0;
+            background: rgba(255,255,255,0.08); color: #ccbbdd;
+            border: 1px solid rgba(255,170,102,0.3); padding: 8px 24px; border-radius: 30px;
+            font-size: 13px; cursor: pointer; font-family: inherit; transition: all 0.2s;
+        }
+        .close-task:hover { background: rgba(255,255,255,0.15); border-color: #ffaa66; }
         /* --- soul whisper floating text --- */
         .whisper {
             position: absolute; pointer-events: none; z-index: 20;
@@ -207,6 +331,57 @@
 
     <!-- Soul whisper container -->
     <div id="whisper-container"></div>
+
+    <!-- Spawn overlay -->
+    <div id="spawn-overlay">
+        <div id="spawn-bg"></div>
+        <div id="spawn-card">
+            <h2>SPAWN AVATAR</h2>
+            <label for="avatar-name">Name</label>
+            <input type="text" id="avatar-name" placeholder="Enter avatar name...">
+            <label for="avatar-model">Model Selector</label>
+            <select id="avatar-model">
+                <option value="default">Default</option>
+                <option value="researcher">Researcher</option>
+                <option value="builder">Builder</option>
+            </select>
+            <label for="avatar-memory">Memory Context</label>
+            <textarea id="avatar-memory" placeholder="Optional memory context..."></textarea>
+            <button class="spawn-btn" id="spawn-btn">SPAWN</button>
+            <button class="close-spawn" id="close-spawn-btn">CANCEL</button>
+        </div>
+    </div>
+
+    <!-- Task overlay -->
+    <div id="task-overlay">
+        <div id="task-bg"></div>
+        <div id="task-card">
+            <h2>AVATAR TASK</h2>
+            <div class="task-info">
+                <div class="label">Avatar</div>
+                <div class="value" id="task-avatar-name">—</div>
+            </div>
+            <div class="task-info">
+                <div class="label">Current Task</div>
+                <div class="value" id="task-current">None</div>
+            </div>
+            <div class="task-info">
+                <div class="label">Status</div>
+                <div class="value status-idle" id="task-status">idle</div>
+            </div>
+            <div class="task-info">
+                <div class="label">Model</div>
+                <div class="value" id="task-model">default</div>
+            </div>
+            <label for="task-new">New Task</label>
+            <textarea id="task-new" placeholder="Enter task description..."></textarea>
+            <div class="task-actions">
+                <button class="task-btn update" id="task-update-btn">UPDATE</button>
+                <button class="task-btn pause" id="task-pause-btn">PAUSE</button>
+            </div>
+            <button class="close-task" id="close-task-btn">CLOSE</button>
+        </div>
+    </div>
 
     <script type="importmap">
         {
@@ -1806,6 +1981,199 @@
         crown.rotation.x = Math.PI / 2;
         heavenGroup.add(crown);
         
+        // ========== AVATAR SYSTEM ==========
+        const avatars = [];
+        const officeZone = new THREE.Vector3(10, 0, -10);
+        let activeTaskAvatar = null;
+
+        const modelColors = {
+            default: 0x88aaff,
+            researcher: 0x4488ff,
+            builder: 0xff8844
+        };
+
+        function createProceduralAvatar(color) {
+            const group = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color, emissive: color, emissiveIntensity: 0.3,
+                roughness: 0.4, metalness: 0.2
+            });
+            const headMat = new THREE.MeshStandardMaterial({
+                color, emissive: color, emissiveIntensity: 0.5,
+                roughness: 0.3, metalness: 0.3
+            });
+
+            // Capsule body
+            const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.25, 0.6, 8, 16), bodyMat);
+            body.position.y = 0.55;
+            body.castShadow = true;
+            group.add(body);
+
+            // Sphere head
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), headMat);
+            head.position.y = 1.1;
+            head.castShadow = true;
+            group.add(head);
+
+            // Eyes
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const pupilMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+            [-0.08, 0.08].forEach(xOff => {
+                const eye = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), eyeMat);
+                eye.position.set(xOff, 1.15, 0.18);
+                group.add(eye);
+                const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), pupilMat);
+                pupil.position.set(xOff, 1.15, 0.22);
+                group.add(pupil);
+            });
+
+            // Glow ring
+            const ringMat = new THREE.MeshBasicMaterial({
+                color, transparent: true, opacity: 0.2,
+                side: THREE.DoubleSide, depthWrite: false
+            });
+            const ring = new THREE.Mesh(new THREE.RingGeometry(0.35, 0.45, 32), ringMat);
+            ring.position.y = 0.15;
+            ring.rotation.x = Math.PI / 2;
+            ring.userData.isGlowRing = true;
+            group.add(ring);
+
+            group.traverse(c => {
+                if (c.isMesh) {
+                    c.castShadow = true;
+                    c.receiveShadow = true;
+                }
+            });
+
+            return group;
+        }
+
+        function getRandomStreetPosition() {
+            const roads = [-70, -56, -42, -28, -14, 0, 14, 28, 42, 56, 70];
+            const road = roads[Math.floor(Math.random() * roads.length)];
+            const offset = (Math.random() - 0.5) * 10;
+            return {
+                x: Math.random() < 0.5 ? road + offset : offset,
+                z: Math.random() < 0.5 ? offset : road + offset
+            };
+        }
+
+        function spawnAvatar(name, model, memory) {
+            const color = modelColors[model] || modelColors.default;
+            const avatarGroup = createProceduralAvatar(color);
+            const pos = getRandomStreetPosition();
+            avatarGroup.position.set(pos.x, 0, pos.z);
+
+            avatarGroup.userData = {
+                isAvatar: true,
+                name,
+                model,
+                memory: memory || '',
+                task: null,
+                status: 'idle',
+                wanderTarget: null,
+                wanderTimer: 0,
+                targetZone: null,
+                completionTimeout: null
+            };
+
+            scene.add(avatarGroup);
+            avatars.push(avatarGroup);
+            draggables.push(avatarGroup);
+
+            // Rebuild drag controls with new array
+            dragControls.dispose();
+            dragControls = new DragControls(draggables, camera, renderer.domElement);
+            dragControls.addEventListener('dragstart', () => { controls.enabled = false; });
+            dragControls.addEventListener('dragend', () => { controls.enabled = true; });
+
+            hideSpawnModal();
+        }
+
+        function assignTask(avatar, task) {
+            avatar.userData.task = task;
+            avatar.userData.status = 'working';
+            avatar.userData.targetZone = officeZone.clone();
+
+            // Visual state change — increase emissive
+            avatar.traverse(c => {
+                if (c.isMesh && c.material && c.material.emissiveIntensity !== undefined) {
+                    c.material.emissiveIntensity = 0.8;
+                }
+            });
+
+            // Stub: simulate task completion
+            if (avatar.userData.completionTimeout) {
+                clearTimeout(avatar.userData.completionTimeout);
+            }
+            console.log(`[AVATAR] ${avatar.userData.name} assigned task: "${task}"`);
+            avatar.userData.completionTimeout = setTimeout(() => {
+                if (avatar.userData.status === 'working') {
+                    avatar.userData.status = 'idle';
+                    avatar.userData.task = null;
+                    avatar.userData.targetZone = null;
+                    avatar.traverse(c => {
+                        if (c.isMesh && c.material && c.material.emissiveIntensity !== undefined) {
+                            c.material.emissiveIntensity = 0.3;
+                        }
+                    });
+                    console.log(`[AVATAR] ${avatar.userData.name} completed task.`);
+                }
+            }, 15000);
+        }
+
+        function updateAvatars(dt) {
+            for (const avatar of avatars) {
+                const ud = avatar.userData;
+
+                if (ud.status === 'working' && ud.targetZone) {
+                    // Move toward office zone
+                    const dir = new THREE.Vector3().subVectors(ud.targetZone, avatar.position);
+                    if (dir.length() > 0.5) {
+                        dir.normalize().multiplyScalar(2.0 * dt);
+                        avatar.position.add(dir);
+                        avatar.rotation.y = Math.atan2(dir.x, dir.z);
+                    }
+                } else if (ud.status === 'idle') {
+                    // Wander slightly
+                    ud.wanderTimer -= dt;
+                    if (ud.wanderTimer <= 0 || !ud.wanderTarget) {
+                        ud.wanderTimer = 3 + Math.random() * 5;
+                        const angle = Math.random() * Math.PI * 2;
+                        const dist = 1 + Math.random() * 2;
+                        ud.wanderTarget = new THREE.Vector3(
+                            avatar.position.x + Math.cos(angle) * dist,
+                            0,
+                            avatar.position.z + Math.sin(angle) * dist
+                        );
+                    }
+                    if (ud.wanderTarget) {
+                        const dir = new THREE.Vector3().subVectors(ud.wanderTarget, avatar.position);
+                        if (dir.length() > 0.2) {
+                            dir.normalize().multiplyScalar(0.5 * dt);
+                            avatar.position.add(dir);
+                            avatar.rotation.y = Math.atan2(dir.x, dir.z);
+                        } else {
+                            ud.wanderTarget = null;
+                        }
+                    }
+                }
+
+                // Bob
+                avatar.position.y = Math.sin(time * 1.2 + avatar.position.x) * 0.04;
+
+                // Glow ring animation
+                avatar.traverse(c => {
+                    if (c.userData && c.userData.isGlowRing) {
+                        c.rotation.z += 0.01;
+                        c.material.opacity = ud.status === 'working'
+                            ? 0.3 + Math.sin(time * 2) * 0.15
+                            : 0.15 + Math.sin(time * 1.5) * 0.1;
+                    }
+                });
+            }
+        }
+
         // ========== DRAG CONTROLS ==========
         const draggables = [...books, ...planets, ...orbs, capstone];
         let dragControls = new DragControls(draggables, camera, renderer.domElement);
@@ -2124,7 +2492,7 @@
         const _moveIntersect = new THREE.Vector3();
         
         function getClickTargets() {
-            const targets = [...books, ..._soulMeshes];
+            const targets = [...books, ..._soulMeshes, ...avatars];
             if (!isInside) targets.push(portalPlane);
             if (avatar && !isInside) targets.push(avatar);
             return targets;
@@ -2204,6 +2572,18 @@
                     spawnWhisper(avatar.position, quote);
                 }
             }
+
+            // check spawned avatars
+            for (const av of avatars) {
+                let isAvHit = mouseDownTarget === av;
+                if (!isAvHit) {
+                    av.traverse(c => { if (c === mouseDownTarget) isAvHit = true; });
+                }
+                if (isAvHit) {
+                    showTaskModal(av);
+                    return;
+                }
+            }
         });
         
         // cursor hover (throttled)
@@ -2237,12 +2617,16 @@
             }
         });
         
-        // ESC key: close reading overlay or exit pyramid
+        // ESC key: close reading overlay or exit pyramid or close modals
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && readingState === 'open') {
                 closeBookBtn.click();
             } else if (e.key === 'Escape' && isInside) {
                 exitPyramid();
+            } else if (e.key === 'Escape' && spawnOverlay.classList.contains('active')) {
+                hideSpawnModal();
+            } else if (e.key === 'Escape' && taskOverlay.classList.contains('active')) {
+                hideTaskModal();
             }
         });
         
@@ -2262,6 +2646,113 @@
         exitBtn.style.display = 'none';
         document.body.appendChild(exitBtn);
         exitBtn.addEventListener('click', exitPyramid);
+
+        // ========== MODAL SYSTEM ==========
+        const spawnOverlay = document.getElementById('spawn-overlay');
+        const taskOverlay = document.getElementById('task-overlay');
+        const spawnNameInput = document.getElementById('avatar-name');
+        const spawnModelSelect = document.getElementById('avatar-model');
+        const spawnMemoryInput = document.getElementById('avatar-memory');
+        const spawnBtn = document.getElementById('spawn-btn');
+        const closeSpawnBtn = document.getElementById('close-spawn-btn');
+        const closeTaskBtn = document.getElementById('close-task-btn');
+        const taskAvatarName = document.getElementById('task-avatar-name');
+        const taskCurrent = document.getElementById('task-current');
+        const taskStatus = document.getElementById('task-status');
+        const taskModel = document.getElementById('task-model');
+        const taskNewInput = document.getElementById('task-new');
+        const taskUpdateBtn = document.getElementById('task-update-btn');
+        const taskPauseBtn = document.getElementById('task-pause-btn');
+
+        function showSpawnModal() {
+            spawnOverlay.classList.add('active');
+            spawnNameInput.value = '';
+            spawnModelSelect.value = 'default';
+            spawnMemoryInput.value = '';
+        }
+
+        function hideSpawnModal() {
+            spawnOverlay.classList.remove('active');
+        }
+
+        function showTaskModal(avatar) {
+            activeTaskAvatar = avatar;
+            const ud = avatar.userData;
+            taskAvatarName.textContent = ud.name;
+            taskCurrent.textContent = ud.task || 'None';
+            taskStatus.textContent = ud.status;
+            taskStatus.className = 'value status-' + ud.status;
+            taskModel.textContent = ud.model;
+            taskNewInput.value = '';
+            taskOverlay.classList.add('active');
+        }
+
+        function hideTaskModal() {
+            taskOverlay.classList.remove('active');
+            activeTaskAvatar = null;
+        }
+
+        spawnBtn.addEventListener('click', () => {
+            const name = spawnNameInput.value.trim();
+            if (!name) { spawnNameInput.focus(); return; }
+            const model = spawnModelSelect.value;
+            const memory = spawnMemoryInput.value.trim();
+            spawnAvatar(name, model, memory);
+        });
+
+        closeSpawnBtn.addEventListener('click', hideSpawnModal);
+        document.getElementById('spawn-bg').addEventListener('click', hideSpawnModal);
+
+        closeTaskBtn.addEventListener('click', hideTaskModal);
+        document.getElementById('task-bg').addEventListener('click', hideTaskModal);
+
+        taskUpdateBtn.addEventListener('click', () => {
+            if (!activeTaskAvatar) return;
+            const task = taskNewInput.value.trim();
+            if (!task) { taskNewInput.focus(); return; }
+            assignTask(activeTaskAvatar, task);
+            taskCurrent.textContent = task;
+            taskStatus.textContent = 'working';
+            taskStatus.className = 'value status-working';
+            taskNewInput.value = '';
+        });
+
+        taskPauseBtn.addEventListener('click', () => {
+            if (!activeTaskAvatar) return;
+            activeTaskAvatar.userData.status = 'paused';
+            activeTaskAvatar.userData.targetZone = null;
+            if (activeTaskAvatar.userData.completionTimeout) {
+                clearTimeout(activeTaskAvatar.userData.completionTimeout);
+                activeTaskAvatar.userData.completionTimeout = null;
+            }
+            activeTaskAvatar.traverse(c => {
+                if (c.isMesh && c.material && c.material.emissiveIntensity !== undefined) {
+                    c.material.emissiveIntensity = 0.3;
+                }
+            });
+            taskStatus.textContent = 'paused';
+            taskStatus.className = 'value status-paused';
+        });
+
+        // Add spawn button to controls hint area
+        const spawnTriggerBtn = document.createElement('button');
+        spawnTriggerBtn.textContent = '+ SPAWN';
+        spawnTriggerBtn.style.position = 'absolute';
+        spawnTriggerBtn.style.top = '18px';
+        spawnTriggerBtn.style.right = '20px';
+        spawnTriggerBtn.style.background = 'rgba(0,0,0,0.7)';
+        spawnTriggerBtn.style.color = '#ffdd99';
+        spawnTriggerBtn.style.border = '1px solid #ffaa66';
+        spawnTriggerBtn.style.padding = '8px 18px';
+        spawnTriggerBtn.style.borderRadius = '30px';
+        spawnTriggerBtn.style.cursor = 'pointer';
+        spawnTriggerBtn.style.zIndex = '10';
+        spawnTriggerBtn.style.fontFamily = 'monospace';
+        spawnTriggerBtn.style.fontSize = '13px';
+        spawnTriggerBtn.style.letterSpacing = '1px';
+        spawnTriggerBtn.style.backdropFilter = 'blur(8px)';
+        document.body.appendChild(spawnTriggerBtn);
+        spawnTriggerBtn.addEventListener('click', showSpawnModal);
         
         // ========== ANIMATION ==========
         let time = 0, lastTime = 0;
@@ -2430,6 +2921,9 @@
             
             // --- book reading animation ---
             updateBookReading();
+
+            // --- avatar system ---
+            updateAvatars(dt);
             
             // --- rune pulse animation ---
             runes.forEach(rune => {
