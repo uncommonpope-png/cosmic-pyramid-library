@@ -647,7 +647,7 @@
         // drives the progress overlay so the world never shows a black screen.
         const loadingManager = new THREE.LoadingManager();
         function makeGLTF() {
-            const l = new THREE.GLTFLoader(loadingManager);
+            const l = new GLTFLoader(loadingManager);
             l.setMeshoptDecoder(MeshoptDecoder);
             return l;
         }

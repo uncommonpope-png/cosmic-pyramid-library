@@ -133,10 +133,10 @@ verify black-screen protocol.
 - Deferred: Tier 2 defer-order; InstancedMesh (see render-perf note).
 - HTTP smoke test: index 200, world.opt.glb 200 (10.6MB), sw 200.
 
-## HOTFIX (same session) — overlay freeze
-Reported: loading screen never cleared. Root cause: overlay only hid on `loadingManager.onLoad`
-(all GLBs done); the external readyplayer.me avatar load / slow decode kept onLoad from firing,
-so the full-screen overlay stayed up forever even though the 3D scene rendered behind it.
-Fix: overlay now hides on the FIRST rendered frame (in `animate()`, decoupled from loads) +
-an independent classic-script 6s safety net that surfaces any startup error instead of freezing.
-Verified `node --check` on the module (exit 0).
+## HOTFIX (same session) — black screen protocol
+Reported: loading screen / black screen after perf build. Actual root cause found by scan:
+`makeGLTF()` called `new THREE.GLTFLoader(...)`, but `GLTFLoader` is imported as a module class,
+not attached to the `THREE` namespace. That runtime throw stopped startup before `animate()`.
+Fix: use `new GLTFLoader(loadingManager)`. Also hardened overlay behavior so it hides on the FIRST
+rendered frame and added a 6s startup-error safety net. Verified: no `THREE.GLTFLoader` remains,
+`node --check` passes, critical URLs return 200, and Pope manually confirmed it loaded / looks great.
