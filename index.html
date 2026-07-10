@@ -3629,7 +3629,9 @@
         }
 
         // ========== GSK PANEL CONTROLLER ==========
-        const gsk = new GSKClient('http://localhost:3001');
+        // Endpoint is configurable: set window.GSK_ENDPOINT before load to point the GitHub
+        // Pages build at a hosted GSK backend. Defaults to localhost:3001 (your machine).
+        const gsk = new GSKClient(window.GSK_ENDPOINT || 'http://localhost:3001');
         const gskPanel = document.getElementById('gsk-panel');
         const gskStatusIndicator = document.getElementById('gsk-status-indicator');
         const gskMood = document.getElementById('gsk-mood');
