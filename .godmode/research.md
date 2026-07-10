@@ -86,6 +86,38 @@ instantly but are held hostage because the heavy GLBs start downloading synchron
 - Does world.glb carry embedded high-res textures? (decides whether `-tc`/`-ts` is the big win)
 - GitHub Pages caches GLBs; after compression, purge/redeploy.
 
+---
+
+## EXPANDED PLAN — "way more notes" (Pope: add way more soul notes)
+
+Beyond first-load compression, the full perf surface is now split into 5 Soul Notes in the
+second-brain (linked from `RESEARCH - CPL perf.md`):
+
+1. **RESEARCH - CPL perf** — master plan + this tiered roadmap.
+2. **RESEARCH - CPL render perf** — engines stronger: InstancedMesh (citizens 25 / sky clouds 18 /
+   sky-city pillars 4×8), mergeGeometries per building, LOD, material-share + texture atlas, cap
+   `setPixelRatio(1.5)`, `powerPreference:'high-performance'`, shadow `autoUpdate=false`, `renderer.info` profiling.
+3. **RESEARCH - CPL delivery caching** — Service Worker cache-first for `/assets/**` (repeat visits
+   ~instant), stale-while-revalidate for HTML, CDN + `modulepreload` three/addons, `preload` critical
+   GLB, `fetch→parse(ArrayBuffer)` for true byte progress. NOTE: SW helps REPEAT visits only; first
+   visit still needs compression.
+4. **RESEARCH - CPL textures memory** — KTX2/BasisU (stays compressed on GPU, 4–8x VRAM relief) vs
+   WebP (smallest file, unpacks to RGBA8 → no VRAM relief); Meshopt (fast decode) > Draco for CPL;
+   `gltfpack -cc -tc -ts 0.5`; `dispose()` discipline on reload; LQIP nebula placeholder.
+5. **RESEARCH - CPL tooling pipeline** — auto-optimize via `gltfpack`/`gltf-transform-cli` over
+   `assets/**`; GitHub Action on push → commit optimized + deploy Pages; measurement gates
+   (payload < 25 MB, TTI < 3 s / < 1 s cached, draw calls -40%, `renderer.info` stable).
+
+### Tiered roadmap (BUILD sequence, next session)
+- **Tier 0 Compression:** `gltfpack -cc -tc -ts 0.5` world.glb + mercedes + misc → ~119 MB → ~25 MB.
+  Wire `MeshoptDecoder` + `KTX2Loader`.
+- **Tier 1 Loading UX:** LoadingManager + real progress overlay (fetch→parse bytes); LQIP gradient.
+- **Tier 2 Deferred/priority:** critical scene first (plates+city), stream heaven/mercedes/sky after;
+  far = low-detail LOD.
+- **Tier 3 Repeat visits:** Service Worker cache-first; modulepreload; preload GLB.
+- **Tier 4 Engines stronger:** InstancedMesh + merge + pixel-ratio cap + high-performance + shared
+  materials + dispose().
+
 ## NEXT
-BUILD phase (separate session, per second-brain Rule 2): implement compression + decoders +
-LoadingManager, measure, verify black-screen protocol.
+BUILD phase (separate session, per second-brain Rule 2): implement Tiers 0–4, measure vs gates,
+verify black-screen protocol.
