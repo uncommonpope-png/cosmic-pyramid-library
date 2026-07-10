@@ -55,7 +55,18 @@ This document locks in the rendering pipeline as the **base graphics model** for
 - `SKILL - graphics-ibl` — PMREM/RoomEnvironment IBL
 - Cluster: `DOUR-BIBLE` → Library World section; catalog `neodownloadable` (SECTION 15); asset registry `CPL ASSET MAP`
 
+## GSK Bridge (ALWAYS CONNECTED — part of base model)
+
+The world is **not** a standalone front-end; it is permanently bridged to GSK.
+
+- `GSKClient` (class at `index.html:3570`) → `new GSKClient('http://localhost:3001')` (line 3632).
+- `pollGsk()` runs on load + `setInterval(..., 10000)` (every 10s). Calls `gsk.health()` then `gsk.getStatus()`.
+- `GSKCityBridge` (class at `index.html:3755`) maps GSK state onto the scene in real time:
+  - **Mood** (`GSK_MOOD_MAP`) → sky color, fog color/density, bloom strength, hemisphere light colors.
+  - **Phase** (`GSK_PHASE_MAP`: VOID/AWAKENING/ALCHEMY/TRANSCENDENCE) → bloom/car/citizen/building/star multipliers.
+  - **PLT resonance** → average building tint, HUD readout.
+- **ONLINE/OFFLINE** is shown in the `#gsk-panel` HUD. If no GSK backend is reachable it falls back to `neutral` gracefully (no black screen). To show ONLINE, run a GSK backend at `http://localhost:3001`, or override the URL via `window.GSK_ENDPOINT` (so a GitHub Pages build can point at a hosted backend).
+
 ## Next (not in base model)
 
 - Step 3: `SMAA` + `SSAO` post passes (pending — verify one at a time per black-screen protocol)
-- GSK bridge: this world is a standalone front-end; not yet connected to GSK core.
