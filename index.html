@@ -2246,12 +2246,57 @@
             }, undefined, (err) => { console.warn('[Scatter] load failed:', url, err); });
         }
         // Light props only (each < 18MB; heavy Porsches in porsche-extra are deferred).
-        dropProp('assets/angel/angel.glb', 4, null);
-        dropProp('assets/angel/angel.glb', 4, null);
+        // Angels are NOT scattered on the ground — they live in HEAVEN (see buildHeaven below).
         dropProp('assets/computers/simple_computer_placeholder.glb', 1.6, null);
         dropProp('assets/computers/simple_computer_placeholder.glb', 1.6, null);
         dropProp('assets/ifa/-_genshin_impact_-_anemo_-_ifa.glb', 3, null);
         dropProp('assets/misc/unequal_marriage-1.glb', 5, null);
+
+        // ========== HEAVEN (angels' own floating city) ==========
+        // A separate sky realm far from the main city. Angels orbit + bob above a glowing platform.
+        const heaven = new THREE.Group();
+        heaven.position.set(0, 40, -95);
+        cityGroup.add(heaven);
+
+        const platMat = new THREE.MeshStandardMaterial({ color: 0xfff3d0, emissive: 0xffcf8a, emissiveIntensity: 0.6, roughness: 0.5, metalness: 0.1 });
+        const heavenPlatform = new THREE.Mesh(new THREE.CylinderGeometry(26, 28, 1.5, 48), platMat);
+        heaven.add(heavenPlatform);
+        const heavenHalo = new THREE.Mesh(new THREE.TorusGeometry(27, 0.6, 12, 64),
+            new THREE.MeshStandardMaterial({ color: 0xffe9a8, emissive: 0xffd070, emissiveIntensity: 1.0 }));
+        heavenHalo.rotation.x = Math.PI / 2; heavenHalo.position.y = 0.9; heaven.add(heavenHalo);
+        for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2;
+            const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 8 + Math.random() * 4, 8),
+                new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffe0a0, emissiveIntensity: 0.5, transparent: true, opacity: 0.85 }));
+            pillar.position.set(Math.cos(a) * 20, 5, Math.sin(a) * 20);
+            heaven.add(pillar);
+        }
+        const heavenLight = new THREE.PointLight(0xfff0d0, 3, 90, 2);
+        heavenLight.position.set(0, 12, 0); heaven.add(heavenLight);
+
+        const heavenAngels = [];
+        const angelLoader = new GLTFLoader();
+        for (let i = 0; i < 7; i++) {
+            angelLoader.load('assets/angel/angel.glb', (gltf) => {
+                const model = gltf.scene;
+                const box = new THREE.Box3().setFromObject(model);
+                const size = box.getSize(new THREE.Vector3());
+                const center = box.getCenter(new THREE.Vector3());
+                const s = 3 / (Math.max(size.x, size.y, size.z) || 1);
+                model.position.set(-center.x, -box.min.y, -center.z);
+                const wrap = new THREE.Group();
+                wrap.add(model);
+                wrap.scale.setScalar(s);
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 6 + Math.random() * 16;
+                const yOff = 8 + Math.random() * 14;
+                wrap.position.set(Math.cos(angle) * radius, yOff, Math.sin(angle) * radius);
+                model.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = false; } });
+                heaven.add(wrap);
+                heavenAngels.push({ obj: wrap, angle, radius, yOff, ySpeed: 0.6 + Math.random() * 0.8, yPhase: Math.random() * 6.28, orbit: 0.05 + Math.random() * 0.08 });
+            }, undefined, (err) => { console.warn('[Heaven] angel load failed:', err); });
+        }
+        window.__heaven = heaven;
 
         // Citizens (aliens, humans, robots)
         const citizens = [];
@@ -4003,6 +4048,15 @@
                 s.obj.children[0].scale.set(sc, sc, sc);
             });
             
+            // --- heaven angels orbit & bob ---
+            for (const a of heavenAngels) {
+                a.angle += a.orbit * 0.016;
+                a.obj.position.x = Math.cos(a.angle) * a.radius;
+                a.obj.position.z = Math.sin(a.angle) * a.radius;
+                a.obj.position.y = a.yOff + Math.sin(time * a.ySpeed + a.yPhase) * 1.2;
+                a.obj.rotation.y = -a.angle + Math.PI / 2;
+            }
+
             // --- avatar bob ---
             if (avatar) {
                 const bobY = Math.sin(time * 1.2) * 0.04;
