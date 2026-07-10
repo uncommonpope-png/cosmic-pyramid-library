@@ -333,6 +333,106 @@
             70%  { opacity: 0.9; transform: translateY(-40px) scale(1); }
             100% { opacity: 0; transform: translateY(-70px) scale(0.9); }
         }
+        /* --- GSK soul panel --- */
+        #gsk-panel {
+            position: absolute; top: 60px; right: 20px; z-index: 15;
+            background: rgba(10,5,20,0.88); border: 1px solid rgba(255,170,102,0.4);
+            border-radius: 12px; padding: 12px 16px; min-width: 200px;
+            backdrop-filter: blur(6px); box-shadow: 0 0 30px rgba(255,100,50,0.15);
+            font-family: monospace; font-size: 12px; color: #ffddcc;
+            pointer-events: auto; transition: opacity 0.3s;
+        }
+        #gsk-panel .gsk-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 8px; padding-bottom: 4px;
+            border-bottom: 1px solid rgba(255,170,102,0.2);
+        }
+        #gsk-panel .gsk-title { color: #ffcc77; font-weight: bold; font-size: 13px; letter-spacing: 1px; }
+        #gsk-panel .gsk-status {
+            font-size: 10px; padding: 2px 8px; border-radius: 10px;
+        }
+        #gsk-panel .gsk-status.connected { background: rgba(100,255,100,0.15); color: #88ff88; }
+        #gsk-panel .gsk-status.disconnected { background: rgba(255,80,80,0.15); color: #ff8888; }
+        #gsk-panel .gsk-status.searching { background: rgba(255,200,100,0.15); color: #ffcc44; }
+        #gsk-panel .gsk-row {
+            display: flex; justify-content: space-between; margin: 3px 0;
+            color: #bbaadd; font-size: 11px;
+        }
+        #gsk-panel .gsk-row .gsk-label { color: #8877aa; }
+        #gsk-panel .gsk-row .gsk-value { color: #ffddcc; }
+        #gsk-panel .gsk-thought-btn {
+            display: block; width: 100%; margin-top: 8px; padding: 6px 12px;
+            background: rgba(255,170,102,0.15); border: 1px solid rgba(255,170,102,0.3);
+            color: #ffcc77; border-radius: 8px; cursor: pointer;
+            font-family: monospace; font-size: 11px; letter-spacing: 0.5px;
+            transition: all 0.2s;
+        }
+        #gsk-panel .gsk-thought-btn:hover { background: rgba(255,170,102,0.25); border-color: #ffaa66; }
+        #gsk-panel .gsk-api-key {
+            width: 100%; margin-top: 6px; padding: 4px 8px;
+            background: rgba(0,0,0,0.3); border: 1px solid rgba(255,170,102,0.2);
+            color: #ffddcc; border-radius: 6px; font-family: monospace; font-size: 10px;
+            outline: none; box-sizing: border-box;
+        }
+        #gsk-panel .gsk-api-key:focus { border-color: #ff8844; }
+        #gsk-panel .gsk-response {
+            margin-top: 6px; padding: 6px 8px;
+            background: rgba(0,0,0,0.3); border-radius: 6px;
+            font-size: 10px; color: #88aacc;
+            max-height: 80px; overflow-y: auto; line-height: 1.4;
+            word-break: break-word;
+        }
+        #gsk-panel .gsk-response::-webkit-scrollbar { width: 3px; }
+        #gsk-panel .gsk-response::-webkit-scrollbar-thumb { background: #ff8844; border-radius: 3px; }
+        /* --- GSK thought overlay --- */
+        #gsk-thought-overlay {
+            position: absolute; inset: 0; display: none; z-index: 55; pointer-events: none;
+        }
+        #gsk-thought-overlay.active { display: block; pointer-events: auto; }
+        #gsk-thought-bg {
+            position: absolute; inset: 0;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+        }
+        #gsk-thought-card {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            background: rgba(15,8,25,0.95); border: 1px solid #ffaa66;
+            border-radius: 20px; padding: 36px 44px;
+            max-width: 520px; width: 90%;
+            box-shadow: 0 0 80px rgba(255,100,50,0.25);
+            pointer-events: auto;
+        }
+        #gsk-thought-card h2 {
+            color: #ffcc77; font-size: 22px; margin-bottom: 16px;
+            letter-spacing: 1px; text-align: center;
+        }
+        #gsk-thought-card label {
+            color: #bbaadd; font-size: 13px; display: block;
+            margin-bottom: 4px; margin-top: 14px;
+        }
+        #gsk-thought-card textarea {
+            width: 100%; padding: 10px 14px; border-radius: 10px;
+            border: 1px solid rgba(255,170,102,0.3);
+            background: rgba(255,255,255,0.05); color: #ffddcc;
+            font-family: monospace; font-size: 14px; outline: none;
+            resize: vertical; min-height: 60px; box-sizing: border-box;
+        }
+        #gsk-thought-card textarea:focus { border-color: #ff8844; }
+        .gsk-send-btn {
+            display: block; margin: 20px auto 0;
+            background: linear-gradient(135deg, #ffd700, #ff8c00);
+            color: #000; border: none; padding: 12px 36px; border-radius: 30px;
+            font-size: 15px; font-weight: bold; cursor: pointer;
+            letter-spacing: 1px; transition: all 0.2s;
+        }
+        .gsk-send-btn:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,215,0,0.5); }
+        .gsk-send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+        .close-gsk-thought {
+            display: block; margin: 10px auto 0;
+            background: rgba(255,255,255,0.08); color: #ccbbdd;
+            border: 1px solid rgba(255,170,102,0.3); padding: 8px 24px; border-radius: 30px;
+            font-size: 13px; cursor: pointer; font-family: inherit; transition: all 0.2s;
+        }
+        .close-gsk-thought:hover { background: rgba(255,255,255,0.15); border-color: #ffaa66; }
         @media (max-width: 600px) {
             #info { font-size: 10px; top: 10px; left: 10px; }
             #controls-hint { font-size: 9px; }
@@ -434,6 +534,46 @@
                 <button class="task-btn inject" id="task-inject-btn">INJECT CONTEXT</button>
             </div>
             <button class="close-task" id="close-task-btn">CLOSE</button>
+        </div>
+    </div>
+
+    <!-- GSK Soul Panel -->
+    <div id="gsk-panel">
+        <div class="gsk-header">
+            <span class="gsk-title">GSK SOUL</span>
+            <span class="gsk-status disconnected" id="gsk-status-indicator">OFFLINE</span>
+        </div>
+        <div class="gsk-row">
+            <span class="gsk-label">Mood</span>
+            <span class="gsk-value" id="gsk-mood">--</span>
+        </div>
+        <div class="gsk-row">
+            <span class="gsk-label">Phase</span>
+            <span class="gsk-value" id="gsk-phase">--</span>
+        </div>
+        <div class="gsk-row">
+            <span class="gsk-label">Cycle</span>
+            <span class="gsk-value" id="gsk-cycle">--</span>
+        </div>
+        <div class="gsk-row">
+            <span class="gsk-label">PLT</span>
+            <span class="gsk-value" id="gsk-plt">--</span>
+        </div>
+        <input class="gsk-api-key" id="gsk-api-key" type="password" placeholder="API Key (optional)">
+        <button class="gsk-thought-btn" id="gsk-thought-btn">SEND THOUGHT &#9650;</button>
+        <div class="gsk-response" id="gsk-response" style="display:none"></div>
+    </div>
+
+    <!-- GSK Thought Overlay -->
+    <div id="gsk-thought-overlay">
+        <div id="gsk-thought-bg"></div>
+        <div id="gsk-thought-card">
+            <h2>SEND THOUGHT TO GSK</h2>
+            <label for="gsk-thought-input">Your Message</label>
+            <textarea id="gsk-thought-input" placeholder="Ask GSK something..."></textarea>
+            <button class="gsk-send-btn" id="gsk-thought-send-btn">SEND</button>
+            <button class="close-gsk-thought" id="close-gsk-thought-btn">CANCEL</button>
+            <div class="gsk-response" id="gsk-thought-result" style="margin-top:12px;display:none"></div>
         </div>
     </div>
 
@@ -3125,6 +3265,193 @@
         document.body.appendChild(spawnTriggerBtn);
         spawnTriggerBtn.addEventListener('click', showSpawnModal);
         
+        // ========== GSK MCP CLIENT ==========
+        class GSKClient {
+            constructor(baseUrl = 'http://localhost:3001', apiKey = '') {
+                this.baseUrl = baseUrl;
+                this._apiKey = apiKey;
+                this.connected = false;
+                this.statusCache = null;
+                this.toolsCache = [];
+                this.pollTimer = null;
+            }
+
+            setApiKey(key) { this._apiKey = key; }
+
+            async _fetch(path, options = {}) {
+                const url = `${this.baseUrl}${path}`;
+                const headers = { ...(options.headers || {}) };
+                if (this._apiKey) { headers['X-API-Key'] = this._apiKey; }
+                const res = await fetch(url, { ...options, headers, mode: 'cors' });
+                if (!res.ok) throw new Error(`GSK HTTP ${res.status}: ${res.statusText}`);
+                return res.json();
+            }
+
+            async health() {
+                const data = await this._fetch('/mcp/health');
+                return data;
+            }
+
+            async getStatus() {
+                const data = await this._fetch('/mcp/status');
+                if (data && data.jsonrpc === '2.0' && data.result) {
+                    this.statusCache = data.result;
+                    this.connected = true;
+                }
+                return this.statusCache;
+            }
+
+            async execute(method, params = {}) {
+                const data = await this._fetch('/mcp/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ method, params }),
+                });
+                if (data && data.jsonrpc === '2.0') {
+                    if (data.error) throw new Error(data.error.message);
+                    return data.result;
+                }
+                return data;
+            }
+
+            async chat(message, context = '') {
+                return this.execute('brain.think', { prompt: message, context });
+            }
+
+            async chambersStatus() {
+                return this.execute('chambers.status', {});
+            }
+
+            destroy() {
+                if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+            }
+        }
+
+        // ========== GSK PANEL CONTROLLER ==========
+        const gsk = new GSKClient('http://localhost:3001');
+        const gskPanel = document.getElementById('gsk-panel');
+        const gskStatusIndicator = document.getElementById('gsk-status-indicator');
+        const gskMood = document.getElementById('gsk-mood');
+        const gskPhase = document.getElementById('gsk-phase');
+        const gskCycle = document.getElementById('gsk-cycle');
+        const gskPlt = document.getElementById('gsk-plt');
+        const gskApiKeyInput = document.getElementById('gsk-api-key');
+        const gskResponse = document.getElementById('gsk-response');
+        const gskThoughtBtn = document.getElementById('gsk-thought-btn');
+        const gskThoughtOverlay = document.getElementById('gsk-thought-overlay');
+        const gskThoughtBg = document.getElementById('gsk-thought-bg');
+        const gskThoughtInput = document.getElementById('gsk-thought-input');
+        const gskThoughtSendBtn = document.getElementById('gsk-thought-send-btn');
+        const closeGskThoughtBtn = document.getElementById('close-gsk-thought-btn');
+        const gskThoughtResult = document.getElementById('gsk-thought-result');
+
+        function updateGskPanel(status) {
+            if (!status) {
+                gskStatusIndicator.textContent = 'OFFLINE';
+                gskStatusIndicator.className = 'gsk-status disconnected';
+                return;
+            }
+            gskStatusIndicator.textContent = 'ONLINE';
+            gskStatusIndicator.className = 'gsk-status connected';
+
+            const chambers = status.systems?.chambers || {};
+            gskMood.textContent = chambers.mood || '--';
+            gskPhase.textContent = chambers.phase || '--';
+            gskCycle.textContent = chambers.cycle ?? '--';
+
+            const resonance = chambers.resonance || {};
+            if (resonance.profit !== undefined) {
+                const p = (resonance.profit * 100).toFixed(0);
+                const l = (resonance.love * 100).toFixed(0);
+                const t = (resonance.tax * 100).toFixed(0);
+                gskPlt.textContent = `${p}P ${l}L ${t}T`;
+            } else {
+                gskPlt.textContent = '--';
+            }
+        }
+
+        async function pollGsk() {
+            try {
+                const health = await gsk.health();
+                if (health && health.status === 'ok') {
+                    gskStatusIndicator.textContent = 'ONLINE';
+                    gskStatusIndicator.className = 'gsk-status connected';
+                    try {
+                        const status = await gsk.getStatus();
+                        updateGskPanel(status);
+                    } catch (e2) {
+                        // No API key or status failed - show placeholders
+                        gskMood.textContent = '--';
+                        gskPhase.textContent = '--';
+                        gskCycle.textContent = '--';
+                        gskPlt.textContent = '--';
+                    }
+                } else {
+                    updateGskPanel(null);
+                }
+            } catch (e) {
+                updateGskPanel(null);
+            }
+        }
+
+        function showGskThoughtModal() {
+            gskThoughtOverlay.classList.add('active');
+            gskThoughtInput.value = '';
+            gskThoughtResult.style.display = 'none';
+            gskThoughtResult.textContent = '';
+            gskThoughtSendBtn.disabled = false;
+            gskThoughtSendBtn.textContent = 'SEND';
+            gskThoughtInput.focus();
+        }
+
+        function hideGskThoughtModal() {
+            gskThoughtOverlay.classList.remove('active');
+        }
+
+        async function handleGskThought() {
+            const msg = gskThoughtInput.value.trim();
+            if (!msg) return;
+            gskThoughtSendBtn.disabled = true;
+            gskThoughtSendBtn.textContent = 'THINKING...';
+            gskThoughtResult.style.display = 'block';
+            gskThoughtResult.textContent = '> Connecting to GSK...';
+            try {
+                const result = await gsk.chat(msg);
+                const response = result?.response || JSON.stringify(result);
+                gskThoughtResult.textContent = response;
+            } catch (e) {
+                gskThoughtResult.textContent = `> Error: ${e.message}`;
+            }
+            gskThoughtSendBtn.disabled = false;
+            gskThoughtSendBtn.textContent = 'SEND';
+        }
+
+        // API key input
+        gskApiKeyInput.addEventListener('change', () => {
+            gsk.setApiKey(gskApiKeyInput.value.trim());
+            pollGsk();
+        });
+
+        // Thought button
+        gskThoughtBtn.addEventListener('click', showGskThoughtModal);
+        closeGskThoughtBtn.addEventListener('click', hideGskThoughtModal);
+        gskThoughtBg.addEventListener('click', hideGskThoughtModal);
+        gskThoughtSendBtn.addEventListener('click', handleGskThought);
+        gskThoughtInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) { handleGskThought(); }
+        });
+
+        // ESC key for thought overlay
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && gskThoughtOverlay.classList.contains('active')) {
+                hideGskThoughtModal();
+            }
+        });
+
+        // Start polling GSK (every 10s)
+        pollGsk();
+        gsk.pollTimer = setInterval(pollGsk, 10000);
+
         // ========== ANIMATION ==========
         let time = 0, lastTime = 0;
         
