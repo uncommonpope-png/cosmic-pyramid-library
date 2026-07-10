@@ -1,0 +1,32 @@
+{
+  "kit": "kenney_retro_urban_kit",
+  "license": "CC0",
+  "glbRoot": "assets/retro-urban-kit/Models/GLB format/",
+  "cache": {},
+  "pieces": {
+    "wall-a":         { "file": "wall-a.glb",          "type": "wall",   "footprint": 2 },
+    "wall-a-window":  { "file": "wall-a-window.glb",    "type": "wall",   "footprint": 2 },
+    "wall-a-door":    { "file": "wall-a-door.glb",      "type": "wall",   "footprint": 2 },
+    "wall-a-painted": { "file": "wall-a-painted.glb",   "type": "wall",   "footprint": 2 },
+    "wall-b":         { "file": "wall-b.glb",           "type": "wall",   "footprint": 2 },
+    "wall-b-window":  { "file": "wall-b-window.glb",    "type": "wall",   "footprint": 2 },
+    "wall-c-flat":    { "file": "wall-c-flat.glb",      "type": "wall",   "footprint": 2 },
+    "roof-a":         { "file": "wall-a-roof.glb",      "type": "roof",   "footprint": 2 },
+    "roof-b":         { "file": "wall-b-roof.glb",      "type": "roof",   "footprint": 2 },
+    "roof-slant-a":   { "file": "wall-a-roof-slant.glb","type": "roof",   "footprint": 2 },
+    "window-wide":    { "file": "window-wide-type-a.glb","type": "window","footprint": 1 },
+    "door-a":         { "file": "door-type-a.glb",      "type": "door",   "footprint": 1 },
+    "barrier-a":      { "file": "detail-barrier-type-a.glb","type":"prop","footprint": 1 },
+    "light-double":   { "file": "detail-light-double.glb","type":"prop",  "footprint": 1 },
+    "awning-wide":    { "file": "detail-awning-wide.glb","type":"prop",   "footprint": 1 },
+    "dumpster":       { "file": "detail-dumpster-closed.glb","type":"prop","footprint":1 },
+    "ladder":         { "file": "balcony-ladder-bottom.glb","type":"prop","footprint":1 }
+  },
+  "recipes": {
+    "Office":    ["wall-a-window", "wall-a-window", "wall-a-door", "wall-a-roof"],
+    "Shop":      ["wall-a-painted", "wall-a-door", "detail-awning-wide", "wall-a-roof-slant"],
+    "Apartment": ["wall-b-window", "wall-b-window", "wall-b", "wall-b-roof"],
+    "Tower":     ["wall-a", "wall-a-window", "wall-a-window", "wall-c-flat", "wall-a-roof"],
+    "House":     ["wall-c-flat", "wall-c-flat", "door-type-a", "wall-a-roof-slant"]
+  }
+}
