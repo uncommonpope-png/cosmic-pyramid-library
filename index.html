@@ -597,6 +597,27 @@
         <div id="loader-pct">summoning the world…</div>
     </div>
 
+    <!-- Startup safety net: hides the loader on first frame (module sets __cplReady);
+         if the module never starts, surfaces the error instead of freezing on the loader. -->
+    <script>
+        window.__cplReady = false;
+        window.__cplErr = null;
+        window.addEventListener('error', function (e) {
+            window.__cplErr = (e.message || 'script error') + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + (e.lineno || '') : '');
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+            window.__cplErr = 'promise: ' + (e.reason && e.reason.message ? e.reason.message : e.reason);
+        });
+        setTimeout(function () {
+            if (!window.__cplReady) {
+                var p = document.getElementById('loader-pct');
+                if (p) p.textContent = 'startup issue: ' + (window.__cplErr || 'module did not start (open console)');
+                var t = document.getElementById('loader-title');
+                if (t) t.textContent = 'CPL — NEEDS ATTENTION';
+            }
+        }, 6000);
+    </script>
+
     <script type="importmap">
         {
             "imports": {
@@ -4436,6 +4457,9 @@
             
             controls.update();
             effectComposer.render();
+            // Hide the loading overlay as soon as the first frame is on screen —
+            // decoupled from GLB load completion so a slow/hanging asset can never trap the user.
+            if (!window.__cplReady) { window.__cplReady = true; hideLoader(); }
         }
         animate();
         
