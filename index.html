@@ -72,6 +72,22 @@
             font-size: 12px; font-family: monospace;
             pointer-events: none; z-index: 10;
         }
+        #camera-panel {
+            position: absolute; bottom: 58px; left: 20px; z-index: 20;
+            display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+            font-family: monospace;
+        }
+        .camera-mode-btn {
+            background: rgba(5, 8, 18, 0.82); color: #bff;
+            border: 1px solid rgba(102,255,255,0.45); border-radius: 18px;
+            padding: 7px 12px; cursor: pointer; letter-spacing: 1px;
+            box-shadow: 0 0 14px rgba(0,255,255,0.12);
+        }
+        .camera-mode-btn.active { background: rgba(0,180,220,0.28); color: #fff; border-color: #66ffff; }
+        #npc-status {
+            background: rgba(0,0,0,0.55); color: #d8ccff;
+            padding: 6px 10px; border-radius: 16px; font-size: 11px;
+        }
         /* --- reading overlay --- */
         #reading-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -436,6 +452,9 @@
         @media (max-width: 600px) {
             #info { font-size: 10px; top: 10px; left: 10px; }
             #controls-hint { font-size: 9px; }
+            #camera-panel { bottom: 48px; left: 10px; max-width: 92vw; }
+            .camera-mode-btn { font-size: 11px; padding: 6px 9px; }
+            #npc-status { font-size: 9px; }
             #reading-card { padding: 24px 20px; max-width: 95%; }
             #reading-card.with-cover { max-width: 95%; }
             #reading-card .cover-col { flex-direction: column; align-items: center; }
@@ -449,6 +468,11 @@
 
     <div id="info">THE SOULFEILD ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â CLICK BOOKS TO READ ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· CLICK SOULS FOR WHISPERS</div>
     <div id="controls-hint">Drag objects | Click books | Click souls | Click pyramid door to enter Heaven</div>
+    <div id="camera-panel">
+        <button class="camera-mode-btn active" id="orbit-mode-btn">ORBIT</button>
+        <button class="camera-mode-btn" id="npc-mode-btn">PLAY NPC</button>
+        <span id="npc-status">WASD move · Shift run · Space jump · F fly</span>
+    </div>
 
     <!-- Reading overlay -->
     <div id="reading-overlay">
@@ -646,9 +670,16 @@
         // MeshoptDecoder decodes them (~1 GB/s Wasm SIMD). Shared LoadingManager
         // drives the progress overlay so the world never shows a black screen.
         const loadingManager = new THREE.LoadingManager();
-        function makeGLTF() {
+        function makeGLTF(options = {}) {
             const l = new GLTFLoader(loadingManager);
             l.setMeshoptDecoder(MeshoptDecoder);
+            if (options.lazy !== false) {
+                const directLoad = l.load.bind(l);
+                l.load = (url, onLoad, onProgress, onError) => {
+                    enqueueLazyAsset(url.split('/').pop(), () => directLoad(url, onLoad, onProgress, onError));
+                    return l;
+                };
+            }
             return l;
         }
 
@@ -676,6 +707,39 @@
         // Service Worker: cache-first for assets (repeat visits load instantly)
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('service-worker.js').catch((e) => console.warn('[SW]', e));
+        }
+
+        // Lazy GLB queue: procedural city renders first; heavy decorative GLBs stream later.
+        const lazyAssetTasks = [];
+        let lazyAssetsStarted = false;
+        function enqueueLazyAsset(label, fn) {
+            if (lazyAssetsStarted) {
+                setTimeout(() => {
+                    try { fn(); }
+                    catch (err) { console.warn('[LazyAssets] failed:', label, err); }
+                }, 50);
+                return;
+            }
+            lazyAssetTasks.push({ label, fn });
+        }
+        function startLazyAssets(trigger = 'idle') {
+            if (lazyAssetsStarted) return;
+            lazyAssetsStarted = true;
+            console.log('[LazyAssets] start:', trigger, lazyAssetTasks.map(t => t.label).join(', '));
+            lazyAssetTasks.forEach((task, i) => {
+                setTimeout(() => {
+                    try { task.fn(); }
+                    catch (err) { console.warn('[LazyAssets] failed:', task.label, err); }
+                }, i * 650);
+            });
+        }
+        ['pointerdown', 'keydown', 'touchstart'].forEach((evt) => {
+            window.addEventListener(evt, () => startLazyAssets(evt), { once: true, passive: true });
+        });
+        if ('requestIdleCallback' in window) {
+            requestIdleCallback(() => startLazyAssets('idle'), { timeout: 4500 });
+        } else {
+            setTimeout(() => startLazyAssets('timeout'), 4500);
         }
 
         // ========== PLT CONTENT ==========
@@ -2364,6 +2428,8 @@
             wrap.position.set(slot.x, 0, slot.z);
             model.traverse((c) => {
                 if (c.isMesh) {
+                    c.userData.npcTalk = { label: 'Paimon', kind: 'paimon' };
+                    npcTalkTargets.push(c);
                     c.castShadow = true; c.receiveShadow = true;
                     if (c.material && 'metalness' in c.material) { c.material.metalness = Math.min(c.material.metalness || 0, 0.2); c.material.needsUpdate = true; }
                 }
@@ -2470,7 +2536,36 @@
         }
         window.__heaven = heaven;
 
+        // Clickable Heaven lift: first-person players can enter Heaven from the city.
+        const heavenGateTargets = [];
+        const heavenLift = new THREE.Group();
+        heavenLift.position.set(0, 0, -52);
+        cityGroup.add(heavenLift);
+        const liftMat = new THREE.MeshStandardMaterial({ color: 0xffdd88, emissive: 0xffaa44, emissiveIntensity: 0.7, roughness: 0.35, metalness: 0.2 });
+        const liftBase = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.6, 0.25, 48), liftMat);
+        liftBase.position.y = 0.15;
+        liftBase.userData.heavenGate = true;
+        const liftRing = new THREE.Mesh(new THREE.TorusGeometry(3.8, 0.08, 8, 64), liftMat);
+        liftRing.position.y = 0.38;
+        liftRing.rotation.x = Math.PI / 2;
+        liftRing.userData.heavenGate = true;
+        const liftBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.55, 28, 24), new THREE.MeshBasicMaterial({ color: 0xffdd88, transparent: true, opacity: 0.18, depthWrite: false }));
+        liftBeam.position.y = 14;
+        liftBeam.userData.heavenGate = true;
+        heavenLift.add(liftBase, liftRing, liftBeam);
+        heavenGateTargets.push(liftBase, liftRing, liftBeam);
+        window.__heavenLift = heavenLift;
+
         // Citizens (aliens, humans, robots)
+        const npcTalkTargets = [];
+        const npcTalkLines = [
+            'The city remembers every step you take.',
+            'Billboards are prayers with electricity in them.',
+            'The Heaven lift is real. Click the gold platform.',
+            'Profit builds the roads. Love fills them. Tax keeps the lights on.',
+            'Run with Shift, jump with Space, fly with F.',
+            'The kits are sleeping until the city can carry them.'
+        ];
         const citizens = [];
         for (let i = 0; i < 25; i++) {
             const cGroup = new THREE.Group();
@@ -2481,12 +2576,149 @@
             });
             const body = new THREE.Mesh(new THREE.SphereGeometry(0.2, 6, 6), cMat);
             body.position.y = 0.2;
+            body.userData.npcTalk = { label: `Citizen ${i + 1}`, kind: 'citizen' };
             cGroup.add(body);
             const a = Math.random() * Math.PI * 2;
             const r = 5 + Math.random() * 25;
             cGroup.position.set(Math.cos(a) * r, 0.2, Math.sin(a) * r);
             cityGroup.add(cGroup);
+            npcTalkTargets.push(body);
             citizens.push({ group: cGroup, target: null, timer: 0, next: 2 + Math.random() * 4, speed: 1 + Math.random() * 2 });
+        }
+
+        // ========== PLAYABLE NPC MODE ==========
+        const keyState = {};
+        let cameraMode = 'orbit';
+        let playerYaw = Math.PI;
+        let playerPitch = 0;
+        let playerVelY = 0;
+        let playerGrounded = true;
+        let playerFlying = false;
+
+        function createPlayableNPC() {
+            const g = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x151a2e, emissive: 0x061026, emissiveIntensity: 0.35, roughness: 0.55, metalness: 0.2 });
+            const glowMat = new THREE.MeshStandardMaterial({ color: 0x66ffff, emissive: 0x66ffff, emissiveIntensity: 0.85 });
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, 1.1, 10), bodyMat);
+            body.position.y = 0.75;
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 16), bodyMat);
+            head.position.y = 1.48;
+            const visor = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.08, 0.035), glowMat);
+            visor.position.set(0, 1.5, 0.27);
+            const aura = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.025, 8, 36), glowMat);
+            aura.position.y = 0.08;
+            aura.rotation.x = Math.PI / 2;
+            g.add(body, head, visor, aura);
+            g.position.set(0, 0, 12);
+            g.userData = { name: 'You', isPlayerNPC: true };
+            g.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+            cityGroup.add(g);
+            return g;
+        }
+
+        const playerNPC = createPlayableNPC();
+        window.__playerNPC = playerNPC;
+
+        function setCameraMode(mode) {
+            cameraMode = mode;
+            const orbitBtn = document.getElementById('orbit-mode-btn');
+            const npcBtn = document.getElementById('npc-mode-btn');
+            orbitBtn.classList.toggle('active', mode === 'orbit');
+            npcBtn.classList.toggle('active', mode === 'npc');
+            controls.enabled = mode === 'orbit';
+            playerNPC.visible = mode !== 'npc';
+            if (mode === 'npc') {
+                renderer.domElement.requestPointerLock?.();
+            } else if (document.pointerLockElement === renderer.domElement) {
+                document.exitPointerLock?.();
+            }
+            const h = document.getElementById('controls-hint');
+            if (h) h.textContent = mode === 'npc'
+                ? 'NPC MODE: WASD move | Shift run | Space jump/up | Ctrl/Q down | F fly | click citizens | click Heaven lift | ESC orbit'
+                : 'Drag objects | Click books | Click souls | Click pyramid door | PLAY NPC for first person';
+        }
+
+        function toggleCameraMode() { setCameraMode(cameraMode === 'npc' ? 'orbit' : 'npc'); }
+        document.getElementById('orbit-mode-btn').addEventListener('click', () => setCameraMode('orbit'));
+        document.getElementById('npc-mode-btn').addEventListener('click', () => setCameraMode('npc'));
+
+        function isTypingTarget(e) {
+            const tag = (e.target && e.target.tagName || '').toLowerCase();
+            return tag === 'input' || tag === 'textarea' || tag === 'select';
+        }
+        document.addEventListener('keydown', (e) => {
+            if (isTypingTarget(e)) return;
+            keyState[e.code] = true;
+            if (e.code === 'KeyC') toggleCameraMode();
+            if (cameraMode !== 'npc') return;
+            if (e.code === 'Escape') setCameraMode('orbit');
+            if (e.code === 'KeyF') {
+                playerFlying = !playerFlying;
+                playerVelY = 0;
+                spawnWhisper(playerNPC.position, playerFlying ? 'Flight mode online.' : 'Gravity restored.');
+            }
+            if (e.code === 'Space') e.preventDefault();
+        });
+        document.addEventListener('keyup', (e) => { keyState[e.code] = false; });
+        renderer.domElement.addEventListener('click', () => { if (cameraMode === 'npc') renderer.domElement.requestPointerLock?.(); });
+        document.addEventListener('mousemove', (e) => {
+            if (cameraMode !== 'npc' || document.pointerLockElement !== renderer.domElement) return;
+            playerYaw -= e.movementX * 0.0022;
+            playerPitch = Math.max(-0.9, Math.min(0.65, playerPitch - e.movementY * 0.002));
+        });
+
+        function updatePlayerNPC(dt) {
+            if (cameraMode !== 'npc') return;
+            if (keyState.ArrowLeft) playerYaw += dt * 1.9;
+            if (keyState.ArrowRight) playerYaw -= dt * 1.9;
+            if (keyState.ArrowUp) playerPitch = Math.min(0.65, playerPitch + dt * 1.1);
+            if (keyState.ArrowDown) playerPitch = Math.max(-0.9, playerPitch - dt * 1.1);
+
+            const forward = new THREE.Vector3(Math.sin(playerYaw), 0, Math.cos(playerYaw));
+            const right = new THREE.Vector3(Math.cos(playerYaw), 0, -Math.sin(playerYaw));
+            const moveZ = (keyState.KeyW ? 1 : 0) - (keyState.KeyS ? 1 : 0);
+            const moveX = (keyState.KeyD ? 1 : 0) - (keyState.KeyA ? 1 : 0);
+            const speed = (keyState.ShiftLeft || keyState.ShiftRight) ? 10.5 : 5.2;
+            if (moveZ) playerNPC.position.addScaledVector(forward, moveZ * speed * dt);
+            if (moveX) playerNPC.position.addScaledVector(right, moveX * speed * dt);
+            playerNPC.rotation.y = playerYaw;
+
+            if (playerFlying) {
+                const flySpeed = ((keyState.ShiftLeft || keyState.ShiftRight) ? 9 : 5.5) * dt;
+                if (keyState.Space) playerNPC.position.y += flySpeed;
+                if (keyState.ControlLeft || keyState.ControlRight || keyState.KeyQ) playerNPC.position.y -= flySpeed;
+                playerNPC.position.y = Math.max(0, Math.min(70, playerNPC.position.y));
+            } else {
+                if (keyState.Space && playerGrounded) { playerVelY = 7.2; playerGrounded = false; }
+                playerVelY -= 18 * dt;
+                playerNPC.position.y += playerVelY * dt;
+                if (playerNPC.position.y <= 0) { playerNPC.position.y = 0; playerVelY = 0; playerGrounded = true; }
+            }
+
+            const eye = playerNPC.position.clone().add(new THREE.Vector3(0, 1.55, 0));
+            const look = new THREE.Vector3(
+                Math.sin(playerYaw) * Math.cos(playerPitch),
+                Math.sin(playerPitch),
+                Math.cos(playerYaw) * Math.cos(playerPitch)
+            );
+            camera.position.copy(eye);
+            camera.lookAt(eye.clone().add(look));
+        }
+
+        function teleportPlayerToHeaven() {
+            playerNPC.position.set(0, 42.4, -88);
+            playerFlying = true;
+            playerVelY = 0;
+            setCameraMode('npc');
+            spawnWhisper(playerNPC.position, 'Heaven platform reached. Flight mode online.');
+        }
+
+        function talkToNPC(target) {
+            const data = target.userData.npcTalk || { label: 'NPC' };
+            const pos = new THREE.Vector3();
+            target.getWorldPosition(pos);
+            const line = npcTalkLines[Math.floor(Math.random() * npcTalkLines.length)];
+            spawnWhisper(pos, `${data.label}: ${line}`);
         }
 
         // ========== PAIMON NPC (Genshin Impact) — walking citizen ==========
@@ -2908,7 +3140,7 @@
             dragControls.dispose();
             dragControls = new DragControls(draggables, camera, renderer.domElement);
             dragControls.addEventListener('dragstart', () => { controls.enabled = false; });
-            dragControls.addEventListener('dragend', () => { controls.enabled = true; });
+            dragControls.addEventListener('dragend', () => { controls.enabled = cameraMode === 'orbit'; });
 
             hideSpawnModal();
         }
@@ -3240,7 +3472,7 @@
         const draggables = [...books, ...planets, ...orbs, capstone];
         let dragControls = new DragControls(draggables, camera, renderer.domElement);
         dragControls.addEventListener('dragstart', () => { controls.enabled = false; });
-        dragControls.addEventListener('dragend', () => { controls.enabled = true; });
+        dragControls.addEventListener('dragend', () => { controls.enabled = cameraMode === 'orbit'; });
         
         // ========== BOOK READING SYSTEM ==========
         const readingOverlay = document.getElementById('reading-overlay');
@@ -3396,7 +3628,7 @@
             dragControls.dispose();
             dragControls = new DragControls(draggables, camera, renderer.domElement);
             dragControls.addEventListener('dragstart', () => { controls.enabled = false; });
-            dragControls.addEventListener('dragend', () => { controls.enabled = true; });
+            dragControls.addEventListener('dragend', () => { controls.enabled = cameraMode === 'orbit'; });
             
             if (openBookGroup) { scene.remove(openBookGroup); }
             openBookGroup = buildOpenBook(book.userData);
@@ -3554,7 +3786,7 @@
         const _moveIntersect = new THREE.Vector3();
         
         function getClickTargets() {
-            const targets = [...books, ..._soulMeshes, ...avatars];
+            const targets = [...books, ..._soulMeshes, ...avatars, ...npcTalkTargets, ...heavenGateTargets];
             if (!isInside) targets.push(portalPlane);
             if (avatar && !isInside) targets.push(avatar);
             return targets;
@@ -3606,6 +3838,10 @@
                 enterPyramid();
                 return;
             }
+            if (mouseDownTarget.userData && mouseDownTarget.userData.heavenGate) {
+                teleportPlayerToHeaven();
+                return;
+            }
             
             // check books
             const bookHit = mouseDownTarget.userData && mouseDownTarget.userData.isBook;
@@ -3621,6 +3857,12 @@
                     spawnWhisper(s.obj.position, quote);
                     break;
                 }
+            }
+
+            // talk to NPCs / citizens
+            if (mouseDownTarget.userData && mouseDownTarget.userData.npcTalk) {
+                talkToNPC(mouseDownTarget);
+                return;
             }
             
             // check avatar
@@ -3659,9 +3901,11 @@
             raycaster.setFromCamera(pointer, camera);
             const bookHits = raycaster.intersectObjects(books, false);
             const soulHits = raycaster.intersectObjects(_soulMeshes, false);
+            const npcHits = raycaster.intersectObjects(npcTalkTargets, false);
+            const heavenHits = raycaster.intersectObjects(heavenGateTargets, false);
             let avatarHits = { length: 0 };
             if (avatar) avatarHits = raycaster.intersectObject(avatar, true);
-            const cursor = bookHits.length > 0 ? 'pointer' : (soulHits.length > 0 || avatarHits.length > 0) ? 'grab' : 'default';
+            const cursor = (bookHits.length > 0 || npcHits.length > 0 || heavenHits.length > 0) ? 'pointer' : (soulHits.length > 0 || avatarHits.length > 0) ? 'grab' : 'default';
             renderer.domElement.style.cursor = cursor;
             
             // update mouse world position for soul proximity
@@ -4548,7 +4792,8 @@
                 ? 'Click the book | Click wall or press ESC to exit'
                 : 'Drag objects | Click books | Click souls | Click pyramid door to enter';
             
-            controls.update();
+            updatePlayerNPC(dt);
+            if (cameraMode === 'orbit') controls.update();
             effectComposer.render();
             // Hide the loading overlay as soon as the first frame is on screen —
             // decoupled from GLB load completion so a slow/hanging asset can never trap the user.
