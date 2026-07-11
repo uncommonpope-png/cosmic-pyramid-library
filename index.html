@@ -521,7 +521,7 @@
 <body>
 
     <div id="info">THE SOULFEILD ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â CLICK BOOKS TO READ ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· CLICK SOULS FOR WHISPERS</div>
-    <div id="controls-hint">Drag objects | Click books | Click souls | Click pyramid door to enter Heaven</div>
+    <div id="controls-hint">Drag objects | Click books | Click souls | Space City + Heaven City now load above the world</div>
     <div id="camera-panel">
         <button class="camera-mode-btn active" id="orbit-mode-btn">ORBIT</button>
         <button class="camera-mode-btn" id="npc-mode-btn">PLAY NPC</button>
@@ -3176,6 +3176,179 @@
         }
         window.__skyLayer = skyLayer;
 
+        // ========== RECENT DOWNLOADS -> EXTENDED SPACE + HEAVEN CITIES ==========
+        // Pope directive: do not hide the recent-download assets behind a gallery.
+        // Map them into real world extensions: cosmos -> Space City, celestia+DBZ -> Heaven City.
+        class RecentCityExtensions {
+            constructor() {
+                this.mixers = [];
+                this.floaters = [];
+                this.spaceCity = new THREE.Group();
+                this.spaceCity.name = 'Recent Downloads Space City';
+                this.spaceCity.position.set(70, 0, -115);
+                skyLayer.add(this.spaceCity);
+
+                this.heavenCity = new THREE.Group();
+                this.heavenCity.name = 'Recent Downloads Heaven City';
+                heaven.add(this.heavenCity);
+
+                this._buildSpaceFrame();
+                this._buildHeavenFrame();
+                this._load();
+            }
+
+            _buildSpaceFrame() {
+                const col = 0x55aaff;
+                const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.45, roughness: 0.35, metalness: 0.35, transparent: true, opacity: 0.78 });
+                const core = new THREE.Mesh(new THREE.CylinderGeometry(12, 14, 0.7, 64), mat);
+                core.position.y = 30;
+                this.spaceCity.add(core);
+                for (let i = 0; i < 3; i++) {
+                    const ring = new THREE.Mesh(new THREE.TorusGeometry(20 + i * 11, 0.25, 12, 96), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.42 - i * 0.08, blending: THREE.AdditiveBlending }));
+                    ring.rotation.x = Math.PI / 2;
+                    ring.position.y = 30 + i * 4;
+                    this.spaceCity.add(ring);
+                }
+                for (let i = 0; i < 8; i++) {
+                    const a = (i / 8) * Math.PI * 2;
+                    const dock = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 10), mat);
+                    dock.position.set(Math.cos(a) * 22, 30.4, Math.sin(a) * 22);
+                    dock.rotation.y = -a;
+                    this.spaceCity.add(dock);
+                }
+                const light = new THREE.PointLight(col, 3.2, 95, 2);
+                light.position.set(0, 44, 0);
+                this.spaceCity.add(light);
+            }
+
+            _buildHeavenFrame() {
+                const col = 0xffd080;
+                const mat = new THREE.MeshStandardMaterial({ color: 0xfff2d4, emissive: col, emissiveIntensity: 0.35, roughness: 0.45, metalness: 0.12, transparent: true, opacity: 0.92 });
+                for (let i = 0; i < 2; i++) {
+                    const ring = new THREE.Mesh(new THREE.TorusGeometry(15 + i * 8, 0.22, 12, 96), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending }));
+                    ring.rotation.x = Math.PI / 2;
+                    ring.position.y = 1.4 + i * 0.7;
+                    this.heavenCity.add(ring);
+                }
+                for (let i = 0; i < 5; i++) {
+                    const a = (i / 5) * Math.PI * 2 + 0.3;
+                    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.8, 0.55, 24), mat);
+                    plinth.position.set(Math.cos(a) * 15, 0.55, Math.sin(a) * 15);
+                    this.heavenCity.add(plinth);
+                }
+            }
+
+            _load() {
+                fetch('assets/assets.json').then(r => r.json()).then(data => {
+                    const assets = data.assets || [];
+                    const space = assets.filter(a => a.district === 'cosmos' && !/planete_kaio/i.test(a.file));
+                    const heavenAssets = assets.filter(a =>
+                        a.district === 'celestia' ||
+                        /dragon_ball_z|kid_buu|majin_buu|grand_supreme_kai|planete_kaio/i.test(a.file)
+                    );
+                    this._loadSet(space, 'space');
+                    this._loadSet(heavenAssets, 'heaven');
+                    setTimeout(() => startLazyAssets('recent-city-extensions'), 1200);
+                    console.log('[RecentCityExtensions] mapped assets:', { space: space.length, heaven: heavenAssets.length });
+                }).catch(e => console.warn('[RecentCityExtensions] assets.json failed:', e));
+            }
+
+            _loadSet(items, zone) {
+                items.forEach((item, i) => {
+                    makeGLTF({ lazy: true }).load(item.glb, (gltf) => {
+                        const wrap = this._normalize(gltf, this._targetSize(item.file, zone));
+                        if (zone === 'space') this._placeSpace(wrap, item, i);
+                        else this._placeHeaven(wrap, item, i);
+                    }, undefined, (err) => console.warn('[RecentCityExtensions] load failed:', item.file, err));
+                });
+            }
+
+            _targetSize(file, zone) {
+                const f = file.toLowerCase();
+                if (zone === 'heaven') {
+                    if (/basilica/.test(f)) return 18;
+                    if (/drogon|dragons_dogma/.test(f)) return 12;
+                    if (/angel|guardian|goat|cat/.test(f)) return 5.5;
+                    if (/planete_kaio/.test(f)) return 9;
+                    return 4.8;
+                }
+                if (/procedural_city|neighbourhood|building|architecture|3105|bionic/.test(f)) return 18;
+                if (/station|facility|helveta|sentinel/.test(f)) return 15;
+                if (/ship|pod|cargo|missile/.test(f)) return 10;
+                if (/earth|planet/.test(f)) return 13;
+                if (/astronaut|space_suit|skull|cat/.test(f)) return 6.5;
+                return 8;
+            }
+
+            _normalize(gltf, targetSize) {
+                const model = gltf.scene;
+                model.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                const box = new THREE.Box3().setFromObject(model);
+                const size = box.getSize(new THREE.Vector3());
+                const center = box.getCenter(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z) || 1;
+                model.position.set(-center.x, -box.min.y, -center.z);
+                const wrap = new THREE.Group();
+                wrap.add(model);
+                wrap.scale.setScalar(targetSize / maxDim);
+                if (gltf.animations && gltf.animations.length) {
+                    const mixer = new THREE.AnimationMixer(wrap);
+                    gltf.animations.forEach(clip => mixer.clipAction(clip).play());
+                    this.mixers.push(mixer);
+                }
+                return wrap;
+            }
+
+            _placeSpace(wrap, item, i) {
+                const f = item.file.toLowerCase();
+                const isCity = /procedural_city|neighbourhood|building|architecture|3105|bionic|morphoser|circus/.test(f);
+                const isPlanet = /earth|planet/.test(f);
+                const angle = i * 1.071 + (isCity ? 0.25 : 0.6);
+                const radius = isCity ? (14 + (i % 7) * 4.2) : (23 + (i % 9) * 5.5);
+                const y = isCity ? (28 + (i % 3) * 3.5) : isPlanet ? (48 + (i % 5) * 7) : (36 + (i % 6) * 6);
+                wrap.position.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+                wrap.rotation.y = -angle + Math.PI / 2;
+                this.spaceCity.add(wrap);
+                this.floaters.push({ obj: wrap, baseY: y, phase: i * 0.7, bob: isCity ? 0.6 : 1.8, spin: isPlanet ? 0.0025 : (/station|ship|sentinel|pod|cargo/.test(f) ? 0.0012 : 0.0007) });
+            }
+
+            _placeHeaven(wrap, item, i) {
+                const f = item.file.toLowerCase();
+                const isBasilica = /basilica/.test(f);
+                const isDragon = /drogon|dragons_dogma/.test(f);
+                const isPlanet = /planete_kaio/.test(f);
+                const isDbz = /dragon_ball_z|kid_buu|majin_buu|grand_supreme_kai/.test(f);
+                if (isBasilica) {
+                    wrap.position.set(0, 0.9, -13);
+                    wrap.rotation.y = Math.PI;
+                } else if (isPlanet) {
+                    wrap.position.set(0, 22, 0);
+                } else {
+                    const angle = i * 1.27 + 0.4;
+                    const radius = isDbz ? (7 + (i % 5) * 2.4) : (13 + (i % 6) * 2.5);
+                    const y = isDbz ? 1.2 : (isDragon ? 11 + (i % 4) * 2.8 : 7 + (i % 5) * 2.4);
+                    wrap.position.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+                    wrap.rotation.y = -angle + Math.PI / 2;
+                }
+                this.heavenCity.add(wrap);
+                this.floaters.push({ obj: wrap, baseY: wrap.position.y, phase: 10 + i * 0.65, bob: isDbz ? 0.35 : 1.2, spin: isDbz ? 0.0005 : 0.0015 });
+            }
+
+            update(dt, time) {
+                this.mixers.forEach(m => m.update(dt));
+                for (const f of this.floaters) {
+                    f.obj.position.y = f.baseY + Math.sin(time * 0.55 + f.phase) * f.bob;
+                    f.obj.rotation.y += f.spin * (dt * 60);
+                }
+            }
+        }
+
+        try {
+            window.__recentCityExtensions = new RecentCityExtensions();
+        } catch (e) {
+            console.warn('[RecentCityExtensions] init failed:', e);
+        }
+
         // ========== AVATAR SYSTEM ==========
         const avatars = [];
 
@@ -5430,6 +5603,7 @@
                 c.obj.position.y = c.baseY + Math.sin(time * 0.25 + c.phase) * 1.5;
                 c.obj.rotation.y += c.spin * 0.016;
             }
+            if (window.__recentCityExtensions) window.__recentCityExtensions.update(dt, time);
             
             // --- rotate nebulae ---
             nebulae.forEach(n => {
