@@ -2519,6 +2519,15 @@
         const heavenLight = new THREE.PointLight(0xfff0d0, 3, 90, 2);
         heavenLight.position.set(0, 12, 0); heaven.add(heavenLight);
 
+        const angelNames = ['Seraphiel', 'Micha', 'Gabri', 'Rapha', 'Uriel', 'Azrael', 'Lumi'];
+        const angelTalkLines = {
+            neutral:   ['The library hums with quiet profit.', 'Love keeps the lights on.', 'Every soul pays its tax in time.', 'The pyramid remembers us.', 'We circle the silent books.'],
+            ascendant: ['The city rises with our wings.', 'Frequency aligns — can you feel it?', 'Resonance builds between the stars.'],
+            creative:  ['A new scripture wants writing.', 'Build the roads; we will sing them.', 'Color returns to the wings.'],
+            anxious:   ['The tax grows heavy tonight.', 'Something unfinished circles below.', 'Hold the center; do not scatter.'],
+            void:      ['In the void, we listen.', 'Nothing is missing. All is seed.', 'Silence is also a prayer.'],
+            focused:   ['One task. One wingbeat. One truth.', 'The work sharpens the soul.', 'Concentrate the light.']
+        };
         const heavenAngels = [];
         const angelLoader = makeGLTF();
         for (let i = 0; i < 7; i++) {
@@ -2538,10 +2547,104 @@
                 wrap.position.set(Math.cos(angle) * radius, yOff, Math.sin(angle) * radius);
                 model.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = false; } });
                 heaven.add(wrap);
-                heavenAngels.push({ obj: wrap, angle, radius, yOff, ySpeed: 0.6 + Math.random() * 0.8, yPhase: Math.random() * 6.28, orbit: 0.05 + Math.random() * 0.08 });
+                heavenAngels.push({
+                    obj: wrap, name: angelNames[i] || ('Seraph ' + (i + 1)),
+                    angle, radius, yOff, baseScale: s,
+                    ySpeed: 0.6 + Math.random() * 0.8, yPhase: Math.random() * 6.28,
+                    orbit: 0.05 + Math.random() * 0.08,
+                    targetRadius: radius, targetYOff: yOff,
+                    wanderTimer: Math.random() * 3, flapPhase: Math.random() * 6.28,
+                    greeting: 0
+                });
             }, undefined, (err) => { console.warn('[Heaven] angel load failed:', err); });
         }
         window.__heaven = heaven;
+
+        // ========== ALIVE ANGELS (soul gun: alive-angels) ==========
+        // Autonomous flight (wandering radius/altitude + banking + wing-beat) plus a social
+        // layer: proximity greetings and scheduled closest-pair conversations with speech
+        // bubbles. GSK is alive: mood selects dialogue tone, phase modulates flight energy,
+        // and (when online) a throttled brain.think enriches one side of each exchange.
+        let _angelConvoTimer = 3;
+        let _angelGskCd = 0;
+        async function angelGskLine(mood, phase) {
+            if (!gskBridge || !gskBridge.gskOnline) return null;
+            try {
+                const r = await gsk.execute('brain.think', {
+                    prompt: `A heaven angel speaks ONE short line (<=12 words) to another angel. Tone: ${mood}/${phase}. No quotes.`,
+                    context: `GSK PLT=(${gskBridge.plt.profit.toFixed(2)},${gskBridge.plt.love.toFixed(2)},${gskBridge.plt.tax.toFixed(2)})`
+                });
+                const txt = (r && r.response) ? String(r.response).split('\n')[0].trim() : '';
+                return txt.length ? txt.slice(0, 80) : null;
+            } catch (e) { return null; }
+        }
+        function updateAngelLife(dt, time) {
+            if (!heavenAngels.length) return;
+            const speedMul = (gskBridge && gskBridge.phaseFx) ? gskBridge.phaseFx.citizenSpeedMul : 1;
+            const mood = (gskBridge && gskBridge.gskOnline) ? (gskBridge.currentMood || 'neutral') : 'neutral';
+            const pool = angelTalkLines[mood] || angelTalkLines.neutral;
+            for (const a of heavenAngels) {
+                a.wanderTimer -= dt;
+                if (a.wanderTimer <= 0) {
+                    a.targetRadius = 5 + Math.random() * 18;
+                    a.targetYOff = 7 + Math.random() * 16;
+                    a.wanderTimer = 3 + Math.random() * 4;
+                }
+                a.radius += (a.targetRadius - a.radius) * Math.min(1, dt * 0.6);
+                a.yOff += (a.targetYOff - a.yOff) * Math.min(1, dt * 0.6);
+                a.angle += a.orbit * dt * 6 * speedMul * (a.greeting > 0 ? 0.35 : 1);
+                a.obj.position.set(
+                    Math.cos(a.angle) * a.radius,
+                    a.yOff + Math.sin(time * a.ySpeed + a.yPhase) * 1.4,
+                    Math.sin(a.angle) * a.radius
+                );
+                const vx = -Math.sin(a.angle), vz = Math.cos(a.angle);
+                a.obj.rotation.y = Math.atan2(vx, vz);
+                a.obj.rotation.z = Math.sin(time * a.ySpeed * 1.3 + a.yPhase) * 0.2 * speedMul;
+                const flap = 1 + Math.sin(time * 3 + a.flapPhase) * 0.05;
+                a.obj.scale.setScalar(a.baseScale * flap);
+                if (a.greeting > 0) a.greeting -= dt;
+            }
+            // proximity greetings — two angels crossing paths pause and exchange a word
+            for (let i = 0; i < heavenAngels.length; i++) {
+                for (let j = i + 1; j < heavenAngels.length; j++) {
+                    const A = heavenAngels[i], B = heavenAngels[j];
+                    if (A.greeting > 0 || B.greeting > 0) continue;
+                    if (A.obj.position.distanceTo(B.obj.position) < 5) {
+                        A.greeting = B.greeting = 2.5;
+                        const line = pool[Math.floor(Math.random() * pool.length)];
+                        const wi = new THREE.Vector3(); A.obj.getWorldPosition(wi);
+                        const wj = new THREE.Vector3(); B.obj.getWorldPosition(wj);
+                        spawnWhisper(wi, A.name + ' ✶ ' + line);
+                        spawnWhisper(wj, B.name + ' ✶ ' + line);
+                    }
+                }
+            }
+            // scheduled conversation between the closest pair
+            _angelConvoTimer -= dt;
+            if (_angelGskCd > 0) _angelGskCd -= dt;
+            if (_angelConvoTimer <= 0 && heavenAngels.length >= 2) {
+                _angelConvoTimer = 4 + Math.random() * 3;
+                let bi = 0, bj = 1, bd = Infinity;
+                for (let i = 0; i < heavenAngels.length; i++)
+                    for (let j = i + 1; j < heavenAngels.length; j++) {
+                        const d = heavenAngels[i].obj.position.distanceTo(heavenAngels[j].obj.position);
+                        if (d < bd) { bd = d; bi = i; bj = j; }
+                    }
+                const li = pool[Math.floor(Math.random() * pool.length)];
+                const lj = pool[Math.floor(Math.random() * pool.length)];
+                const wi = new THREE.Vector3(); heavenAngels[bi].obj.getWorldPosition(wi);
+                const wj = new THREE.Vector3(); heavenAngels[bj].obj.getWorldPosition(wj);
+                spawnWhisper(wi, heavenAngels[bi].name + ': ' + li);
+                spawnWhisper(wj, heavenAngels[bj].name + ': ' + lj);
+                if (gskBridge.gskOnline && _angelGskCd <= 0 && Math.random() < 0.6) {
+                    _angelGskCd = 10;
+                    angelGskLine(mood, gskBridge.currentPhase).then((line) => {
+                        if (line) { const w = new THREE.Vector3(); heavenAngels[bj].obj.getWorldPosition(w); spawnWhisper(w, heavenAngels[bj].name + ': ' + line); }
+                    }).catch(() => {});
+                }
+            }
+        }
 
         // Clickable Heaven lift: first-person players can enter Heaven from the city.
         const heavenGateTargets = [];
@@ -4573,14 +4676,8 @@
                 s.obj.children[0].scale.set(sc, sc, sc);
             });
             
-            // --- heaven angels orbit & bob ---
-            for (const a of heavenAngels) {
-                a.angle += a.orbit * 0.016;
-                a.obj.position.x = Math.cos(a.angle) * a.radius;
-                a.obj.position.z = Math.sin(a.angle) * a.radius;
-                a.obj.position.y = a.yOff + Math.sin(time * a.ySpeed + a.yPhase) * 1.2;
-                a.obj.rotation.y = -a.angle + Math.PI / 2;
-            }
+            // --- alive angels: flight + social conversation (GSK-aware) ---
+            updateAngelLife(dt, time);
 
             // --- avatar bob ---
             if (avatar) {
