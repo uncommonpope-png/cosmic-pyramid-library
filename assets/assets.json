@@ -1,0 +1,525 @@
+{
+  "generated": "2026-07-11T03:41:21.859Z",
+  "base": "assets/recent",
+  "districts": [
+    {
+      "id": "cosmos",
+      "title": "Cosmos"
+    },
+    {
+      "id": "celestia",
+      "title": "Celestia"
+    },
+    {
+      "id": "arena",
+      "title": "Arena"
+    },
+    {
+      "id": "menagerie",
+      "title": "Menagerie"
+    }
+  ],
+  "count": 50,
+  "assets": [
+    {
+      "id": "R-001",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "3105b839e14d4591b53ef77dfd30bc49.glb",
+      "title": "3105b839e14d4591b53ef77dfd30bc49",
+      "sizeMB": 13.3,
+      "glb": "assets/recent/cosmos/3105b839e14d4591b53ef77dfd30bc49.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-002",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "animated_floating_astronaut_in_space_suit_loop.glb",
+      "title": "animated floating astronaut in space suit loop",
+      "sizeMB": 7.7,
+      "glb": "assets/recent/cosmos/animated_floating_astronaut_in_space_suit_loop.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-003",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "bionic_architecture.glb",
+      "title": "bionic architecture",
+      "sizeMB": 6,
+      "glb": "assets/recent/cosmos/bionic_architecture.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-004",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "cats_space_suit_free_model.glb",
+      "title": "cats space suit free model",
+      "sizeMB": 4.5,
+      "glb": "assets/recent/cosmos/cats_space_suit_free_model.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-005",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "cat_astronaut.glb",
+      "title": "cat astronaut",
+      "sizeMB": 2.6,
+      "glb": "assets/recent/cosmos/cat_astronaut.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-006",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "chicken_gun_fruzer_circus.glb",
+      "title": "chicken gun fruzer circus",
+      "sizeMB": 4.6,
+      "glb": "assets/recent/cosmos/chicken_gun_fruzer_circus.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-007",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "earth_-_16k_high_resolution.glb",
+      "title": "earth 16k high resolution",
+      "sizeMB": 13.2,
+      "glb": "assets/recent/cosmos/earth_-_16k_high_resolution.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-008",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "franz_viehbocks_sokol_space_suit.glb",
+      "title": "franz viehbocks sokol space suit",
+      "sizeMB": 2.5,
+      "glb": "assets/recent/cosmos/franz_viehbocks_sokol_space_suit.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-009",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "futuristic_background_buildings_kit_volume_2.glb",
+      "title": "futuristic background buildings kit volume 2",
+      "sizeMB": 22.2,
+      "glb": "assets/recent/cosmos/futuristic_background_buildings_kit_volume_2.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-010",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "helveta_space_battle_ship.glb",
+      "title": "helveta space battle ship",
+      "sizeMB": 4,
+      "glb": "assets/recent/cosmos/helveta_space_battle_ship.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-011",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "massive_morphoser_fourth_dimension.glb",
+      "title": "massive morphoser fourth dimension",
+      "sizeMB": 0.4,
+      "glb": "assets/recent/cosmos/massive_morphoser_fourth_dimension.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-012",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "missile_map.glb",
+      "title": "missile map",
+      "sizeMB": 1.1,
+      "glb": "assets/recent/cosmos/missile_map.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-013",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "neighbourhood_city_modular_lowpoly.glb",
+      "title": "neighbourhood city modular lowpoly",
+      "sizeMB": 25.9,
+      "glb": "assets/recent/cosmos/neighbourhood_city_modular_lowpoly.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-014",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "planete_kaio.glb",
+      "title": "planete kaio",
+      "sizeMB": 0.1,
+      "glb": "assets/recent/cosmos/planete_kaio.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-015",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "planet_beta_hydri___free_sample.glb",
+      "title": "planet beta hydri free sample",
+      "sizeMB": 0.6,
+      "glb": "assets/recent/cosmos/planet_beta_hydri___free_sample.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-016",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "procedural_city_5.glb",
+      "title": "procedural city 5",
+      "sizeMB": 32.4,
+      "glb": "assets/recent/cosmos/procedural_city_5.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-017",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "procedural_city_6.glb",
+      "title": "procedural city 6",
+      "sizeMB": 34.3,
+      "glb": "assets/recent/cosmos/procedural_city_6.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-018",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "sci-fi_personal_space_pod_shipweekly_challenge.glb",
+      "title": "sci-fi personal space pod shipweekly challenge",
+      "sizeMB": 4.9,
+      "glb": "assets/recent/cosmos/sci-fi_personal_space_pod_shipweekly_challenge.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-019",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "sci-fi_space_station.glb",
+      "title": "sci-fi space station",
+      "sizeMB": 21.1,
+      "glb": "assets/recent/cosmos/sci-fi_space_station.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-020",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "sentinel.glb",
+      "title": "sentinel",
+      "sizeMB": 13.2,
+      "glb": "assets/recent/cosmos/sentinel.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-021",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "skull_in_astronaut_helmet.glb",
+      "title": "skull in astronaut helmet",
+      "sizeMB": 9.2,
+      "glb": "assets/recent/cosmos/skull_in_astronaut_helmet.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-022",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "space_exploration_wlp_series_8.glb",
+      "title": "space exploration wlp series 8",
+      "sizeMB": 0.8,
+      "glb": "assets/recent/cosmos/space_exploration_wlp_series_8.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-023",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "space_station_3.glb",
+      "title": "space station 3",
+      "sizeMB": 16.6,
+      "glb": "assets/recent/cosmos/space_station_3.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-024",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "space_station_4.glb",
+      "title": "space station 4",
+      "sizeMB": 13.9,
+      "glb": "assets/recent/cosmos/space_station_4.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-025",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "space_station_asteroid_mining_facility.glb",
+      "title": "space station asteroid mining facility",
+      "sizeMB": 12,
+      "glb": "assets/recent/cosmos/space_station_asteroid_mining_facility.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-026",
+      "district": "cosmos",
+      "districtTitle": "Cosmos",
+      "file": "stranded_cargo_ship_giant_vessel_rusty_ship.glb",
+      "title": "stranded cargo ship giant vessel rusty ship",
+      "sizeMB": 8.8,
+      "glb": "assets/recent/cosmos/stranded_cargo_ship_giant_vessel_rusty_ship.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-027",
+      "district": "celestia",
+      "districtTitle": "Celestia",
+      "file": "angelic_goat_stylized.glb",
+      "title": "angelic goat stylized",
+      "sizeMB": 4.5,
+      "glb": "assets/recent/celestia/angelic_goat_stylized.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-028",
+      "district": "celestia",
+      "districtTitle": "Celestia",
+      "file": "angel_custodio.glb",
+      "title": "angel custodio",
+      "sizeMB": 5.3,
+      "glb": "assets/recent/celestia/angel_custodio.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-029",
+      "district": "celestia",
+      "districtTitle": "Celestia",
+      "file": "basilica_of_notre_dame_de_fourviere.glb",
+      "title": "basilica of notre dame de fourviere",
+      "sizeMB": 11.2,
+      "glb": "assets/recent/celestia/basilica_of_notre_dame_de_fourviere.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-030",
+      "district": "celestia",
+      "districtTitle": "Celestia",
+      "file": "dragons_dogma_grigori.glb",
+      "title": "dragons dogma grigori",
+      "sizeMB": 8.7,
+      "glb": "assets/recent/celestia/dragons_dogma_grigori.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-031",
+      "district": "celestia",
+      "districtTitle": "Celestia",
+      "file": "drogon__game_of_thrones_dragon.glb",
+      "title": "drogon game of thrones dragon",
+      "sizeMB": 10.7,
+      "glb": "assets/recent/celestia/drogon__game_of_thrones_dragon.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-032",
+      "district": "celestia",
+      "districtTitle": "Celestia",
+      "file": "guardian_angel_pet.glb",
+      "title": "guardian angel pet",
+      "sizeMB": 4.6,
+      "glb": "assets/recent/celestia/guardian_angel_pet.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-033",
+      "district": "celestia",
+      "districtTitle": "Celestia",
+      "file": "stylized_angelic_cat.glb",
+      "title": "stylized angelic cat",
+      "sizeMB": 1.6,
+      "glb": "assets/recent/celestia/stylized_angelic_cat.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-034",
+      "district": "arena",
+      "districtTitle": "Arena",
+      "file": "amemiya_nazuna_vshojo_-_low_poly_pixel.glb",
+      "title": "amemiya nazuna vshojo low poly pixel",
+      "sizeMB": 0.1,
+      "glb": "assets/recent/arena/amemiya_nazuna_vshojo_-_low_poly_pixel.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-035",
+      "district": "arena",
+      "districtTitle": "Arena",
+      "file": "baby_yoda.glb",
+      "title": "baby yoda",
+      "sizeMB": 16.2,
+      "glb": "assets/recent/arena/baby_yoda.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-036",
+      "district": "arena",
+      "districtTitle": "Arena",
+      "file": "cheese_moon.glb",
+      "title": "cheese moon",
+      "sizeMB": 0.1,
+      "glb": "assets/recent/arena/cheese_moon.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-037",
+      "district": "arena",
+      "districtTitle": "Arena",
+      "file": "deep_impact_tv_from_the_matrix.glb",
+      "title": "deep impact tv from the matrix",
+      "sizeMB": 1,
+      "glb": "assets/recent/arena/deep_impact_tv_from_the_matrix.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-038",
+      "district": "arena",
+      "districtTitle": "Arena",
+      "file": "dragon_ball_z_baby_goku.glb",
+      "title": "dragon ball z baby goku",
+      "sizeMB": 0.1,
+      "glb": "assets/recent/arena/dragon_ball_z_baby_goku.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-039",
+      "district": "arena",
+      "districtTitle": "Arena",
+      "file": "dragon_ball_z_shin_budokai.glb",
+      "title": "dragon ball z shin budokai",
+      "sizeMB": 0,
+      "glb": "assets/recent/arena/dragon_ball_z_shin_budokai.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-040",
+      "district": "arena",
+      "districtTitle": "Arena",
+      "file": "fountain_with_three_putts_brno_luzanky.glb",
+      "title": "fountain with three putts brno luzanky",
+      "sizeMB": 4,
+      "glb": "assets/recent/arena/fountain_with_three_putts_brno_luzanky.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-041",
+      "district": "arena",
+      "districtTitle": "Arena",
+      "file": "grand_supreme_kai_-_dragon_ball_z.glb",
+      "title": "grand supreme kai dragon ball z",
+      "sizeMB": 1.6,
+      "glb": "assets/recent/arena/grand_supreme_kai_-_dragon_ball_z.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-042",
+      "district": "arena",
+      "districtTitle": "Arena",
+      "file": "kid_buu.glb",
+      "title": "kid buu",
+      "sizeMB": 1.8,
+      "glb": "assets/recent/arena/kid_buu.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-043",
+      "district": "arena",
+      "districtTitle": "Arena",
+      "file": "majin_buu.glb",
+      "title": "majin buu",
+      "sizeMB": 2.8,
+      "glb": "assets/recent/arena/majin_buu.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-044",
+      "district": "arena",
+      "districtTitle": "Arena",
+      "file": "porsche_992_gt3r-_roxy.glb",
+      "title": "porsche 992 gt3r- roxy",
+      "sizeMB": 12,
+      "glb": "assets/recent/arena/porsche_992_gt3r-_roxy.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-045",
+      "district": "arena",
+      "districtTitle": "Arena",
+      "file": "porsche_992_gt3_r__www.vecarz.com.glb",
+      "title": "porsche 992 gt3 r www.vecarz.com",
+      "sizeMB": 14,
+      "glb": "assets/recent/arena/porsche_992_gt3_r__www.vecarz.com.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-046",
+      "district": "arena",
+      "districtTitle": "Arena",
+      "file": "sentinelle_-_matrix.glb",
+      "title": "sentinelle matrix",
+      "sizeMB": 5.2,
+      "glb": "assets/recent/arena/sentinelle_-_matrix.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-047",
+      "district": "menagerie",
+      "districtTitle": "Menagerie",
+      "file": "cat_girl_-_rigged.glb",
+      "title": "cat girl rigged",
+      "sizeMB": 1.1,
+      "glb": "assets/recent/menagerie/cat_girl_-_rigged.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-048",
+      "district": "menagerie",
+      "districtTitle": "Menagerie",
+      "file": "cat_witch.glb",
+      "title": "cat witch",
+      "sizeMB": 0.8,
+      "glb": "assets/recent/menagerie/cat_witch.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-049",
+      "district": "menagerie",
+      "districtTitle": "Menagerie",
+      "file": "das_kat.glb",
+      "title": "das kat",
+      "sizeMB": 2.1,
+      "glb": "assets/recent/menagerie/das_kat.glb",
+      "license": "open source — not for resale"
+    },
+    {
+      "id": "R-050",
+      "district": "menagerie",
+      "districtTitle": "Menagerie",
+      "file": "lacrimosa_animated_-_neverness_to_everness.glb",
+      "title": "lacrimosa animated neverness to everness",
+      "sizeMB": 21.7,
+      "glb": "assets/recent/menagerie/lacrimosa_animated_-_neverness_to_everness.glb",
+      "license": "open source — not for resale"
+    }
+  ]
+}

@@ -516,16 +516,44 @@
             #reading-card h1 { font-size: 20px; }
             .whisper { font-size: 13px; }
         }
+        /* ===== Recent Worlds (Vault) ===== */
+        #worlds-btn { margin-left: 6px; }
+        #back-hub-btn { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 40; display: none; }
+        #worlds-overlay { position: fixed; inset: 0; display: none; z-index: 60; align-items: center; justify-content: center; }
+        #worlds-overlay.active { display: flex; }
+        #worlds-bg { position: absolute; inset: 0; background: rgba(0,0,0,0.7); }
+        #worlds-card { position: relative; background: linear-gradient(160deg, #0a0a18, #161038); border: 1px solid #ffaa66; border-radius: 12px; padding: 26px 30px; max-width: 460px; width: 92%; box-shadow: 0 0 40px rgba(255,140,60,0.25); }
+        #worlds-card h2 { margin: 0 0 6px; color: #ffcc88; letter-spacing: 2px; }
+        #worlds-card .sub { color: #b9a9d9; font-size: 13px; margin: 0 0 16px; }
+        #worlds-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .world-tile { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 16px; cursor: pointer; transition: all .2s; text-align: left; }
+        .world-tile:hover { border-color: #ffaa66; background: rgba(255,170,102,0.12); transform: translateY(-2px); }
+        .world-tile .wt-title { color: #fff; font-weight: 700; font-size: 15px; letter-spacing: 1px; }
+        .world-tile .wt-count { color: #9a8fc0; font-size: 11px; margin-top: 4px; }
+        .world-tile .wt-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
     </style>
 </head>
 <body>
 
     <div id="info">THE SOULFEILD ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â CLICK BOOKS TO READ ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· CLICK SOULS FOR WHISPERS</div>
-    <div id="controls-hint">Drag objects | Click books | Click souls | Click pyramid door to enter Heaven</div>
+    <div id="controls-hint">Drag objects | Click books | Click souls | Click pyramid door to enter Heaven | Click a WORLD gate to travel</div>
     <div id="camera-panel">
         <button class="camera-mode-btn active" id="orbit-mode-btn">ORBIT</button>
         <button class="camera-mode-btn" id="npc-mode-btn">PLAY NPC</button>
+        <button class="camera-mode-btn" id="worlds-btn">WORLDS</button>
         <span id="npc-status">WASD move · Shift run · Space jump · F fly</span>
+    </div>
+    <button class="camera-mode-btn" id="back-hub-btn">← BACK TO HUB</button>
+
+    <!-- Recent Worlds (Vault) overlay -->
+    <div id="worlds-overlay">
+        <div id="worlds-bg"></div>
+        <div id="worlds-card">
+            <h2>THE RECENT VAULT</h2>
+            <p class="sub">Assets from the Grand Code Pope's recent downloads. Step through a gate:</p>
+            <div id="worlds-list"></div>
+            <button class="close-book" id="close-worlds-btn" style="margin-top:18px">CLOSE</button>
+        </div>
     </div>
 
     <!-- Reading overlay -->
@@ -3988,6 +4016,7 @@
             if (window.__gskAvatar && window.__gskAvatar.clickMesh) targets.push(window.__gskAvatar.clickMesh);
             if (window.__memoryBuildings) targets.push(...window.__memoryBuildings.getClickMeshes());
             if (window.__subagentNPCs) targets.push(...window.__subagentNPCs.getClickMeshes());
+            if (window.__recentWorlds && !isInside) targets.push(...window.__recentWorlds.getClickMeshes());
             return targets;
         }
         
@@ -4040,6 +4069,14 @@
             if (mouseDownTarget.userData && mouseDownTarget.userData.heavenGate) {
                 teleportPlayerToHeaven();
                 return;
+            }
+
+            // Recent Worlds — click a district gate to travel
+            if (mouseDownTarget.userData && mouseDownTarget.userData.districtGate && window.__recentWorlds) {
+                // find which gate this mesh belongs to
+                let gate = mouseDownTarget;
+                while (gate && !gate.userData.gateKey) gate = gate.parent;
+                if (gate && gate.userData.gateKey) { window.__recentWorlds.enter(gate.userData.gateKey); return; }
             }
 
             // GSK visible body — click opens the GSK thought panel
@@ -5332,6 +5369,199 @@
         // ========== ANIMATION ==========
         let time = 0, lastTime = 0;
         
+        // ========== RECENT WORLDS (Vault — Pope's recent-downloads assets) ==========
+        // Travel hub of 4 district gates (Cosmos / Celestia / Arena / Menagerie). Each gate
+        // summons that district's gltfpack -cc compressed GLBs (assets/assets.json) into its
+        // own stage region of the same scene. Click gate OR Worlds panel tile to travel.
+        function makeLabelSprite(text, hex) {
+            const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = 'rgba(0,0,0,0)'; ctx.fillRect(0, 0, 256, 64);
+            ctx.font = 'bold 34px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = hex; ctx.shadowColor = hex; ctx.shadowBlur = 12;
+            ctx.fillText(text, 128, 34);
+            const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
+            const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+            const sp = new THREE.Sprite(mat); sp.scale.set(6, 1.5, 1);
+            return sp;
+        }
+        class RecentWorlds {
+            constructor() {
+                this.districts = {
+                    cosmos:    { title: 'Cosmos',    color: 0x55aaff, hex: '#55aaff', pos: new THREE.Vector3(0, 0, -150), built: false, group: null, mixers: [] },
+                    celestia:  { title: 'Celestia',  color: 0xffe0a0, hex: '#ffe0a0', pos: new THREE.Vector3(150, 0, 0),  built: false, group: null, mixers: [] },
+                    arena:     { title: 'Arena',     color: 0xff6688, hex: '#ff6688', pos: new THREE.Vector3(0, 0, 150),  built: false, group: null, mixers: [] },
+                    menagerie: { title: 'Menagerie', color: 0x88ffaa, hex: '#88ffaa', pos: new THREE.Vector3(-150, 0, 0), built: false, group: null, mixers: [] },
+                };
+                this.order = ['cosmos', 'celestia', 'arena', 'menagerie'];
+                this.current = null;
+                this.portals = [];
+                this.portalMeshes = [];
+                this.hubRingR = 55;
+                this._buildHub();
+                this._buildPanel();
+            }
+            _makeGate(color, hex, title) {
+                const g = new THREE.Group();
+                const stone = new THREE.MeshStandardMaterial({ color: 0xccaa88, roughness: 0.4, metalness: 0.1, emissive: color, emissiveIntensity: 0.15 });
+                const h = 7;
+                const lp = new THREE.Mesh(new THREE.BoxGeometry(0.6, h, 0.6), stone); lp.position.set(-2.2, h / 2, 0);
+                const rp = new THREE.Mesh(new THREE.BoxGeometry(0.6, h, 0.6), stone); rp.position.set(2.2, h / 2, 0);
+                const arch = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.25, 16, 48, Math.PI), stone); arch.position.set(0, h, 0);
+                const ringMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(2.0, 0.12, 24, 80), ringMat);
+                ring.position.set(0, h / 2 + 0.4, 0);
+                const planeMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false });
+                const plane = new THREE.Mesh(new THREE.PlaneGeometry(3.4, h - 0.5), planeMat); plane.position.set(0, h / 2 + 0.4, 0);
+                const label = makeLabelSprite(title, hex); label.position.set(0, h + 1.4, 0);
+                g.add(lp, rp, arch, ring, plane, label);
+                [lp, rp, arch, ring, plane].forEach(m => { m.userData.districtGate = true; });
+                return { group: g, ring, plane };
+            }
+            _buildHub() {
+                this.order.forEach((key, i) => {
+                    const d = this.districts[key];
+                    const ang = (i / this.order.length) * Math.PI * 2 + Math.PI / 4;
+                    const { group, ring, plane } = this._makeGate(d.color, d.hex, d.title);
+                    group.position.set(Math.cos(ang) * this.hubRingR, 0, Math.sin(ang) * this.hubRingR);
+                    group.lookAt(0, group.position.y, 0);
+                    group.userData.gateKey = key;
+                    group.userData.ring = ring; group.userData.plane = plane;
+                    scene.add(group);
+                    this.portals.push(group);
+                    this.portalMeshes.push(ring, plane);
+                });
+            }
+            _buildPanel() {
+                const list = document.getElementById('worlds-list');
+                if (!list) return;
+                list.innerHTML = '';
+                const counts = {};
+                fetch('assets/assets.json').then(r => r.json()).then(data => {
+                    data.assets.forEach(a => { counts[a.district] = (counts[a.district] || 0) + 1; });
+                }).catch(() => {});
+                this.order.forEach(key => {
+                    const d = this.districts[key];
+                    const tile = document.createElement('button');
+                    tile.className = 'world-tile';
+                    tile.innerHTML = `<div class="wt-title"><span class="wt-dot" style="background:${d.hex}"></span>${d.title}</div><div class="wt-count" id="wtc-${key}">…</div>`;
+                    tile.addEventListener('click', () => this.enter(key));
+                    list.appendChild(tile);
+                });
+                setTimeout(() => {
+                    this.order.forEach(key => {
+                        const el = document.getElementById('wtc-' + key);
+                        if (el) el.textContent = (counts[key] || 0) + ' assets';
+                    });
+                }, 400);
+                const open = () => document.getElementById('worlds-overlay').classList.add('active');
+                const close = () => document.getElementById('worlds-overlay').classList.remove('active');
+                const wb = document.getElementById('worlds-btn');
+                const cb = document.getElementById('close-worlds-btn');
+                const bg = document.getElementById('worlds-bg');
+                const back = document.getElementById('back-hub-btn');
+                if (wb) wb.addEventListener('click', open);
+                if (cb) cb.addEventListener('click', close);
+                if (bg) bg.addEventListener('click', close);
+                if (back) back.addEventListener('click', () => this.backToHub());
+            }
+            getClickMeshes() { return this.portalMeshes; }
+            flyTo(pos, target, dur) {
+                dur = dur || 1300;
+                controls.enabled = false;
+                const sp = camera.position.clone(), st = controls.target.clone();
+                const t0 = performance.now();
+                const step = (now) => {
+                    const t = Math.min(1, (now - t0) / dur);
+                    const e = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+                    camera.position.lerpVectors(sp, pos, e);
+                    controls.target.lerpVectors(st, target, e);
+                    controls.update();
+                    if (t < 1) requestAnimationFrame(step);
+                    else controls.enabled = true;
+                };
+                requestAnimationFrame(step);
+            }
+            enter(key) {
+                if (!this.districts[key]) return;
+                const d = this.districts[key];
+                this.current = key;
+                const back = document.getElementById('back-hub-btn');
+                if (back) back.style.display = 'block';
+                const ov = document.getElementById('worlds-overlay');
+                if (ov) ov.classList.remove('active');
+                if (!d.built) this._loadDistrict(key);
+                const camPos = d.pos.clone().add(new THREE.Vector3(0, 14, 34));
+                this.flyTo(camPos, d.pos.clone().add(new THREE.Vector3(0, 4, 0)));
+            }
+            backToHub() {
+                this.current = null;
+                const back = document.getElementById('back-hub-btn');
+                if (back) back.style.display = 'none';
+                this.flyTo(new THREE.Vector3(12, 10, 18), new THREE.Vector3(0, 2, 0));
+            }
+            _loadDistrict(key) {
+                const d = this.districts[key];
+                d.built = true; d.group = new THREE.Group(); d.group.position.copy(d.pos); scene.add(d.group);
+                fetch('assets/assets.json').then(r => r.json()).then(data => {
+                    const items = data.assets.filter(a => a.district === key);
+                    const total = items.length;
+                    if (!total) return;
+                    loaderOverlay.classList.remove('hidden');
+                    loaderBar.style.width = '0%';
+                    window.__cplReady = false;
+                    loaderPct.textContent = 'summoning ' + d.title + '…';
+                    let done = 0;
+                    items.forEach((a, i) => {
+                        const loader = makeGLTF();
+                        loader.load(a.glb, (gltf) => {
+                            this._placeModel(gltf, d, i, total);
+                            done++; loaderBar.style.width = Math.round(done / total * 100) + '%';
+                            if (done === total) { setTimeout(() => loaderOverlay.classList.add('hidden'), 350); window.__cplReady = true; }
+                        }, undefined, (err) => {
+                            console.warn('[RecentWorlds] failed', a.file, err);
+                            done++; loaderBar.style.width = Math.round(done / total * 100) + '%';
+                            if (done === total) { loaderOverlay.classList.add('hidden'); window.__cplReady = true; }
+                        });
+                    });
+                }).catch(e => console.warn('[RecentWorlds] assets.json', e));
+            }
+            _placeModel(gltf, d, i, total) {
+                const obj = gltf.scene;
+                obj.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+                const box = new THREE.Box3().setFromObject(obj);
+                const size = new THREE.Vector3(); box.getSize(size);
+                const maxDim = Math.max(size.x, size.y, size.z) || 1;
+                const target = 9; const s = target / maxDim; obj.scale.setScalar(s);
+                const box2 = new THREE.Box3().setFromObject(obj);
+                const ctr = new THREE.Vector3(); box2.getCenter(ctr);
+                const ang = i * 2.39996; const rad = 6 + Math.sqrt(i) * 3.4;
+                obj.position.set(Math.cos(ang) * rad - ctr.x * s, -box2.min.y, Math.sin(ang) * rad - ctr.z * s);
+                obj.userData.spin = (Math.random() * 0.15 + 0.04) * (Math.random() < 0.5 ? -1 : 1);
+                if (gltf.animations && gltf.animations.length) {
+                    const m = new THREE.AnimationMixer(obj);
+                    gltf.animations.forEach(cl => m.clipAction(cl).play());
+                    d.mixers.push(m);
+                }
+                d.group.add(obj);
+            }
+            update(dt, time) {
+                for (const k of this.order) {
+                    const d = this.districts[k];
+                    if (!d.group) continue;
+                    d.group.children.forEach(o => { if (o.userData.spin) o.rotation.y += o.userData.spin * dt; });
+                    if (d.mixers.length) d.mixers.forEach(m => m.update(dt));
+                }
+                this.portals.forEach((p, i) => { p.position.y = Math.sin(time * 1.5 + i) * 0.15; });
+            }
+        }
+        try {
+            const recentWorlds = new RecentWorlds();
+            window.__recentWorlds = recentWorlds;
+        } catch (e) {
+            console.warn('[RecentWorlds] init failed:', e);
+        }
+
         function animate() {
             requestAnimationFrame(animate);
             const dt = Math.min(0.033, (performance.now() - lastTime) / 1000);
@@ -5571,6 +5801,9 @@
 
             // --- Thought stream (GSK inner life) ---
             if (window.__thoughtStream) window.__thoughtStream.update(dt);
+
+            // --- Recent Worlds (Vault) ---
+            if (window.__recentWorlds) window.__recentWorlds.update(dt, time);
             
             // --- rune pulse animation ---
             runes.forEach(rune => {
