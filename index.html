@@ -3493,6 +3493,53 @@
             console.warn('[RecentCityExtensions] init failed:', e);
         }
 
+        // ========== GROUND CITY KITS (deferred building GLBs brought back as real ground districts) ==========
+        // Pope "do both": keep the enhanced procedural skyline AND layer the real city-kit GLBs in as districts.
+        class GroundCityKits {
+            constructor() {
+                this.group = new THREE.Group();
+                this.group.name = 'Ground City Kits';
+                cityGroup.add(this.group);
+                // target = largest dimension in world units; pos on the ground outside the central library.
+                this.kits = [
+                    { file: 'bionic_architecture.glb', glb: 'assets/recent/cosmos/bionic_architecture.glb', target: 34, pos: [-64, 0, -60], rot: 0.5 },
+                    { file: 'futuristic_background_buildings_kit_volume_2.glb', glb: 'assets/recent/cosmos/futuristic_background_buildings_kit_volume_2.glb', target: 50, pos: [66, 0, 62], rot: -0.7 },
+                    { file: 'neighbourhood_city_modular_lowpoly.glb', glb: 'assets/recent/cosmos/neighbourhood_city_modular_lowpoly.glb', target: 60, pos: [-68, 0, 64], rot: 2.2 }
+                ];
+                this._load();
+            }
+            _normalize(gltf, targetSize) {
+                const model = gltf.scene;
+                model.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                const box = new THREE.Box3().setFromObject(model);
+                const size = box.getSize(new THREE.Vector3());
+                const center = box.getCenter(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z) || 1;
+                model.position.set(-center.x, -box.min.y, -center.z);
+                const wrap = new THREE.Group();
+                wrap.add(model);
+                wrap.scale.setScalar(targetSize / maxDim);
+                return wrap;
+            }
+            _load() {
+                this.kits.forEach(k => {
+                    makeGLTF({ lazy: true }).load(k.glb, (gltf) => {
+                        const wrap = this._normalize(gltf, k.target);
+                        wrap.position.set(k.pos[0], k.pos[1], k.pos[2]);
+                        wrap.rotation.y = k.rot;
+                        this.group.add(wrap);
+                        console.log('[GroundCityKits] placed', k.file);
+                    }, undefined, (err) => console.warn('[GroundCityKits] load failed:', k.file, err));
+                });
+            }
+        }
+
+        try {
+            window.__groundCityKits = new GroundCityKits();
+        } catch (e) {
+            console.warn('[GroundCityKits] init failed:', e);
+        }
+
         // ========== AVATAR SYSTEM ==========
         const avatars = [];
 
