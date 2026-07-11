@@ -5234,7 +5234,9 @@
 
             _wsUrl() {
                 if (window.GSK_WS_ENDPOINT) return window.GSK_WS_ENDPOINT;
+                // GSK thought stream runs on its own port (3002); REST/MCP API on 3001.
                 const base = (typeof gsk !== 'undefined' && gsk.baseUrl) ? gsk.baseUrl : 'http://localhost:3001';
+                if (base === 'http://localhost:3001') return 'ws://localhost:3002';
                 return base.replace(/^http/, 'ws');
             }
 
