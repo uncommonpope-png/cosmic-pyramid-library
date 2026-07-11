@@ -3183,6 +3183,9 @@
             constructor() {
                 this.mixers = [];
                 this.floaters = [];
+                this.spaceMovers = [];
+                this.spaceOrbiters = [];
+                this.spaceRoleCounts = { planet: 0, station: 0, ship: 0, figure: 0, curio: 0 };
                 this.spaceCity = new THREE.Group();
                 this.spaceCity.name = 'Recent Downloads Space City';
                 this.spaceCity.position.set(70, 0, -115);
@@ -3200,23 +3203,30 @@
             _buildSpaceFrame() {
                 const col = 0x55aaff;
                 const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.45, roughness: 0.35, metalness: 0.35, transparent: true, opacity: 0.78 });
-                const core = new THREE.Mesh(new THREE.CylinderGeometry(12, 14, 0.7, 64), mat);
+                const core = new THREE.Mesh(new THREE.CylinderGeometry(18, 20, 0.7, 64), mat);
                 core.position.y = 30;
                 this.spaceCity.add(core);
-                for (let i = 0; i < 3; i++) {
-                    const ring = new THREE.Mesh(new THREE.TorusGeometry(20 + i * 11, 0.25, 12, 96), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.42 - i * 0.08, blending: THREE.AdditiveBlending }));
+                for (let i = 0; i < 4; i++) {
+                    const ring = new THREE.Mesh(new THREE.TorusGeometry(42 + i * 28, 0.28, 12, 128), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.34 - i * 0.05, blending: THREE.AdditiveBlending }));
                     ring.rotation.x = Math.PI / 2;
-                    ring.position.y = 30 + i * 4;
+                    ring.position.y = 38 + i * 9;
                     this.spaceCity.add(ring);
                 }
+                const shipyardMat = new THREE.MeshStandardMaterial({ color: 0x0b1425, emissive: 0x184b88, emissiveIntensity: 0.35, roughness: 0.55, metalness: 0.35 });
+                const shipyard = new THREE.Mesh(new THREE.BoxGeometry(52, 1.1, 22), shipyardMat);
+                shipyard.position.set(-68, 32, -24);
+                this.spaceCity.add(shipyard);
+                const yardLight = new THREE.PointLight(0x66ccff, 2.5, 80, 2);
+                yardLight.position.set(-68, 48, -24);
+                this.spaceCity.add(yardLight);
                 for (let i = 0; i < 8; i++) {
                     const a = (i / 8) * Math.PI * 2;
-                    const dock = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 10), mat);
-                    dock.position.set(Math.cos(a) * 22, 30.4, Math.sin(a) * 22);
+                    const dock = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 18), mat);
+                    dock.position.set(Math.cos(a) * 44, 39.4, Math.sin(a) * 44);
                     dock.rotation.y = -a;
                     this.spaceCity.add(dock);
                 }
-                const light = new THREE.PointLight(col, 3.2, 95, 2);
+                const light = new THREE.PointLight(col, 4.5, 240, 2);
                 light.position.set(0, 44, 0);
                 this.spaceCity.add(light);
             }
@@ -3243,7 +3253,7 @@
                     const assets = data.assets || [];
                     const space = assets.filter(a =>
                         a.district === 'cosmos' &&
-                        !/planete_kaio|procedural_city_/i.test(a.file)
+                        !/planete_kaio|procedural_city_|bionic_architecture|futuristic_background_buildings_kit|neighbourhood_city_modular_lowpoly|3105b839/i.test(a.file)
                     );
                     const heavenAssets = assets.filter(a =>
                         a.district === 'celestia' ||
@@ -3275,11 +3285,19 @@
                     if (/planete_kaio/.test(f)) return 9;
                     return 4.8;
                 }
-                if (/procedural_city|neighbourhood|building|architecture|3105|bionic/.test(f)) return 18;
-                if (/station|facility|helveta|sentinel/.test(f)) return 15;
-                if (/ship|pod|cargo|missile/.test(f)) return 10;
-                if (/earth|planet/.test(f)) return 13;
-                if (/astronaut|space_suit|skull|cat/.test(f)) return 6.5;
+                if (/earth/.test(f)) return 180;
+                if (/planet_beta/.test(f)) return 120;
+                if (/sci-fi_space_station/.test(f)) return 105;
+                if (/asteroid_mining_facility/.test(f)) return 110;
+                if (/space_station_3|space_station_4/.test(f)) return 82;
+                if (/sentinel/.test(f)) return 80;
+                if (/helveta/.test(f)) return 70;
+                if (/stranded_cargo/.test(f)) return 62;
+                if (/personal_space_pod/.test(f)) return 30;
+                if (/missile/.test(f)) return 28;
+                if (/animated_floating_astronaut|franz_viehbocks|cat_astronaut|cats_space_suit|skull_in_astronaut/.test(f)) return 4.2;
+                if (/space_exploration/.test(f)) return 12;
+                if (/morphoser|circus/.test(f)) return 10;
                 return 8;
             }
 
@@ -3302,17 +3320,69 @@
                 return wrap;
             }
 
+            _spaceRole(file) {
+                const f = file.toLowerCase();
+                if (/earth|planet_beta/.test(f)) return 'planet';
+                if (/space_station|station_|facility|sentinel/.test(f)) return 'station';
+                if (/helveta|cargo|pod|missile/.test(f)) return 'ship';
+                if (/astronaut|space_suit|skull|cat/.test(f)) return 'figure';
+                return 'curio';
+            }
+
             _placeSpace(wrap, item, i) {
                 const f = item.file.toLowerCase();
-                const isCity = /procedural_city|neighbourhood|building|architecture|3105|bionic|morphoser|circus/.test(f);
-                const isPlanet = /earth|planet/.test(f);
-                const angle = i * 1.071 + (isCity ? 0.25 : 0.6);
-                const radius = isCity ? (14 + (i % 7) * 4.2) : (23 + (i % 9) * 5.5);
-                const y = isCity ? (28 + (i % 3) * 3.5) : isPlanet ? (48 + (i % 5) * 7) : (36 + (i % 6) * 6);
-                wrap.position.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
-                wrap.rotation.y = -angle + Math.PI / 2;
+                const role = this._spaceRole(item.file);
+                const n = this.spaceRoleCounts[role]++;
                 this.spaceCity.add(wrap);
-                this.floaters.push({ obj: wrap, baseY: y, phase: i * 0.7, bob: isCity ? 0.6 : 1.8, spin: isPlanet ? 0.0025 : (/station|ship|sentinel|pod|cargo/.test(f) ? 0.0012 : 0.0007) });
+
+                if (role === 'planet') {
+                    const radius = 190 + n * 95;
+                    const angle = n * Math.PI * 0.92 + 0.45;
+                    const y = 150 + n * 38;
+                    wrap.position.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius - 80);
+                    this.spaceOrbiters.push({ role, obj: wrap, radius, y, zBias: -80, phase: angle, speed: 0.006 + n * 0.002, bob: 6, spin: 0.0012 });
+                    return;
+                }
+
+                if (role === 'station') {
+                    const radius = 82 + n * 18;
+                    const angle = n * Math.PI * 0.62 + 0.2;
+                    const y = 72 + (n % 3) * 16;
+                    wrap.position.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+                    wrap.rotation.y = -angle + Math.PI / 2;
+                    this.spaceOrbiters.push({ role, obj: wrap, radius, y, zBias: 0, phase: angle, speed: 0.012 + n * 0.0015, bob: 2.4, spin: 0.00055 });
+                    return;
+                }
+
+                if (role === 'ship') {
+                    const isPod = /pod/.test(f);
+                    const isCargo = /cargo/.test(f);
+                    const isMissile = /missile/.test(f);
+                    const center = isCargo ? new THREE.Vector3(4, 0, -12) : isPod ? new THREE.Vector3(-28, 0, 16) : isMissile ? new THREE.Vector3(18, 0, -52) : new THREE.Vector3(-18, 0, 4);
+                    const rx = isCargo ? 132 : isPod ? 46 : isMissile ? 76 : 98;
+                    const rz = isCargo ? 66 : isPod ? 24 : isMissile ? 34 : 54;
+                    const y = isCargo ? 62 : isPod ? 48 : isMissile ? 52 : 58;
+                    this.spaceMovers.push({ role, obj: wrap, center, rx, rz, y, phase: n * 1.7 + 0.4, speed: isPod ? 0.42 : isMissile ? 0.32 : isCargo ? 0.08 : 0.12, bob: isPod ? 2 : 4 });
+                    return;
+                }
+
+                if (role === 'figure') {
+                    const spots = [
+                        [-88, 33, -31], [-76, 33, -15], [-62, 33, -35], [-52, 33, -18], [-92, 33, -18], [-42, 33, -28]
+                    ];
+                    const spot = spots[n % spots.length];
+                    wrap.position.set(spot[0], spot[1], spot[2]);
+                    wrap.rotation.y = (n % 2 ? -0.7 : 0.8);
+                    this.floaters.push({ role, obj: wrap, baseY: spot[1], phase: i * 0.7, bob: 0.08, spin: 0 });
+                    return;
+                }
+
+                const angle = n * Math.PI * 0.9 + 1.1;
+                const radius = 130 + n * 32;
+                const y = 92 + n * 10;
+                wrap.position.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius - 60);
+                wrap.rotation.y = -angle + Math.PI / 2;
+                this.floaters.push({ role, obj: wrap, baseY: y, phase: i * 0.7, bob: 1.5, spin: 0.0008 });
             }
 
             _placeHeaven(wrap, item, i) {
@@ -3339,6 +3409,25 @@
 
             update(dt, time) {
                 this.mixers.forEach(m => m.update(dt));
+                for (const o of this.spaceOrbiters) {
+                    const a = o.phase + time * o.speed;
+                    o.obj.position.x = Math.cos(a) * o.radius;
+                    o.obj.position.z = Math.sin(a) * o.radius + o.zBias;
+                    o.obj.position.y = o.y + Math.sin(time * 0.22 + o.phase) * o.bob;
+                    o.obj.rotation.y += o.spin * (dt * 60);
+                    o.obj.rotation.x += o.spin * 0.35 * (dt * 60);
+                }
+                for (const m of this.spaceMovers) {
+                    const a = m.phase + time * m.speed;
+                    const na = a + 0.035;
+                    const x = m.center.x + Math.cos(a) * m.rx;
+                    const z = m.center.z + Math.sin(a) * m.rz;
+                    const y = m.y + Math.sin(time * 0.7 + m.phase) * m.bob;
+                    const nx = m.center.x + Math.cos(na) * m.rx;
+                    const nz = m.center.z + Math.sin(na) * m.rz;
+                    m.obj.position.set(x, y, z);
+                    m.obj.lookAt(nx, y, nz);
+                }
                 for (const f of this.floaters) {
                     f.obj.position.y = f.baseY + Math.sin(time * 0.55 + f.phase) * f.bob;
                     f.obj.rotation.y += f.spin * (dt * 60);

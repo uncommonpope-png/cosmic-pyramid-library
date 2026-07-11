@@ -29,6 +29,8 @@
       "title": "3105b839e14d4591b53ef77dfd30bc49",
       "sizeMB": 13.3,
       "glb": "assets/recent/cosmos/3105b839e14d4591b53ef77dfd30bc49.glb",
+      "placement": "deferred",
+      "notes": "Removed from live Space City placement by Pope request; residential building does not belong in sky city.",
       "license": "open source — not for resale"
     },
     {
@@ -49,6 +51,8 @@
       "title": "bionic architecture",
       "sizeMB": 6,
       "glb": "assets/recent/cosmos/bionic_architecture.glb",
+      "placement": "deferred",
+      "notes": "Removed from live Space City placement by Pope request; architecture GLB does not belong in sky city.",
       "license": "open source — not for resale"
     },
     {
@@ -109,6 +113,8 @@
       "title": "futuristic background buildings kit volume 2",
       "sizeMB": 22.2,
       "glb": "assets/recent/cosmos/futuristic_background_buildings_kit_volume_2.glb",
+      "placement": "deferred",
+      "notes": "Removed from live Space City placement by Pope request; building kit should not float in sky city.",
       "license": "open source — not for resale"
     },
     {
@@ -149,6 +155,8 @@
       "title": "neighbourhood city modular lowpoly",
       "sizeMB": 25.9,
       "glb": "assets/recent/cosmos/neighbourhood_city_modular_lowpoly.glb",
+      "placement": "deferred",
+      "notes": "Removed from live Space City placement by Pope request; modular city belongs on ground if used later.",
       "license": "open source — not for resale"
     },
     {
