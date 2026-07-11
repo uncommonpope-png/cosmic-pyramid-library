@@ -179,6 +179,8 @@
       "title": "procedural city 5",
       "sizeMB": 32.4,
       "glb": "assets/recent/cosmos/procedural_city_5.glb",
+      "placement": "deferred",
+      "notes": "Removed from live Space City sky placement; looked bad as a floating procedural city GLB.",
       "license": "open source — not for resale"
     },
     {
@@ -189,6 +191,8 @@
       "title": "procedural city 6",
       "sizeMB": 34.3,
       "glb": "assets/recent/cosmos/procedural_city_6.glb",
+      "placement": "deferred",
+      "notes": "Removed from live Space City sky placement; looked bad as a floating procedural city GLB.",
       "license": "open source — not for resale"
     },
     {

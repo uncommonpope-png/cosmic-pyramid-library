@@ -3241,7 +3241,10 @@
             _load() {
                 fetch('assets/assets.json').then(r => r.json()).then(data => {
                     const assets = data.assets || [];
-                    const space = assets.filter(a => a.district === 'cosmos' && !/planete_kaio/i.test(a.file));
+                    const space = assets.filter(a =>
+                        a.district === 'cosmos' &&
+                        !/planete_kaio|procedural_city_/i.test(a.file)
+                    );
                     const heavenAssets = assets.filter(a =>
                         a.district === 'celestia' ||
                         /dragon_ball_z|kid_buu|majin_buu|grand_supreme_kai|planete_kaio/i.test(a.file)
