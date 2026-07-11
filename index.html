@@ -2035,6 +2035,7 @@
 
         // ChatGPT image billboards: local images copied into assets/billboards.
         // Uses stable planes + TextureLoader; failures leave the neon billboard frame visible.
+        const BILLBOARD_ASSET_VERSION = '329f1b2';
         const billboardImages = [
             'assets/billboards/billboard-01.jpg', 'assets/billboards/billboard-02.jpg',
             'assets/billboards/billboard-03.jpg', 'assets/billboards/billboard-04.jpg',
@@ -2105,7 +2106,8 @@
             glow.position.set(0, y, 1.2);
             group.add(glow);
 
-            new THREE.TextureLoader(loadingManager).load(imageUrl, (tex) => {
+            const billboardTextureUrl = `${imageUrl}?v=${BILLBOARD_ASSET_VERSION}`;
+            new THREE.TextureLoader(loadingManager).load(billboardTextureUrl, (tex) => {
                 tex.encoding = THREE.sRGBEncoding;
                 tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
                 imageMat.map = tex;
@@ -2114,7 +2116,7 @@
                 imageMat.emissiveIntensity = 0.16;
                 imageMat.needsUpdate = true;
             }, undefined, (err) => {
-                console.warn('[Billboard] image failed:', imageUrl, err);
+                console.warn('[Billboard] image failed:', billboardTextureUrl, err);
             });
             return group;
         }
