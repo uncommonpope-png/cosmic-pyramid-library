@@ -3899,6 +3899,7 @@
             const targets = [...books, ..._soulMeshes, ...avatars, ...npcTalkTargets, ...heavenGateTargets];
             if (!isInside) targets.push(portalPlane);
             if (avatar && !isInside) targets.push(avatar);
+            if (window.__gskAvatar && window.__gskAvatar.clickMesh) targets.push(window.__gskAvatar.clickMesh);
             return targets;
         }
         
@@ -3950,6 +3951,12 @@
             }
             if (mouseDownTarget.userData && mouseDownTarget.userData.heavenGate) {
                 teleportPlayerToHeaven();
+                return;
+            }
+
+            // GSK visible body — click opens the GSK thought panel
+            if (mouseDownTarget.userData && mouseDownTarget.userData.gskAvatar) {
+                if (window.__gskAvatar) window.__gskAvatar.onClick();
                 return;
             }
             
@@ -4612,6 +4619,90 @@
         };
         gsk.pollTimer = setInterval(pollGsk, 10000);
 
+        // ========== GAP 1: GSK VISIBLE BODY (soul gun: gsk-visible-body) ==========
+        // A floating geometric "consciousness core" above the pyramid. Reads GSK chamber
+        // state via gskBridge: color = mood, motion energy = phase, scale/glow = resonance.
+        // Click → opens the GSK thought panel. (Per DOUR-DIRECTIVE-003 Gap 1.)
+        const GSK_MOOD_COLOR = {
+            neutral:   0x88ffff,
+            ascendant: 0xffcc66,
+            creative:  0x66ff99,
+            anxious:   0xff5566,
+            void:      0x6688ff,
+            focused:   0x99aaff
+        };
+        class GSKAvatar {
+            constructor() {
+                this.group = new THREE.Group();
+                this.group.position.set(0, 5.2, 0); // floats above the pyramid capstone
+                this.coreMat = new THREE.MeshStandardMaterial({ color: 0x88ffff, emissive: 0x66ffff, emissiveIntensity: 1.2, roughness: 0.3, metalness: 0.1 });
+                this.core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.9, 1), this.coreMat);
+                this.ringMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x88ddff, emissiveIntensity: 0.9, transparent: true, opacity: 0.8 });
+                this.ring1 = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.05, 12, 64), this.ringMat);
+                this.ring1.rotation.x = Math.PI / 2;
+                this.ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.04, 12, 64), this.ringMat);
+                this.ring2.rotation.x = Math.PI / 2.6;
+                this.light = new THREE.PointLight(0x88ffff, 2, 30, 2);
+                this.core.userData.gskAvatar = true;
+                this.clickMesh = this.core;
+                this.group.add(this.core, this.ring1, this.ring2, this.light);
+                scene.add(this.group);
+                this.baseY = this.group.position.y;
+                this.targetColor = new THREE.Color(0x88ffff);
+            }
+            _feedMood() {
+                if (!gskBridge) return;
+                const mood = gskBridge.currentMood || 'neutral';
+                this.targetColor.setHex(GSK_MOOD_COLOR[mood] || GSK_MOOD_COLOR.neutral);
+                this.light.color.copy(this.targetColor);
+            }
+            update(dt, time) {
+                if (!gskBridge) {
+                    this.group.position.y = this.baseY + Math.sin(time * 0.8) * 0.3;
+                    this.core.rotation.y += 0.005;
+                    return;
+                }
+                this._feedMood();
+                this.coreMat.color.lerp(this.targetColor, 0.04);
+                this.coreMat.emissive.lerp(this.targetColor, 0.04);
+                this.ringMat.emissive.lerp(this.targetColor, 0.04);
+
+                const res = (gskBridge.plt.profit + gskBridge.plt.love + (1 - gskBridge.plt.tax)) / 3; // 0..1
+                const phase = gskBridge.currentPhase || 'VOID';
+                let bobAmp = 0.3, spin = 0.3, active = false;
+                if (phase === 'AWAKENING') { bobAmp = 0.6; spin = 0.5; }
+                else if (phase === 'ALCHEMY') { bobAmp = 1.0; spin = 0.9; }
+                else if (phase === 'TRANSCENDENCE') { bobAmp = 1.4; spin = 1.4; active = true; }
+
+                this.group.position.y = this.baseY + Math.sin(time * 0.8) * bobAmp;
+                this.core.rotation.y += dt * spin;
+                this.core.rotation.x += dt * spin * 0.4;
+                this.ring1.rotation.z += dt * spin * 1.2;
+                this.ring2.rotation.y += dt * spin * 0.8;
+
+                const pulse = 0.9 + Math.sin(time * (active ? 2.5 : 1.2)) * 0.3;
+                const scale = 0.8 + res * 0.7;
+                this.coreMat.emissiveIntensity = (0.8 + res * 0.8) * pulse * scale;
+                this.light.intensity = 1.5 + res * 2 * pulse;
+                this.group.scale.setScalar(scale);
+
+                // ACTIVE → face the viewer (the GSK panel direction), kept upright
+                if (active && camera) {
+                    this.group.rotation.y = Math.atan2(camera.position.x - this.group.position.x, camera.position.z - this.group.position.z);
+                }
+            }
+            onClick() {
+                if (typeof showGskThoughtModal === 'function') showGskThoughtModal();
+                else if (gskThoughtOverlay) gskThoughtOverlay.classList.add('active');
+            }
+        }
+        try {
+            const gskAvatar = new GSKAvatar();
+            window.__gskAvatar = gskAvatar;
+        } catch (e) {
+            console.warn('[GSKAvatar] init failed:', e);
+        }
+
         // Wire task dispatch through GSK
         const origAssignTask = assignTask;
         assignTask = function(avatar, task) {
@@ -4876,6 +4967,9 @@
             
             // --- GSK city bridge ---
             gskBridge.update(dt);
+
+            // --- GSK visible body (Gap 1) ---
+            if (window.__gskAvatar) window.__gskAvatar.update(dt, time);
             
             // --- rune pulse animation ---
             runes.forEach(rune => {
