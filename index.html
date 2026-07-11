@@ -639,7 +639,7 @@
                 var t = document.getElementById('loader-title');
                 if (t) t.textContent = 'CPL — NEEDS ATTENTION';
             }
-        }, 6000);
+        }, 13000);
     </script>
 
     <script type="importmap">
@@ -669,11 +669,17 @@
         // All GLBs are pre-compressed with gltfpack -cc (EXT_meshopt_compression).
         // MeshoptDecoder decodes them (~1 GB/s Wasm SIMD). Shared LoadingManager
         // drives the progress overlay so the world never shows a black screen.
+        // CRITICAL manager drives the loading overlay and hides it once the world is
+        // presentable. LAZY manager streams non-essential decorative props silently AFTER
+        // the city is already shown. (Soul Gun: critical-path loading — fixes 4.5s blank city.)
+        const criticalManager = new THREE.LoadingManager();
         const loadingManager = new THREE.LoadingManager();
         function makeGLTF(options = {}) {
-            const l = new GLTFLoader(loadingManager);
+            const lazy = !!options.lazy;
+            const mgr = lazy ? loadingManager : criticalManager;
+            const l = new GLTFLoader(mgr);
             l.setMeshoptDecoder(MeshoptDecoder);
-            if (options.lazy !== false) {
+            if (lazy) {
                 const directLoad = l.load.bind(l);
                 l.load = (url, onLoad, onProgress, onError) => {
                     enqueueLazyAsset(url.split('/').pop(), () => directLoad(url, onLoad, onProgress, onError));
@@ -683,12 +689,12 @@
             return l;
         }
 
-        // Progress overlay (byte-accurate across all managed loads)
+        // Progress overlay — driven ONLY by the critical manager so decorative streaming
+        // never re-shows or re-hides the overlay (black-screen protocol).
         const loaderOverlay = document.getElementById('loader-overlay');
         const loaderBar = document.getElementById('loader-bar');
         const loaderPct = document.getElementById('loader-pct');
         const _bytes = {};
-        let _loadedItems = 0;
         function _refreshProgress() {
             let L = 0, T = 0;
             for (const k in _bytes) { L += _bytes[k].loaded; T += _bytes[k].total || _bytes[k].loaded; }
@@ -697,11 +703,12 @@
             loaderPct.textContent = Math.round(pct) + '% loaded';
         }
         function hideLoader() { loaderOverlay.classList.add('hidden'); }
-        loadingManager.onStart = () => { if (!window.__cplReady) loaderOverlay.classList.remove('hidden'); };
-        loadingManager.onProgress = (url, loaded, total) => { _bytes[url] = { loaded, total }; _refreshProgress(); };
-        loadingManager.onLoad = () => { _refreshProgress(); hideLoader(); };
-        loadingManager.onError = (url) => { console.warn('[Loader] error:', url); };
-        // Safety: never trap the user behind the overlay
+        criticalManager.onStart = () => { if (!window.__cplReady) loaderOverlay.classList.remove('hidden'); };
+        criticalManager.onProgress = (url, loaded, total) => { _bytes[url] = { loaded, total }; _refreshProgress(); };
+        criticalManager.onLoad = () => { _refreshProgress(); loaderPct.textContent = 'entering the library…'; hideLoader(); window.__cplReady = true; };
+        criticalManager.onError = (url) => { console.warn('[Loader] error:', url); };
+        loadingManager.onError = (url) => { console.warn('[LazyAssets] error:', url); };
+        // Safety: never trap the user behind the overlay (backstop if critical never resolves)
         setTimeout(hideLoader, 12000);
 
         // Service Worker: cache-first for assets (repeat visits load instantly)
@@ -2171,7 +2178,7 @@
             group.add(glow);
 
             const billboardTextureUrl = `${imageUrl}?v=${BILLBOARD_ASSET_VERSION}`;
-            new THREE.TextureLoader(loadingManager).load(billboardTextureUrl, (tex) => {
+            new THREE.TextureLoader(criticalManager).load(billboardTextureUrl, (tex) => {
                 tex.encoding = THREE.sRGBEncoding;
                 tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
                 imageMat.map = tex;
@@ -2461,7 +2468,7 @@
             return new THREE.Vector3((Math.random() - 0.5) * 40, 0, (Math.random() - 0.5) * 40);
         }
         function dropProp(url, targetFoot, color) {
-            makeGLTF().load(url, (gltf) => {
+            makeGLTF({ lazy: true }).load(url, (gltf) => {
                 const model = gltf.scene;
                 const box = new THREE.Box3().setFromObject(model);
                 const size = box.getSize(new THREE.Vector3());
@@ -4795,9 +4802,6 @@
             updatePlayerNPC(dt);
             if (cameraMode === 'orbit') controls.update();
             effectComposer.render();
-            // Hide the loading overlay as soon as the first frame is on screen —
-            // decoupled from GLB load completion so a slow/hanging asset can never trap the user.
-            if (!window.__cplReady) { window.__cplReady = true; hideLoader(); }
         }
         animate();
         
