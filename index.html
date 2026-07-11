@@ -666,7 +666,7 @@
             loaderPct.textContent = Math.round(pct) + '% loaded';
         }
         function hideLoader() { loaderOverlay.classList.add('hidden'); }
-        loadingManager.onStart = () => { loaderOverlay.classList.remove('hidden'); };
+        loadingManager.onStart = () => { if (!window.__cplReady) loaderOverlay.classList.remove('hidden'); };
         loadingManager.onProgress = (url, loaded, total) => { _bytes[url] = { loaded, total }; _refreshProgress(); };
         loadingManager.onLoad = () => { _refreshProgress(); hideLoader(); };
         loadingManager.onError = (url) => { console.warn('[Loader] error:', url); };
@@ -2032,7 +2032,98 @@
         makeDistrict(78, -72, 'Crystal Bazaar', [0.1, 0.8, 1.0], 'crystal');
         makeDistrict(-78, 72, 'Garden Dome', [0.2, 1.0, 0.45], 'dome');
         makeDistrict(78, 72, 'Pink Matrix Quarter', [1.0, 0.08, 0.7], 'crystal');
-        
+
+        // ChatGPT image billboards: local images copied into assets/billboards.
+        // Uses stable planes + TextureLoader; failures leave the neon billboard frame visible.
+        const billboardImages = [
+            'assets/billboards/billboard-01.jpg', 'assets/billboards/billboard-02.jpg',
+            'assets/billboards/billboard-03.jpg', 'assets/billboards/billboard-04.jpg',
+            'assets/billboards/billboard-05.jpg', 'assets/billboards/billboard-06.jpg',
+            'assets/billboards/billboard-07.jpg', 'assets/billboards/billboard-08.jpg',
+            'assets/billboards/billboard-09.jpg', 'assets/billboards/billboard-10.jpg',
+            'assets/billboards/billboard-11.jpg', 'assets/billboards/billboard-12.jpg',
+            'assets/billboards/billboard-13.jpg'
+        ];
+        const billboardSpots = [
+            { x: -28, z: -43, rot: 0, accent: 0xff33aa },
+            { x: 28, z: -43, rot: 0, accent: 0x44ddff },
+            { x: -43, z: -10, rot: Math.PI / 2, accent: 0xffcc44 },
+            { x: 43, z: 10, rot: -Math.PI / 2, accent: 0x66ffcc },
+            { x: -28, z: 43, rot: Math.PI, accent: 0xbb66ff },
+            { x: 28, z: 43, rot: Math.PI, accent: 0xff6644 },
+            { x: -72, z: -52, rot: Math.PI * 0.2, accent: 0xff8844 },
+            { x: 72, z: -52, rot: -Math.PI * 0.2, accent: 0x33ccff },
+            { x: -72, z: 52, rot: Math.PI * 0.8, accent: 0x66ff99 },
+            { x: 72, z: 52, rot: -Math.PI * 0.8, accent: 0xff33cc },
+            { x: 0, z: -58, rot: 0, accent: 0xffffff },
+            { x: -58, z: 0, rot: Math.PI / 2, accent: 0x88aaff },
+            { x: 58, z: 0, rot: -Math.PI / 2, accent: 0xff88aa }
+        ];
+
+        function makeImageBillboard(spot, imageUrl, idx) {
+            const w = spot.w || 5.8;
+            const h = spot.h || 5.8;
+            const y = spot.y || 5.4;
+            const group = new THREE.Group();
+            group.position.set(spot.x, 0, spot.z);
+            group.rotation.y = spot.rot || 0;
+            group.userData.billboard = imageUrl;
+            cityGroup.add(group);
+
+            const accent = spot.accent || 0xff33aa;
+            const neonMat = new THREE.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.85 });
+            const darkMat = new THREE.MeshStandardMaterial({ color: 0x03040a, emissive: 0x010205, roughness: 0.75, metalness: 0.25 });
+            const imageMat = new THREE.MeshStandardMaterial({ color: 0x101018, emissive: 0x040408, roughness: 0.45, metalness: 0.05, side: THREE.DoubleSide });
+
+            const back = new THREE.Mesh(new THREE.BoxGeometry(w + 0.35, h + 0.35, 0.18), darkMat);
+            back.position.set(0, y, -0.08);
+            group.add(back);
+
+            const plane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), imageMat);
+            plane.position.set(0, y, 0.04);
+            group.add(plane);
+
+            const top = new THREE.Mesh(new THREE.BoxGeometry(w + 0.55, 0.12, 0.22), neonMat);
+            const bot = top.clone();
+            top.position.set(0, y + h / 2 + 0.16, 0.1);
+            bot.position.set(0, y - h / 2 - 0.16, 0.1);
+            const left = new THREE.Mesh(new THREE.BoxGeometry(0.12, h + 0.55, 0.22), neonMat);
+            const right = left.clone();
+            left.position.set(-w / 2 - 0.16, y, 0.1);
+            right.position.set(w / 2 + 0.16, y, 0.1);
+            group.add(top, bot, left, right);
+
+            const postGeo = new THREE.CylinderGeometry(0.07, 0.09, y - h / 2 + 0.1, 8);
+            const postL = new THREE.Mesh(postGeo, darkMat);
+            const postR = postL.clone();
+            const postY = (y - h / 2 + 0.1) / 2;
+            postL.position.set(-w * 0.35, postY, -0.08);
+            postR.position.set(w * 0.35, postY, -0.08);
+            group.add(postL, postR);
+
+            const glow = new THREE.PointLight(accent, 0.6, 18, 2);
+            glow.position.set(0, y, 1.2);
+            group.add(glow);
+
+            new THREE.TextureLoader(loadingManager).load(imageUrl, (tex) => {
+                tex.encoding = THREE.sRGBEncoding;
+                tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+                imageMat.map = tex;
+                imageMat.emissiveMap = tex;
+                imageMat.emissive = new THREE.Color(0xffffff);
+                imageMat.emissiveIntensity = 0.16;
+                imageMat.needsUpdate = true;
+            }, undefined, (err) => {
+                console.warn('[Billboard] image failed:', imageUrl, err);
+            });
+            return group;
+        }
+
+        function buildImageBillboards() {
+            billboardSpots.forEach((spot, i) => makeImageBillboard(spot, billboardImages[i % billboardImages.length], i));
+        }
+        setTimeout(buildImageBillboards, 450);
+
         // Pyramid districts
         const pyramidSpots = [[-42, -38], [43, -35], [-46, 37], [45, 40]];
         pyramidSpots.forEach((spot, i) => {
