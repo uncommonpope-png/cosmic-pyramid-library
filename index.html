@@ -441,6 +441,30 @@
             letter-spacing: 1px; transition: all 0.2s;
         }
         .gsk-send-btn:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,215,0,0.5); }
+
+        /* --- memory building overlay --- */
+        #memory-overlay { position: absolute; inset: 0; display: none; z-index: 56; pointer-events: none; }
+        #memory-overlay.active { display: block; pointer-events: auto; }
+        #memory-bg { position: absolute; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
+        #memory-card {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            background: rgba(15,8,25,0.96); border: 1px solid #88dddd;
+            border-radius: 20px; padding: 32px 40px; max-width: 480px; width: 90%;
+            box-shadow: 0 0 80px rgba(100,255,255,0.25); pointer-events: auto;
+        }
+        #memory-card h2 { color: #88ffff; font-size: 22px; letter-spacing: 2px; margin-bottom: 10px; }
+        .memory-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+        .memory-tags span {
+            background: rgba(100,255,255,0.12); color: #aef;
+            border: 1px solid rgba(100,255,255,0.3); border-radius: 12px;
+            padding: 2px 10px; font-size: 11px;
+        }
+        .memory-weight { color: #ffcc77; font-size: 12px; margin-bottom: 14px; font-style: italic; }
+        #memory-summary { color: #e6f0ff; font-size: 15px; line-height: 1.5; }
+        .close-memory {
+            margin-top: 20px; background: rgba(5,8,18,0.82); color: #bff;
+            border: 1px solid #66ffff; border-radius: 18px; padding: 8px 16px; cursor: pointer;
+        }
         .gsk-send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
         .close-gsk-thought {
             display: block; margin: 10px auto 0;
@@ -583,6 +607,10 @@
             <span class="gsk-label">PLT</span>
             <span class="gsk-value" id="gsk-plt">--</span>
         </div>
+        <div class="gsk-row">
+            <span class="gsk-label">Memories</span>
+            <span class="gsk-value" id="gsk-memory-count">--</span>
+        </div>
         <input class="gsk-api-key" id="gsk-api-key" type="password" placeholder="API Key (optional)">
         <button class="gsk-thought-btn" id="gsk-thought-btn">SEND THOUGHT &#9650;</button>
         <div class="gsk-response" id="gsk-response" style="display:none"></div>
@@ -598,6 +626,18 @@
             <button class="gsk-send-btn" id="gsk-thought-send-btn">SEND</button>
             <button class="close-gsk-thought" id="close-gsk-thought-btn">CANCEL</button>
             <div class="gsk-response" id="gsk-thought-result" style="margin-top:12px;display:none"></div>
+        </div>
+    </div>
+
+    <!-- Memory Building Overlay (Gap 2: Memories as Buildings) -->
+    <div id="memory-overlay">
+        <div id="memory-bg"></div>
+        <div id="memory-card">
+            <h2 id="memory-type">MEMORY</h2>
+            <div class="memory-tags" id="memory-tags"></div>
+            <div class="memory-weight" id="memory-weight"></div>
+            <p id="memory-summary"></p>
+            <button class="close-memory" id="close-memory-btn">CLOSE</button>
         </div>
     </div>
 
@@ -3900,6 +3940,7 @@
             if (!isInside) targets.push(portalPlane);
             if (avatar && !isInside) targets.push(avatar);
             if (window.__gskAvatar && window.__gskAvatar.clickMesh) targets.push(window.__gskAvatar.clickMesh);
+            if (window.__memoryBuildings) targets.push(...window.__memoryBuildings.getClickMeshes());
             return targets;
         }
         
@@ -3957,6 +3998,12 @@
             // GSK visible body — click opens the GSK thought panel
             if (mouseDownTarget.userData && mouseDownTarget.userData.gskAvatar) {
                 if (window.__gskAvatar) window.__gskAvatar.onClick();
+                return;
+            }
+
+            // Memory building — click opens the memory detail overlay (Gap 2)
+            if (mouseDownTarget.userData && mouseDownTarget.userData.gskMemory) {
+                if (typeof showMemoryModal === 'function') showMemoryModal(mouseDownTarget.userData.gskMemory);
                 return;
             }
             
@@ -4201,7 +4248,7 @@
         
         // ========== GSK MCP CLIENT ==========
         class GSKClient {
-            constructor(baseUrl = 'http://localhost:3001', apiKey = '') {
+            constructor(baseUrl = 'http://localhost:3001', apiKey = 'gsk-mcp-key-dev') {
                 this.baseUrl = baseUrl;
                 this._apiKey = apiKey;
                 this.connected = false;
@@ -4254,6 +4301,11 @@
 
             async chambersStatus() {
                 return this.execute('chambers.status', {});
+            }
+
+            // Gap 2: Memories as Buildings — pull the GSK memory graph as 3D structures
+            async memories() {
+                return this._fetch('/mcp/memories');
             }
 
             destroy() {
@@ -4343,6 +4395,32 @@
         function hideGskThoughtModal() {
             gskThoughtOverlay.classList.remove('active');
         }
+
+        // Gap 2: memory building click → detail overlay
+        const memoryOverlay = document.getElementById('memory-overlay');
+        const memoryTypeEl = document.getElementById('memory-type');
+        const memoryTagsEl = document.getElementById('memory-tags');
+        const memoryWeightEl = document.getElementById('memory-weight');
+        const memorySummaryEl = document.getElementById('memory-summary');
+        function showMemoryModal(m) {
+            const w = typeof m.weight === 'number' ? m.weight : 0;
+            memoryTypeEl.textContent = (m.type || 'memory').toUpperCase();
+            memoryTagsEl.innerHTML = '';
+            (m.tags || []).forEach(t => {
+                const s = document.createElement('span');
+                s.textContent = '#' + t;
+                memoryTagsEl.appendChild(s);
+            });
+            memoryWeightEl.textContent = 'resonance ' + (w * 100).toFixed(0) + '%' + (w >= 0.8 ? ' — MONUMENT' : '');
+            memorySummaryEl.textContent = m.summary || '(no summary recorded)';
+            memoryOverlay.classList.add('active');
+        }
+        function hideMemoryModal() { memoryOverlay.classList.remove('active'); }
+        document.getElementById('close-memory-btn').addEventListener('click', hideMemoryModal);
+        document.getElementById('memory-bg').addEventListener('click', hideMemoryModal);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && memoryOverlay.classList.contains('active')) hideMemoryModal();
+        });
 
         async function handleGskThought() {
             const msg = gskThoughtInput.value.trim();
@@ -4703,6 +4781,162 @@
             console.warn('[GSKAvatar] init failed:', e);
         }
 
+        // ========== MEMORY BUILDINGS (Gap 2: Memories as Buildings) ==========
+        // GSK /mcp/memories → { memories:[{id,type,weight,tags,summary}], count }
+        // Each memory becomes a structure ringing the cathedral: type→shape,
+        // weight→height, tags→color, weight>=0.8 = glowing MONUMENT. Click → detail.
+        class MemoryBuildings {
+            constructor() {
+                this.group = new THREE.Group();
+                scene.add(this.group);
+                this.items = new Map(); // id -> { group, memory, targetScale }
+                this.pollTimer = null;
+                this.districtRadius = 52;
+                this.memoryCountEl = document.getElementById('gsk-memory-count');
+            }
+
+            _colorForTags(tags) {
+                const t = (tags && tags.length) ? tags.join(',') : 'memory';
+                let h = 0;
+                for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) % 360;
+                return new THREE.Color().setHSL(h / 360, 0.7, 0.55);
+            }
+
+            _shapeForType(type, color, weight) {
+                const isMonument = weight >= 0.8;
+                const mat = new THREE.MeshStandardMaterial({
+                    color, emissive: color,
+                    emissiveIntensity: isMonument ? 0.9 : 0.35,
+                    roughness: 0.4, metalness: 0.2
+                });
+                const ht = 2 + weight * 12;
+                const grp = new THREE.Group();
+                const t = (type || '').toLowerCase();
+                let body;
+                if (t.includes('decision')) {
+                    body = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.1, ht, 6), mat);
+                    const cap = new THREE.Mesh(new THREE.ConeGeometry(1.1, ht * 0.4, 6), mat);
+                    cap.position.y = ht / 2 + ht * 0.2;
+                    grp.add(body, cap);
+                } else if (t.includes('event')) {
+                    body = new THREE.Mesh(new THREE.SphereGeometry(1.4, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat);
+                    body.scale.y = ht / 2.8;
+                    grp.add(body);
+                } else if (t.includes('relationship')) {
+                    const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, ht, 8), mat);
+                    const p2 = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, ht, 8), mat);
+                    p1.position.x = -0.6; p2.position.x = 0.6;
+                    grp.add(p1, p2);
+                } else if (t.includes('reflection')) {
+                    body = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.35, 12, 24, Math.PI), mat);
+                    body.position.y = ht * 0.3;
+                    grp.add(body);
+                } else if (t.includes('insight')) {
+                    body = new THREE.Mesh(new THREE.BoxGeometry(0.7, ht, 0.7), mat);
+                    grp.add(body);
+                } else {
+                    body = new THREE.Mesh(new THREE.BoxGeometry(1.4, ht, 1.4), mat);
+                    grp.add(body);
+                }
+                const base = new THREE.Mesh(
+                    new THREE.CylinderGeometry(1.8, 2.0, 0.3, 16),
+                    new THREE.MeshStandardMaterial({ color: 0x222233, roughness: 0.8 })
+                );
+                grp.add(base);
+                return grp;
+            }
+
+            _place(item, idx, total) {
+                const angle = (idx / Math.max(total, 1)) * Math.PI * 2;
+                item.group.position.set(Math.cos(angle) * this.districtRadius, 0, Math.sin(angle) * this.districtRadius);
+                item.group.rotation.y = -angle + Math.PI / 2;
+            }
+
+            async poll() {
+                try {
+                    const data = await gsk.memories();
+                    if (!data || !Array.isArray(data.memories)) return;
+                    this._apply(data.memories);
+                    if (this.memoryCountEl) this.memoryCountEl.textContent = (data.count != null) ? data.count : data.memories.length;
+                    console.log('[Memories] loaded', data.memories.length, 'buildings');
+                } catch (e) {
+                    console.warn('[Memories] poll failed:', e.message);
+                }
+            }
+
+            _apply(memories) {
+                const seen = new Set();
+                memories.forEach((m, i) => {
+                    const id = m.id || ('mem-' + i);
+                    seen.add(id);
+                    const color = this._colorForTags(m.tags);
+                    let item = this.items.get(id);
+                    if (!item) {
+                        const grp = this._shapeForType(m.type, color, m.weight || 0.5);
+                        grp.traverse(o => { if (o.isMesh) o.userData.gskMemory = m; });
+                        grp.scale.setScalar(0.001); // grow-in animation
+                        this.group.add(grp);
+                        item = { group: grp, memory: m };
+                        this.items.set(id, item);
+                    } else {
+                        item.memory = m;
+                    }
+                    item.group.traverse(o => {
+                        if (o.isMesh && o.material && o.material.emissive) {
+                            const isMonument = (m.weight || 0) >= 0.8;
+                            o.material.color.copy(color);
+                            o.material.emissive.copy(color);
+                            o.material.emissiveIntensity = isMonument ? 0.9 : 0.35;
+                        }
+                    });
+                });
+                // remove stale memories no longer returned
+                for (const [id, item] of this.items) {
+                    if (!seen.has(id)) {
+                        this.group.remove(item.group);
+                        this.items.delete(id);
+                    }
+                }
+                this.layoutAll();
+            }
+
+            layoutAll() {
+                const total = this.items.size;
+                let i = 0;
+                for (const item of this.items.values()) {
+                    this._place(item, i, total);
+                    i++;
+                }
+            }
+
+            getClickMeshes() {
+                const out = [];
+                for (const item of this.items.values()) {
+                    item.group.traverse(o => { if (o.isMesh) out.push(o); });
+                }
+                return out;
+            }
+
+            update(dt, time) {
+                for (const item of this.items.values()) {
+                    const s = item.group.scale.x;
+                    if (s < 1) item.group.scale.setScalar(Math.min(1, s + dt * 1.2));
+                    if ((item.memory.weight || 0) >= 0.8) {
+                        item.group.position.y = Math.sin(time * 1.5 + item.group.position.x) * 0.25;
+                        item.group.rotation.y += dt * 0.2;
+                    }
+                }
+            }
+        }
+        try {
+            const memoryBuildings = new MemoryBuildings();
+            window.__memoryBuildings = memoryBuildings;
+            memoryBuildings.poll();
+            memoryBuildings.pollTimer = setInterval(() => memoryBuildings.poll(), 30000);
+        } catch (e) {
+            console.warn('[Memories] init failed:', e);
+        }
+
         // Wire task dispatch through GSK
         const origAssignTask = assignTask;
         assignTask = function(avatar, task) {
@@ -4970,6 +5204,9 @@
 
             // --- GSK visible body (Gap 1) ---
             if (window.__gskAvatar) window.__gskAvatar.update(dt, time);
+
+            // --- Memory buildings (Gap 2) ---
+            if (window.__memoryBuildings) window.__memoryBuildings.update(dt, time);
             
             // --- rune pulse animation ---
             runes.forEach(rune => {
