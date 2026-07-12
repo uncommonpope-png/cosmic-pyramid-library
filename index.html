@@ -2058,6 +2058,122 @@ bloomPass.radius = 0.6;
         const interiorLight = new THREE.PointLight(0xffaa66, 0.7, 6);
         interiorLight.position.set(0, 1.2, 0);
         interiorGroup.add(interiorLight);
+
+        // ========== GSK COMMAND CENTER — in-world 3D dashboards inside the pyramid ==========
+        let commandCenter = null;
+        function cmdClear(ctx, accent) { ctx.fillStyle = '#04070d'; ctx.fillRect(0, 0, 512, 384); ctx.fillStyle = accent; ctx.fillRect(0, 0, 512, 34); }
+        function cmdTitle(ctx, title, accent) { ctx.fillStyle = accent; ctx.font = 'bold 18px monospace'; ctx.textBaseline = 'middle'; ctx.fillText(title, 12, 17); }
+        function cmdText(ctx, text, x, y, color, size) { ctx.fillStyle = color; ctx.font = (size || 15) + 'px monospace'; ctx.textBaseline = 'top'; ctx.fillText(text, x, y); }
+        function cmdWrap(ctx, text, x, y, maxW, lh, color, size) {
+            ctx.fillStyle = color; ctx.font = (size || 14) + 'px monospace'; ctx.textBaseline = 'top';
+            const words = String(text).split(' '); let line = '', yy = y;
+            for (const w of words) { const t = line ? line + ' ' + w : w; if (ctx.measureText(t).width > maxW && line) { ctx.fillText(line, x, yy); line = w; yy += lh; } else line = t; }
+            if (line) ctx.fillText(line, x, yy);
+            return yy + lh;
+        }
+        function makeCmdScreen(w, h) {
+            const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 384;
+            const tex = new THREE.CanvasTexture(canvas); tex.minFilter = THREE.LinearFilter;
+            const mat = new THREE.MeshBasicMaterial({ map: tex });
+            const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+            const frame = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.14, h + 0.14), new THREE.MeshBasicMaterial({ color: 0x05080f }));
+            frame.position.z = -0.03;
+            const grp = new THREE.Group(); grp.add(frame); grp.add(mesh);
+            return { canvas, ctx: canvas.getContext('2d'), tex, mesh, grp, dirty: true };
+        }
+        function drawOffline(screen) {
+            const ctx = screen.ctx; ctx.fillStyle = '#04070d'; ctx.fillRect(0, 0, 512, 384);
+            ctx.fillStyle = '#33424f'; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('GSK OFFLINE', 256, 168); ctx.fillText('command center idle', 256, 204); ctx.textAlign = 'left';
+            screen.tex.needsUpdate = true;
+        }
+        function drawThoughts(screen, thoughts) {
+            const ctx = screen.ctx; cmdClear(ctx, '#66ffff'); cmdTitle(ctx, 'GSK · THOUGHT-STREAM', '#66ffff');
+            const list = thoughts.slice(-7); let y = 46;
+            for (const t of list) y = cmdWrap(ctx, '› ' + t, 12, y, 488, 22, '#bfefff', 14) + 4;
+            screen.tex.needsUpdate = true;
+        }
+        function drawMood(screen) {
+            const ctx = screen.ctx; cmdClear(ctx, '#ffcc77'); cmdTitle(ctx, 'GSK · MOOD / PHASE', '#ffcc77');
+            const online = (typeof gskBridge !== 'undefined' && gskBridge && gskBridge.gskOnline);
+            const mood = online ? (gskBridge.currentMood || 'neutral') : 'neutral';
+            const phase = (online && gskBridge.phaseFx && typeof GSK_PHASE_MAP !== 'undefined') ? (Object.keys(GSK_PHASE_MAP).find(k => GSK_PHASE_MAP[k] === gskBridge.phaseFx) || '?') : '?';
+            cmdText(ctx, 'mood: ' + mood, 12, 46, '#ffe0a8', 16);
+            cmdText(ctx, 'phase: ' + phase, 12, 70, '#ffe0a8', 16);
+            const plt = (online && gskBridge.plt) ? gskBridge.plt : { profit: 0, love: 0, tax: 0 };
+            const bar = (label, val, color, y) => {
+                cmdText(ctx, label, 12, y, '#9fb8d8', 14);
+                ctx.fillStyle = '#10202f'; ctx.fillRect(90, y + 1, 300, 13);
+                ctx.fillStyle = color; ctx.fillRect(90, y + 1, 300 * Math.max(0, Math.min(1, val || 0)), 13);
+            };
+            bar('profit', plt.profit, '#6effa8', 104);
+            bar('love', plt.love, '#ff8fc4', 132);
+            bar('tax', plt.tax, '#ffd27a', 160);
+            cmdText(ctx, 'PLT = ' + (Math.round((((plt.profit || 0) + (plt.love || 0) - (plt.tax || 0)) * 100)) / 100), 12, 196, '#cfe6ff', 14);
+            screen.tex.needsUpdate = true;
+        }
+        function drawMemories(screen, data) {
+            const ctx = screen.ctx; cmdClear(ctx, '#8affc4'); cmdTitle(ctx, 'GSK · MEMORIES', '#8affc4');
+            const mems = (data && data.memories) ? data.memories : (Array.isArray(data) ? data : []);
+            cmdText(ctx, 'count: ' + (data && data.count != null ? data.count : mems.length), 12, 46, '#9fe6c4', 15);
+            let y = 74, n = 0;
+            for (const m of mems) { if (n >= 5) break; const w = (m.weight != null ? 'w' + Math.round(m.weight * 100) + ' ' : ''); const tg = Array.isArray(m.tags) ? m.tags.slice(0, 3).join(',') : ''; const ty = m.type || 'memory'; y = cmdWrap(ctx, '• [' + ty + '] ' + w + tg, 12, y, 488, 20, '#cfffe6', 13) + 2; n++; }
+            screen.tex.needsUpdate = true;
+        }
+        function drawAgents(screen, data) {
+            const ctx = screen.ctx; cmdClear(ctx, '#b9a6ff'); cmdTitle(ctx, 'GSK · ACTIVE AGENTS', '#b9a6ff');
+            const arr = Array.isArray(data) ? data : (data && data.spawned) ? data.spawned : (data && data.agents) ? data.agents : [];
+            cmdText(ctx, 'active: ' + arr.length, 12, 46, '#cdbcff', 15);
+            let y = 74, n = 0;
+            for (const s of arr) { if (n >= 5) break; const nm = s.name || 'soul'; const ar = s.archetype || ''; const tk = (s.task || '').slice(0, 30); y = cmdWrap(ctx, '• ' + nm + (ar ? ' (' + ar + ')' : '') + (tk ? ' — ' + tk : ''), 12, y, 488, 20, '#e6dcff', 13) + 2; n++; }
+            screen.tex.needsUpdate = true;
+        }
+        async function refreshMemories(cc) { try { const m = await gsk.memories(); cc.memoriesData = m; drawMemories(cc.screens.memories, m); } catch (e) { } }
+        async function refreshAgents(cc) { try { const s = await gsk.spawned(); cc.agentsData = s; drawAgents(cc.screens.agents, s); } catch (e) { } }
+        function buildCommandCenter() {
+            const screens = {};
+            const sT = makeCmdScreen(2.2, 1.7); sT.grp.position.set(-1.25, 1.75, -2.66); interiorGroup.add(sT.grp); screens.thoughts = sT;
+            const sA = makeCmdScreen(2.2, 1.7); sA.grp.position.set(1.25, 1.75, -2.66); interiorGroup.add(sA.grp); screens.agents = sA;
+            const sM = makeCmdScreen(2.2, 1.7); sM.grp.position.set(-2.66, 1.75, 0); sM.grp.rotation.y = Math.PI / 2; interiorGroup.add(sM.grp); screens.mood = sM;
+            const sMe = makeCmdScreen(2.2, 1.7); sMe.grp.position.set(2.66, 1.75, 0); sMe.grp.rotation.y = -Math.PI / 2; interiorGroup.add(sMe.grp); screens.memories = sMe;
+            pedestal.userData.commandConsole = true;
+            bookGroupInt.children.forEach(c => c.userData.commandConsole = true);
+            commandCenter = { screens, thoughts: [], memoriesData: null, agentsData: null, lastMem: 0, lastAgents: 0, lastThoughtDraw: 0, lastMoodDraw: 0, ws: null, offlineShown: false };
+            const signCanvas = document.createElement('canvas'); signCanvas.width = 512; signCanvas.height = 128;
+            const sx = signCanvas.getContext('2d');
+            sx.fillStyle = 'rgba(4,8,16,0.85)'; sx.fillRect(0, 0, 512, 128);
+            sx.strokeStyle = '#66ffff'; sx.lineWidth = 4; sx.strokeRect(6, 6, 500, 116);
+            sx.fillStyle = '#66ffff'; sx.font = 'bold 38px monospace'; sx.textAlign = 'center'; sx.textBaseline = 'middle';
+            sx.fillText('GSK TERMINAL', 256, 48);
+            sx.fillStyle = '#bfe6ff'; sx.font = '18px monospace'; sx.fillText('ENTER · LIVE COMMAND CENTER', 256, 92);
+            const signTex = new THREE.CanvasTexture(signCanvas);
+            const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: signTex, transparent: true }));
+            sign.position.set(0, 3.4, 2.7); scene.add(sign);
+        }
+        function updateCommandCenter(dt, time) {
+            if (!commandCenter || !isInside) return;
+            const online = (typeof gskBridge !== 'undefined' && gskBridge && gskBridge.gskOnline);
+            const cc = commandCenter;
+            if (!online) {
+                if (!cc.offlineShown) { drawOffline(cc.screens.thoughts); drawOffline(cc.screens.mood); drawOffline(cc.screens.memories); drawOffline(cc.screens.agents); cc.offlineShown = true; }
+                return;
+            }
+            cc.offlineShown = false;
+            if (!cc.ws) {
+                try {
+                    const url = (window.GSK_WS_ENDPOINT) || 'ws://localhost:3002';
+                    const ws = new WebSocket(url);
+                    ws.onmessage = (e) => { let t = null; try { const d = JSON.parse(e.data); t = d.thought || d.text || d.message || null; } catch (_) { t = e.data; } if (t) { cc.thoughts.push(String(t)); if (cc.thoughts.length > 60) cc.thoughts.shift(); cc.screens.thoughts.dirty = true; } };
+                    ws.onclose = () => { cc.ws = null; }; ws.onerror = () => { cc.ws = null; };
+                    cc.ws = ws;
+                } catch (e) { cc.ws = null; }
+            }
+            if (time - cc.lastThoughtDraw > 0.5) { drawThoughts(cc.screens.thoughts, cc.thoughts); cc.lastThoughtDraw = time; }
+            if (time - cc.lastMoodDraw > 0.5) { drawMood(cc.screens.mood); cc.lastMoodDraw = time; }
+            if (time - cc.lastMem > 8) { cc.lastMem = time; refreshMemories(cc); }
+            if (time - cc.lastAgents > 8) { cc.lastAgents = time; refreshAgents(cc); }
+        }
+        try { buildCommandCenter(); } catch (e) { console.warn('[CommandCenter] init failed', e); }
         
         // ========== WISPS & DUST ==========
         const wispGeo = new THREE.BufferGeometry();
@@ -3111,8 +3227,10 @@ bloomPass.radius = 0.6;
         let playerFlying = false;
         let playerFloorY = 0;
         let camDist = 7;
-        let _hubPlayerPos = null;
-        let _hubPlayerYaw = Math.PI;
+  let _hubPlayerPos = null;
+  let _hubPlayerYaw = Math.PI;
+  let _commandCenter = false;
+  let _camDistInside = 7;
         const SUBAGENT_COLORS = {
             scribe:   { body: 0xe8dcc0, glow: 0xffcf8a, accent: 0xffd27a },
             merchant: { body: 0x2a2118, glow: 0xffd27a, accent: 0xffb27a },
@@ -3312,7 +3430,7 @@ bloomPass.radius = 0.6;
                 if (playerNPC.position.y <= playerFloorY) { playerNPC.position.y = playerFloorY; playerVelY = 0; playerGrounded = true; }
             }
             // Phase 1: keep the character out of building footprints (hub only)
-            if (Math.abs(playerFloorY) < 1 && typeof buildings !== 'undefined' && buildings && buildings.length) {
+            if (!_commandCenter && Math.abs(playerFloorY) < 1 && typeof buildings !== 'undefined' && buildings && buildings.length) {
                 for (const b of buildings) {
                     const hw = (b.w || 4) / 2 + 0.7, hd = (b.d || 4) / 2 + 0.7;
                     const dx = playerNPC.position.x - b.x, dz = playerNPC.position.z - b.z;
@@ -3322,6 +3440,12 @@ bloomPass.radius = 0.6;
                         else playerNPC.position.z += dz >= 0 ? pz : -pz;
                     }
                 }
+            }
+            // Keep the character inside the command center room
+            if (_commandCenter) {
+                playerNPC.position.x = Math.max(-2.0, Math.min(2.0, playerNPC.position.x));
+                playerNPC.position.z = Math.max(-2.0, Math.min(0.3, playerNPC.position.z));
+                if (playerNPC.position.y > 1.2) playerNPC.position.y = 1.2;
             }
             const eye = playerNPC.position.clone().add(new THREE.Vector3(0, 1.6, 0));
             const look = new THREE.Vector3(Math.sin(playerYaw) * Math.cos(playerPitch), Math.sin(playerPitch), Math.cos(playerYaw) * Math.cos(playerPitch));
@@ -4584,46 +4708,65 @@ bloomPass.radius = 0.6;
         function enterPyramid() {
             if (isInside || readingState !== 'idle') return;
             isInside = true;
-            controls.enabled = false;
             interiorGroup.visible = true;
             pyramid.visible = false;
             doorGroup.visible = false;
             souls.forEach(s => s.obj.visible = false);
-            const startPos = camera.position.clone();
-            const startTarget = controls.target.clone();
-            const startTime = performance.now();
-            function animEnter(now) {
-                const t = Math.min(1, (now - startTime) / 800);
-                camera.position.lerpVectors(startPos, interiorCamPos, t);
-                controls.target.lerpVectors(startTarget, interiorTarget, t);
-                controls.update();
-                if (t < 1) requestAnimationFrame(animEnter);
-                else controls.enabled = true;
+            if (cameraMode === 'npc') {
+                _hubPlayerPos = playerNPC.position.clone();
+                _hubPlayerYaw = playerYaw;
+                _commandCenter = true;
+                _camDistInside = camDist; camDist = 1.8;
+                playerNPC.position.set(0, 0, 0.3);
+                playerFloorY = 0; playerYaw = Math.PI;
+                playerFlying = false; playerVelY = 0; playerGrounded = true;
+            } else {
+                controls.enabled = false;
+                const startPos = camera.position.clone();
+                const startTarget = controls.target.clone();
+                const startTime = performance.now();
+                function animEnter(now) {
+                    const t = Math.min(1, (now - startTime) / 800);
+                    camera.position.lerpVectors(startPos, interiorCamPos, t);
+                    controls.target.lerpVectors(startTarget, interiorTarget, t);
+                    controls.update();
+                    if (t < 1) requestAnimationFrame(animEnter);
+                    else controls.enabled = true;
+                }
+                requestAnimationFrame(animEnter);
             }
-            requestAnimationFrame(animEnter);
             if (typeof exitBtn !== 'undefined') exitBtn.style.display = 'block';
         }
-        
+
         function exitPyramid() {
             if (!isInside) return;
             isInside = false;
-            controls.enabled = false;
             interiorGroup.visible = false;
             pyramid.visible = true;
             doorGroup.visible = true;
             souls.forEach(s => s.obj.visible = true);
-            const startPos = camera.position.clone();
-            const startTarget = controls.target.clone();
-            const startTime = performance.now();
-            function animExit(now) {
-                const t = Math.min(1, (now - startTime) / 800);
-                camera.position.lerpVectors(startPos, originalCameraPos, t);
-                controls.target.lerpVectors(startTarget, new THREE.Vector3(0, 1.5, 0), t);
-                controls.update();
-                if (t < 1) requestAnimationFrame(animExit);
-                else controls.enabled = true;
+            if (cameraMode === 'npc' && _commandCenter) {
+                camDist = _camDistInside;
+                playerNPC.position.copy(_hubPlayerPos || new THREE.Vector3(0, 0, 12));
+                playerFloorY = _hubPlayerPos ? _hubPlayerPos.y : 0;
+                playerYaw = _hubPlayerYaw;
+                playerFlying = false; playerVelY = 0; playerGrounded = true;
+                _commandCenter = false;
+            } else {
+                controls.enabled = false;
+                const startPos = camera.position.clone();
+                const startTarget = controls.target.clone();
+                const startTime = performance.now();
+                function animExit(now) {
+                    const t = Math.min(1, (now - startTime) / 800);
+                    camera.position.lerpVectors(startPos, originalCameraPos, t);
+                    controls.target.lerpVectors(startTarget, new THREE.Vector3(0, 1.5, 0), t);
+                    controls.update();
+                    if (t < 1) requestAnimationFrame(animExit);
+                    else controls.enabled = true;
+                }
+                requestAnimationFrame(animExit);
             }
-            requestAnimationFrame(animExit);
             if (typeof exitBtn !== 'undefined') exitBtn.style.display = 'none';
         }
         
@@ -4955,6 +5098,16 @@ bloomPass.radius = 0.6;
             
             // pyramid enter/exit
             if (isInside) {
+                if (mouseDownTarget && mouseDownTarget.userData && mouseDownTarget.userData.commandConsole) {
+                    if (typeof gskPanel !== 'undefined' && gskPanel) {
+                        gskPanel.style.transition = 'none';
+                        gskPanel.style.boxShadow = '0 0 60px rgba(102,255,255,0.95)';
+                        setTimeout(() => { gskPanel.style.transition = 'box-shadow 0.6s'; gskPanel.style.boxShadow = ''; }, 800);
+                    }
+                    const p = (typeof playerNPC !== 'undefined' && playerNPC) ? playerNPC.position.clone().add(new THREE.Vector3(0, 1.5, 0)) : new THREE.Vector3(0, 1.5, 0);
+                    spawnWhisper(p, 'GSK terminal — use the panel (top-right) to converse.');
+                    return;
+                }
                 let hitBook = false;
                 bookGroupInt.children.forEach(c => {
                     if (mouseDownTarget === c) { hitBook = true; }
@@ -7538,6 +7691,7 @@ bloomPass.radius = 0.6;
             
             updateCompass();
             refreshObjective();
+            updateCommandCenter(dt, time);
             
             // --- souls orbiting & bobbing + mouse reaction ---
             souls.forEach(s => {
