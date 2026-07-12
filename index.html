@@ -84,6 +84,14 @@
             box-shadow: 0 0 14px rgba(0,255,255,0.12);
         }
         .camera-mode-btn.active { background: rgba(0,180,220,0.28); color: #fff; border-color: #66ffff; }
+        .avatar-sep { color: #88ffd0; font-size: 11px; letter-spacing: 1px; margin: 0 2px; }
+        .avatar-btn {
+            background: rgba(5, 8, 18, 0.82); color: #ffd9a8;
+            border: 1px solid rgba(255,200,120,0.35); border-radius: 18px;
+            padding: 7px 11px; cursor: pointer; letter-spacing: 1px; font-size: 11px;
+            box-shadow: 0 0 12px rgba(255,180,90,0.10);
+        }
+        .avatar-btn.active { background: rgba(255,170,60,0.30); color: #fff; border-color: #ffcf8a; }
         #npc-status {
             background: rgba(0,0,0,0.55); color: #d8ccff;
             padding: 6px 10px; border-radius: 16px; font-size: 11px;
@@ -523,9 +531,15 @@
     <div id="info">THE SOULFEILD ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â CLICK BOOKS TO READ ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· CLICK SOULS FOR WHISPERS</div>
     <div id="controls-hint">Drag objects | Click books | Click souls | Space City + Heaven City now load above the world</div>
     <div id="camera-panel">
-        <button class="camera-mode-btn active" id="orbit-mode-btn">ORBIT</button>
-        <button class="camera-mode-btn" id="npc-mode-btn">PLAY NPC</button>
-        <span id="npc-status">WASD move · Shift run · Space jump · F fly</span>
+        <button class="camera-mode-btn" id="orbit-mode-btn">ORBIT</button>
+        <button class="camera-mode-btn active" id="npc-mode-btn">PLAY</button>
+        <span class="avatar-sep">BE:</span>
+        <button class="avatar-btn active" data-kind="scribe">SCRIBE</button>
+        <button class="avatar-btn" data-kind="merchant">MERCHANT</button>
+        <button class="avatar-btn" data-kind="builder">BUILDER</button>
+        <button class="avatar-btn" data-kind="prophet">PROPHET</button>
+        <button class="avatar-btn" data-kind="gsk">GSK</button>
+        <span id="npc-status">WASD move · Shift run · Space up/jump · Q down · F fly</span>
     </div>
 
     <!-- Reading overlay -->
@@ -3052,59 +3066,117 @@
 
         // ========== PLAYABLE NPC MODE ==========
         const keyState = {};
-        let cameraMode = 'orbit';
+        let cameraMode = 'npc';
         let playerYaw = Math.PI;
-        let playerPitch = 0;
+        let playerPitch = 0.25;
         let playerVelY = 0;
         let playerGrounded = true;
         let playerFlying = false;
+        let playerFloorY = 0;
+        let camDist = 7;
+        let _hubPlayerPos = null;
+        let _hubPlayerYaw = Math.PI;
+        const SUBAGENT_COLORS = {
+            scribe:   { body: 0xe8dcc0, glow: 0xffcf8a, accent: 0xffd27a },
+            merchant: { body: 0x2a2118, glow: 0xffd27a, accent: 0xffb27a },
+            builder:  { body: 0x16243a, glow: 0x2a6cff, accent: 0x9ecbff },
+            prophet:  { body: 0x140a28, glow: 0x9a6cff, accent: 0xc9b3ff },
+            gsk:      { body: 0x0a1430, glow: 0x66ffff, accent: 0x9effc4 }
+        };
+        let playerKind = 'scribe';
 
-        function createPlayableNPC() {
+        function makeDenizen(color, label) {
             const g = new THREE.Group();
-            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x151a2e, emissive: 0x061026, emissiveIntensity: 0.35, roughness: 0.55, metalness: 0.2 });
-            const glowMat = new THREE.MeshStandardMaterial({ color: 0x66ffff, emissive: 0x66ffff, emissiveIntensity: 0.85 });
-            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, 1.1, 10), bodyMat);
+            const mat = new THREE.MeshStandardMaterial({ color: 0x222233, emissive: color, emissiveIntensity: 0.5, roughness: 0.6 });
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 0.9, 10), mat); body.position.y = 0.6;
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 12), mat); head.position.y = 1.2;
+            g.add(body, head);
+            g.traverse(c => { if (c.isMesh) c.castShadow = true; });
+            g.userData = { npcTalk: { label: label || 'Denizen' }, denizen: true, phase: Math.random() * Math.PI * 2 };
+            return g;
+        }
+        function populateDenizens(realm, clickTargets, color, count, label, radius) {
+            const arr = [];
+            for (let i = 0; i < count; i++) {
+                const a = (i / count) * Math.PI * 2 + Math.random();
+                const r = radius * (0.5 + Math.random() * 0.5);
+                const d = makeDenizen(color, label);
+                d.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+                realm.add(d);
+                if (clickTargets) clickTargets.push(d);
+                arr.push(d);
+            }
+            realm._denizens = (realm._denizens || []).concat(arr);
+            return arr;
+        }
+        function animateDenizens(realm, dt, time) {
+            if (!realm._denizens) return;
+            realm._denizens.forEach(d => { d.position.y = (d.userData.baseY || 0) + Math.sin(time * 1.3 + d.userData.phase) * 0.25; d.rotation.y += dt * 0.3; });
+        }
+
+        function buildSubagentAvatar(kind) {
+            const c = SUBAGENT_COLORS[kind] || SUBAGENT_COLORS.scribe;
+            const g = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: c.body, emissive: c.glow, emissiveIntensity: 0.25, roughness: 0.55, metalness: 0.2 });
+            const glowMat = new THREE.MeshStandardMaterial({ color: c.glow, emissive: c.glow, emissiveIntensity: 0.9 });
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 1.15, 12), bodyMat);
             body.position.y = 0.75;
-            const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 16), bodyMat);
-            head.position.y = 1.48;
-            const visor = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.08, 0.035), glowMat);
-            visor.position.set(0, 1.5, 0.27);
-            const aura = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.025, 8, 36), glowMat);
-            aura.position.y = 0.08;
-            aura.rotation.x = Math.PI / 2;
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), bodyMat);
+            head.position.y = 1.5;
+            const visor = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.09, 0.04), glowMat);
+            visor.position.set(0, 1.53, 0.28);
+            const aura = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.03, 8, 36), glowMat);
+            aura.position.y = 0.1; aura.rotation.x = Math.PI / 2;
             g.add(body, head, visor, aura);
-            g.position.set(0, 0, 12);
-            g.userData = { name: 'You', isPlayerNPC: true };
-            g.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-            cityGroup.add(g);
+            if (kind === 'gsk') {
+                const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.36, 1), new THREE.MeshStandardMaterial({ color: 0x66ffff, emissive: 0x66ffff, emissiveIntensity: 1.2, roughness: 0.2 }));
+                core.position.y = 1.95; g.add(core);
+            }
+            g.traverse((c2) => { if (c2.isMesh) { c2.castShadow = true; c2.receiveShadow = true; } });
+            g.userData = { name: 'You (' + kind + ')', isPlayerNPC: true };
             return g;
         }
 
-        const playerNPC = createPlayableNPC();
+        let playerNPC = buildSubagentAvatar(playerKind);
+        playerNPC.position.set(0, 0, 12);
+        scene.add(playerNPC);
         window.__playerNPC = playerNPC;
+
+        function setPlayerAvatar(kind) {
+            if (!SUBAGENT_COLORS[kind]) return;
+            playerKind = kind;
+            const pos = playerNPC.position.clone();
+            const yaw = playerYaw;
+            scene.remove(playerNPC);
+            playerNPC = buildSubagentAvatar(kind);
+            playerNPC.position.copy(pos);
+            playerNPC.rotation.y = yaw;
+            scene.add(playerNPC);
+            window.__playerNPC = playerNPC;
+            document.querySelectorAll('.avatar-btn').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
+            const st = document.getElementById('npc-status');
+            if (st) st.textContent = 'You are ' + kind.toUpperCase() + ' · WASD move · Shift run · Space up/jump · Q down · F fly · drag to look · click to interact';
+        }
 
         function setCameraMode(mode) {
             cameraMode = mode;
             const orbitBtn = document.getElementById('orbit-mode-btn');
             const npcBtn = document.getElementById('npc-mode-btn');
-            orbitBtn.classList.toggle('active', mode === 'orbit');
-            npcBtn.classList.toggle('active', mode === 'npc');
+            if (orbitBtn) orbitBtn.classList.toggle('active', mode === 'orbit');
+            if (npcBtn) npcBtn.classList.toggle('active', mode === 'npc');
             controls.enabled = mode === 'orbit';
-            playerNPC.visible = mode !== 'npc';
-            if (mode === 'npc') {
-                renderer.domElement.requestPointerLock?.();
-            } else if (document.pointerLockElement === renderer.domElement) {
-                document.exitPointerLock?.();
-            }
             const h = document.getElementById('controls-hint');
             if (h) h.textContent = mode === 'npc'
-                ? 'NPC MODE: WASD move | Shift run | Space jump/up | Ctrl/Q down | F fly | click citizens | click Heaven lift | ESC orbit'
-                : 'Drag objects | Click books | Click souls | Click pyramid door | PLAY NPC for first person';
+                ? 'WASD move · Shift run · Space up/jump · Q down · F fly · drag mouse to look · click to interact · ESC orbit'
+                : 'Drag objects | Click books | Click souls | PLAY to walk';
         }
-
         function toggleCameraMode() { setCameraMode(cameraMode === 'npc' ? 'orbit' : 'npc'); }
         document.getElementById('orbit-mode-btn').addEventListener('click', () => setCameraMode('orbit'));
         document.getElementById('npc-mode-btn').addEventListener('click', () => setCameraMode('npc'));
+        document.querySelectorAll('.avatar-btn').forEach(b => {
+            b.addEventListener('click', () => setPlayerAvatar(b.dataset.kind));
+        });
+        setCameraMode('npc');
 
         function isTypingTarget(e) {
             const tag = (e.target && e.target.tagName || '').toLowerCase();
@@ -3113,66 +3185,60 @@
         document.addEventListener('keydown', (e) => {
             if (isTypingTarget(e)) return;
             keyState[e.code] = true;
-            if (e.code === 'KeyC') toggleCameraMode();
+            if (e.code === 'KeyC') { setCameraMode(cameraMode === 'npc' ? 'orbit' : 'npc'); return; }
             if (cameraMode !== 'npc') return;
-            if (e.code === 'Escape') setCameraMode('orbit');
+            if (e.code === 'Escape') { setCameraMode('orbit'); return; }
             if (e.code === 'KeyF') {
-                playerFlying = !playerFlying;
-                playerVelY = 0;
+                playerFlying = !playerFlying; playerVelY = 0;
                 spawnWhisper(playerNPC.position, playerFlying ? 'Flight mode online.' : 'Gravity restored.');
             }
             if (e.code === 'Space') e.preventDefault();
         });
         document.addEventListener('keyup', (e) => { keyState[e.code] = false; });
-        renderer.domElement.addEventListener('click', () => { if (cameraMode === 'npc') renderer.domElement.requestPointerLock?.(); });
-        document.addEventListener('mousemove', (e) => {
-            if (cameraMode !== 'npc' || document.pointerLockElement !== renderer.domElement) return;
-            playerYaw -= e.movementX * 0.0022;
-            playerPitch = Math.max(-0.9, Math.min(0.65, playerPitch - e.movementY * 0.002));
+
+        // drag-to-look (free cursor — no pointer lock, so clicks + UI keep working)
+        let _dragLook = false;
+        renderer.domElement.addEventListener('pointerdown', () => { _dragLook = true; });
+        renderer.domElement.addEventListener('pointerup', () => { _dragLook = false; });
+        renderer.domElement.addEventListener('pointermove', (e) => {
+            if (!_dragLook || cameraMode !== 'npc') return;
+            playerYaw -= e.movementX * 0.005;
+            playerPitch = Math.max(-0.5, Math.min(1.2, playerPitch - e.movementY * 0.004));
         });
 
         function updatePlayerNPC(dt) {
             if (cameraMode !== 'npc') return;
-            if (keyState.ArrowLeft) playerYaw += dt * 1.9;
-            if (keyState.ArrowRight) playerYaw -= dt * 1.9;
-            if (keyState.ArrowUp) playerPitch = Math.min(0.65, playerPitch + dt * 1.1);
-            if (keyState.ArrowDown) playerPitch = Math.max(-0.9, playerPitch - dt * 1.1);
-
             const forward = new THREE.Vector3(Math.sin(playerYaw), 0, Math.cos(playerYaw));
             const right = new THREE.Vector3(Math.cos(playerYaw), 0, -Math.sin(playerYaw));
             const moveZ = (keyState.KeyW ? 1 : 0) - (keyState.KeyS ? 1 : 0);
             const moveX = (keyState.KeyD ? 1 : 0) - (keyState.KeyA ? 1 : 0);
-            const speed = (keyState.ShiftLeft || keyState.ShiftRight) ? 10.5 : 5.2;
+            const speed = (keyState.ShiftLeft || keyState.ShiftRight) ? 16 : 8;
             if (moveZ) playerNPC.position.addScaledVector(forward, moveZ * speed * dt);
             if (moveX) playerNPC.position.addScaledVector(right, moveX * speed * dt);
             playerNPC.rotation.y = playerYaw;
-
             if (playerFlying) {
-                const flySpeed = ((keyState.ShiftLeft || keyState.ShiftRight) ? 9 : 5.5) * dt;
-                if (keyState.Space) playerNPC.position.y += flySpeed;
-                if (keyState.ControlLeft || keyState.ControlRight || keyState.KeyQ) playerNPC.position.y -= flySpeed;
-                playerNPC.position.y = Math.max(0, Math.min(70, playerNPC.position.y));
+                const fs = ((keyState.ShiftLeft || keyState.ShiftRight) ? 12 : 6) * dt;
+                if (keyState.Space) playerNPC.position.y += fs;
+                if (keyState.ControlLeft || keyState.ControlRight || keyState.KeyQ) playerNPC.position.y -= fs;
+                playerNPC.position.y = Math.max(playerFloorY, Math.min(playerFloorY + 600, playerNPC.position.y));
             } else {
-                if (keyState.Space && playerGrounded) { playerVelY = 7.2; playerGrounded = false; }
-                playerVelY -= 18 * dt;
+                if (keyState.Space && playerGrounded) { playerVelY = 9; playerGrounded = false; }
+                playerVelY -= 22 * dt;
                 playerNPC.position.y += playerVelY * dt;
-                if (playerNPC.position.y <= 0) { playerNPC.position.y = 0; playerVelY = 0; playerGrounded = true; }
+                if (playerNPC.position.y <= playerFloorY) { playerNPC.position.y = playerFloorY; playerVelY = 0; playerGrounded = true; }
             }
-
-            const eye = playerNPC.position.clone().add(new THREE.Vector3(0, 1.55, 0));
-            const look = new THREE.Vector3(
-                Math.sin(playerYaw) * Math.cos(playerPitch),
-                Math.sin(playerPitch),
-                Math.cos(playerYaw) * Math.cos(playerPitch)
-            );
-            camera.position.copy(eye);
-            camera.lookAt(eye.clone().add(look));
+            const eye = playerNPC.position.clone().add(new THREE.Vector3(0, 1.6, 0));
+            const look = new THREE.Vector3(Math.sin(playerYaw) * Math.cos(playerPitch), Math.sin(playerPitch), Math.cos(playerYaw) * Math.cos(playerPitch));
+            const camPos = eye.clone().addScaledVector(look, -camDist);
+            camPos.y = Math.max(camPos.y, playerFloorY + 0.6);
+            camera.position.lerp(camPos, 1 - Math.pow(0.0001, dt));
+            camera.lookAt(eye);
         }
 
         function teleportPlayerToHeaven() {
             playerNPC.position.set(0, 42.4, -88);
-            playerFlying = true;
-            playerVelY = 0;
+            playerFloorY = 42.4;
+            playerFlying = true; playerVelY = 0;
             setCameraMode('npc');
             spawnWhisper(playerNPC.position, 'Heaven platform reached. Flight mode online.');
         }
@@ -5484,7 +5550,7 @@
         class GSKAvatar {
             constructor() {
                 this.group = new THREE.Group();
-                this.group.position.set(0, 5.2, 0); // floats above the pyramid capstone
+                this.group.position.set(0, 1.8, 0); // wanders the hub at walking height
                 this.coreMat = new THREE.MeshStandardMaterial({ color: 0x88ffff, emissive: 0x66ffff, emissiveIntensity: 1.2, roughness: 0.3, metalness: 0.1 });
                 this.core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.9, 1), this.coreMat);
                 this.ringMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x88ddff, emissiveIntensity: 0.9, transparent: true, opacity: 0.8 });
@@ -5499,6 +5565,8 @@
                 scene.add(this.group);
                 this.baseY = this.group.position.y;
                 this.targetColor = new THREE.Color(0x88ffff);
+                this.wanderTarget = new THREE.Vector3((Math.random() - 0.5) * 44, 1.8, (Math.random() - 0.5) * 44);
+                this.wanderTimer = 0;
             }
             _feedMood() {
                 if (!gskBridge) return;
@@ -5506,7 +5574,24 @@
                 this.targetColor.setHex(GSK_MOOD_COLOR[mood] || GSK_MOOD_COLOR.neutral);
                 this.light.color.copy(this.targetColor);
             }
+            _wander(dt) {
+                this.wanderTimer -= dt;
+                if (this.wanderTimer <= 0) {
+                    this.wanderTimer = 4 + Math.random() * 5;
+                    this.wanderTarget.set((Math.random() - 0.5) * 46, 1.8, (Math.random() - 0.5) * 46);
+                }
+                const dx = this.wanderTarget.x - this.group.position.x;
+                const dz = this.wanderTarget.z - this.group.position.z;
+                const d = Math.hypot(dx, dz);
+                if (d > 0.3) {
+                    const sp = Math.min(2.4 * dt, d);
+                    this.group.position.x += (dx / d) * sp;
+                    this.group.position.z += (dz / d) * sp;
+                    this.group.rotation.y = Math.atan2(dx, dz);
+                }
+            }
             update(dt, time) {
+                this._wander(dt);
                 if (!gskBridge) {
                     this.group.position.y = this.baseY + Math.sin(time * 0.8) * 0.3;
                     this.core.rotation.y += 0.005;
@@ -6301,6 +6386,7 @@
             scribeRealm._fbook = fbook;
             scribeRealm._memBooks = [];
             buildScribeMemoryShelf();
+            populateDenizens(scribeRealm, scribeClickTargets, 0xffd27a, 5, 'Scribe Acolyte', 60);
         }
         function buildScribeMemoryShelf() {
             const shelf = new THREE.Group();
@@ -6352,19 +6438,21 @@
         function enterScribeRealm() {
             if (inScribe) return;
             inScribe = true;
-            _hubCamPos.copy(camera.position);
-            _hubCamTarget.copy(controls.target);
-            camera.position.set(scribeBase.x, scribeBase.y + 10, scribeBase.z + 46);
-            controls.target.set(scribeBase.x, scribeBase.y + 9, scribeBase.z);
-            controls.update();
+            _hubPlayerPos = playerNPC.position.clone();
+            _hubPlayerYaw = playerYaw;
+            playerNPC.position.set(scribeBase.x, scribeBase.y + 2, scribeBase.z + 40);
+            playerFloorY = scribeBase.y;
+            playerYaw = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
+            setCameraMode('npc');
             if (gskBridge && gskBridge.gskOnline) { scribeRealm._memLast = performance.now() / 1000; setTimeout(() => refreshScribeMemories(), 700); }
         }
         function exitScribeRealm() {
             if (!inScribe) return;
             inScribe = false;
-            camera.position.copy(_hubCamPos);
-            controls.target.copy(_hubCamTarget);
-            controls.update();
+            if (_hubPlayerPos) playerNPC.position.copy(_hubPlayerPos); else playerNPC.position.set(0, 0, 12);
+            playerYaw = _hubPlayerYaw;
+            playerFloorY = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
+            setCameraMode('npc');
         }
         function exitScribeRealmFade() {
             if (!inScribe) return;
@@ -6402,6 +6490,7 @@
         function updateScribeRealm(time) {
             if (scribeRealm._fbook) scribeRealm._fbook.rotation.z = Math.sin(time * 0.6) * 0.06;
             if (scribeRealm._scribe) scribeRealm._scribe.rotation.y = Math.sin(time * 0.2) * 0.15;
+            animateDenizens(scribeRealm, 0.016, time);
             if (inScribe && gskBridge && gskBridge.gskOnline && (scribeRealm._memLast || 0) && time - scribeRealm._memLast > 30) {
                 scribeRealm._memLast = time;
                 refreshScribeMemories();
@@ -6496,24 +6585,27 @@
             m.position.set(0, 6, 0);
             merchantRealm.add(m);
             merchantRealm._merchant = m;
+            populateDenizens(merchantRealm, merchantClickTargets, 0xffb27a, 5, 'Trader', 40);
         }
         buildMerchantRealm();
 
         function enterMerchantRealm() {
             if (inMerchant) return;
             inMerchant = true;
-            _hubCamPosM.copy(camera.position);
-            _hubCamTargetM.copy(controls.target);
-            camera.position.set(merchantBase.x, merchantBase.y + 8, merchantBase.z + 60);
-            controls.target.set(merchantBase.x, merchantBase.y + 4, merchantBase.z);
-            controls.update();
+            _hubPlayerPos = playerNPC.position.clone();
+            _hubPlayerYaw = playerYaw;
+            playerNPC.position.set(merchantBase.x, merchantBase.y + 2, merchantBase.z + 50);
+            playerFloorY = merchantBase.y;
+            playerYaw = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
+            setCameraMode('npc');
         }
         function exitMerchantRealm() {
             if (!inMerchant) return;
             inMerchant = false;
-            camera.position.copy(_hubCamPosM);
-            controls.target.copy(_hubCamTargetM);
-            controls.update();
+            if (_hubPlayerPos) playerNPC.position.copy(_hubPlayerPos); else playerNPC.position.set(0, 0, 12);
+            playerYaw = _hubPlayerYaw;
+            playerFloorY = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
+            setCameraMode('npc');
         }
         function exitMerchantRealmFade() {
             if (!inMerchant) return;
@@ -6543,6 +6635,7 @@
             }
         }
         function updateMerchantRealm(time) {
+            animateDenizens(merchantRealm, 0.016, time);
             if (merchantRealm._plt) merchantRealm._plt.rotation.y = time * 0.04;
             if (merchantRealm._merchant) {
                 merchantRealm._merchant.rotation.y = time * 1.2;
@@ -6685,23 +6778,27 @@
             builderRealm.add(commission);
             builderRealm._commission = commission;
             builderRealm._commissionOrb = orb;
+            populateDenizens(builderRealm, builderClickTargets, 0x9ecbff, 4, 'Apprentice', 46);
         }
         buildBuilderRealm();
 
         function enterBuilderRealm() {
             if (inBuilder) return;
             inBuilder = true;
-            _hubCamPosB.copy(camera.position);
-            _hubCamTargetB.copy(controls.target);
-            camera.position.set(builderBase.x, builderBase.y + 14, builderBase.z + 70);
-            controls.target.set(builderBase.x, builderBase.y + 12, builderBase.z);
-            controls.update();
+            _hubPlayerPos = playerNPC.position.clone();
+            _hubPlayerYaw = playerYaw;
+            playerNPC.position.set(builderBase.x, builderBase.y + 2, builderBase.z + 60);
+            playerFloorY = builderBase.y;
+            playerYaw = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
+            setCameraMode('npc');
         }
         function exitBuilderRealm() {
             if (!inBuilder) return;
             inBuilder = false;
-            camera.position.copy(_hubCamPosB);
-            controls.target.copy(_hubCamTargetB);
+            if (_hubPlayerPos) playerNPC.position.copy(_hubPlayerPos); else playerNPC.position.set(0, 0, 12);
+            playerYaw = _hubPlayerYaw;
+            playerFloorY = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
+            setCameraMode('npc');
             controls.update();
         }
         function exitBuilderRealmFade() {
@@ -6792,6 +6889,7 @@
             } catch (e2) { /* visual only */ }
         }
         function updateBuilderRealm(time) {
+            animateDenizens(builderRealm, 0.016, time);
             if (builderRealm._schematics) {
                 builderRealm._schematics.forEach((s, i) => {
                     s.rotation.y = time * 0.3 + i;
@@ -6916,24 +7014,28 @@
             prophetRealm._floors = [];
             prophetRealm.children.forEach(c => { if (c.geometry && c.geometry.type === 'CylinderGeometry' && c.position.y > 4) prophetRealm._floors.push(c); });
             prophetRealm._symbols = prophetClickTargets.filter(t => t.geometry && t.geometry.type === 'OctahedronGeometry');
+            populateDenizens(prophetRealm, prophetClickTargets, 0xc9b3ff, 4, 'Seer', 30);
+            if (prophetRealm._denizens) prophetRealm._denizens.forEach((d, i) => { d.userData.baseY = 10 + i * 22; });
         }
         buildProphetRealm();
 
         function enterProphetRealm() {
             if (inProphet) return;
             inProphet = true;
-            _hubCamPosP.copy(camera.position);
-            _hubCamTargetP.copy(controls.target);
-            camera.position.set(prophetBase.x, prophetBase.y + 12, prophetBase.z + 64);
-            controls.target.set(prophetBase.x, prophetBase.y + 60, prophetBase.z);
-            controls.update();
+            _hubPlayerPos = playerNPC.position.clone();
+            _hubPlayerYaw = playerYaw;
+            playerNPC.position.set(prophetBase.x, prophetBase.y + 2, prophetBase.z + 56);
+            playerFloorY = prophetBase.y;
+            playerYaw = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
+            setCameraMode('npc');
         }
         function exitProphetRealm() {
             if (!inProphet) return;
             inProphet = false;
-            camera.position.copy(_hubCamPosP);
-            controls.target.copy(_hubCamTargetP);
-            controls.update();
+            if (_hubPlayerPos) playerNPC.position.copy(_hubPlayerPos); else playerNPC.position.set(0, 0, 12);
+            playerYaw = _hubPlayerYaw;
+            playerFloorY = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
+            setCameraMode('npc');
         }
         function exitProphetRealmFade() {
             if (!inProphet) return;
@@ -6968,6 +7070,7 @@
             showScribeReadout('🔮 PROPHET SEES — ' + reply);
         }
         function updateProphetRealm(time) {
+            animateDenizens(prophetRealm, 0.016, time);
             if (prophetRealm._floors) prophetRealm._floors.forEach((fl, i) => { fl.rotation.y = time * 0.05 * (i % 2 ? 1 : -1); });
             if (prophetRealm._symbols) prophetRealm._symbols.forEach((s, i) => { s.rotation.y = time * 0.6 + i; s.position.y += Math.sin(time * 1.5 + i) * 0.004; });
             if (prophetRealm._oracle) { prophetRealm._oracle.rotation.y = time * 0.5; prophetRealm._oracle.rotation.x = time * 0.2; prophetRealm._oracle.position.y = 4 + Math.sin(time * 1.1) * 0.4; }
@@ -7089,24 +7192,26 @@
             if (inChamber) exitChamber();
             inChamber = true;
             currentChamber = index;
-            _hubCamPosC.copy(camera.position);
-            _hubCamTargetC.copy(controls.target);
+            _hubPlayerPos = playerNPC.position.clone();
+            _hubPlayerYaw = playerYaw;
             if (!chamberWorlds[index]) {
                 buildChamberInto(chamberRoot, index);
                 chamberWorlds[index] = true;
                 if (chamberSockets[index]) chamberSockets[index].lit = true;
             }
-            camera.position.set(chamberBase.x, chamberBase.y + 8, chamberBase.z + 50);
-            controls.target.set(chamberBase.x, chamberBase.y + 12, chamberBase.z);
-            controls.update();
+            playerNPC.position.set(chamberBase.x, chamberBase.y + 2, chamberBase.z + 44);
+            playerFloorY = chamberBase.y;
+            playerYaw = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
+            setCameraMode('npc');
         }
         function exitChamber() {
             if (!inChamber) return;
             inChamber = false;
             currentChamber = -1;
-            camera.position.copy(_hubCamPosC);
-            controls.target.copy(_hubCamTargetC);
-            controls.update();
+            if (_hubPlayerPos) playerNPC.position.copy(_hubPlayerPos); else playerNPC.position.set(0, 0, 12);
+            playerYaw = _hubPlayerYaw;
+            playerFloorY = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
+            setCameraMode('npc');
         }
         function exitChamberFade() {
             if (!inChamber) return;
