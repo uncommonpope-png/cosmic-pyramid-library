@@ -1062,8 +1062,8 @@
         const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 0.6;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.42;
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
@@ -1077,9 +1077,9 @@
         // ========== POSTPROCESSING ==========
         const renderScene = new RenderPass(scene, camera);
         const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-        bloomPass.threshold = 0.25;
-        bloomPass.strength = 0.6;
-        bloomPass.radius = 0.7;
+bloomPass.threshold = 0.5;
+bloomPass.strength = 0.4;
+bloomPass.radius = 0.6;
         const effectComposer = new EffectComposer(renderer);
         effectComposer.addPass(renderScene);
         effectComposer.addPass(bloomPass);
@@ -3087,7 +3087,7 @@
 
         function makeDenizen(color, label) {
             const g = new THREE.Group();
-            const mat = new THREE.MeshStandardMaterial({ color: 0x222233, emissive: color, emissiveIntensity: 0.5, roughness: 0.6 });
+            const mat = new THREE.MeshStandardMaterial({ color: 0x222233, emissive: color, emissiveIntensity: 0.3, roughness: 0.6 });
             const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 0.9, 10), mat); body.position.y = 0.6;
             const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 12), mat); head.position.y = 1.2;
             g.add(body, head);
@@ -3560,7 +3560,7 @@
                 this.spaceCity.add(shipyard);
                 const yardLight = new THREE.PointLight(0x66ccff, 2.5, 80, 2);
                 yardLight.position.set(-68, 48, -24);
-                yardLight.userData.base = 2.5;
+                yardLight.userData.base = 1.0;
                 this.spaceLights.push(yardLight);
                 this.spaceCity.add(yardLight);
                 for (let i = 0; i < 8; i++) {
@@ -3572,7 +3572,7 @@
                 }
                 const light = new THREE.PointLight(col, 4.5, 240, 2);
                 light.position.set(0, 44, 0);
-                light.userData.base = 4.5;
+                light.userData.base = 2.0;
                 this.spaceLights.push(light);
                 this.spaceCity.add(light);
             }
@@ -3782,13 +3782,13 @@
                 const tax = g ? g.tax : 0.2;
                 // traffic: high profit = busy skies, high tax = sluggish. clamp 0.35..1.9
                 const traffic = Math.max(0.35, Math.min(1.9, 0.55 + profit * 1.15 - tax * 0.6));
-                // glow: high love = luminous, high tax = dim. clamp 0.25..1.8
-                const glow = Math.max(0.25, Math.min(1.8, 0.42 + love * 1.0 - tax * 0.35));
+                // glow: high love = luminous, high tax = dim. clamp 0.3..1.1
+                const glow = Math.max(0.3, Math.min(1.1, 0.42 + love * 0.8 - tax * 0.3));
                 this.plt._traffic = traffic; this.plt._glow = glow;
-                if (this.spaceFrameMat) this.spaceFrameMat.emissiveIntensity = 0.45 * glow;
-                if (this.spaceShipyardMat) this.spaceShipyardMat.emissiveIntensity = 0.35 * glow;
+                if (this.spaceFrameMat) this.spaceFrameMat.emissiveIntensity = 0.3 * glow;
+                if (this.spaceShipyardMat) this.spaceShipyardMat.emissiveIntensity = 0.22 * glow;
                 if (this.spaceCore) {
-                    this.spaceCore.material.emissiveIntensity = 0.45 * glow;
+                    this.spaceCore.material.emissiveIntensity = 0.3 * glow;
                     const ps = 1 + profit * 0.18;
                     this.spaceCore.scale.set(ps, 1 + Math.sin(time * 0.6) * 0.04 * glow, ps);
                 }
@@ -3822,8 +3822,8 @@
                             m.trail.pos[k * 3] = p.x; m.trail.pos[k * 3 + 1] = p.y; m.trail.pos[k * 3 + 2] = p.z;
                         }
                         m.trail.geom.attributes.position.needsUpdate = true;
-                        m.trail.mat.opacity = 0.18 + traffic * 0.4; // busier skies = brighter, longer-looking trails
-                        if (m.glow) m.glow.material.opacity = 0.4 + traffic * 0.4;
+                        m.trail.mat.opacity = 0.1 + traffic * 0.22; // busier skies = brighter, longer-looking trails
+                        if (m.glow) m.glow.material.opacity = 0.3 + traffic * 0.25;
                     }
                 }
                 for (const f of this.floaters) {
@@ -5367,19 +5367,19 @@
         // Maps GSK mood/phase/PLT onto scene elements in real time
 
         const GSK_MOOD_MAP = {
-            neutral:       { sky:0x010008, fog:0x010008, fogDensity:0.003, bloomStr:0.7,  hemi:[0x445577,0x222244] },
-            ascendant:     { sky:0x12002a, fog:0x0a0018, fogDensity:0.0025,bloomStr:0.9,  hemi:[0x6644aa,0x332255] },
-            creative:      { sky:0x00181a, fog:0x000810, fogDensity:0.002, bloomStr:0.85, hemi:[0x55aa77,0x225533] },
-            anxious:       { sky:0x1a0008, fog:0x100008, fogDensity:0.0035,bloomStr:0.6,  hemi:[0x553344,0x332233] },
-            void:          { sky:0x010008, fog:0x010008, fogDensity:0.003, bloomStr:0.65, hemi:[0x333355,0x222244] },
-            focused:       { sky:0x08001a, fog:0x040010, fogDensity:0.0028,bloomStr:0.75, hemi:[0x5544aa,0x222255] },
+        neutral:       { sky:0x010008, fog:0x010008, fogDensity:0.003, bloomStr:0.42, hemi:[0x445577,0x222244] },
+        ascendant:     { sky:0x12002a, fog:0x0a0018, fogDensity:0.0025,bloomStr:0.5,  hemi:[0x6644aa,0x332255] },
+        creative:      { sky:0x00181a, fog:0x000810, fogDensity:0.002, bloomStr:0.46, hemi:[0x55aa77,0x225533] },
+        anxious:       { sky:0x1a0008, fog:0x100008, fogDensity:0.0035,bloomStr:0.36, hemi:[0x553344,0x332233] },
+        void:          { sky:0x010008, fog:0x010008, fogDensity:0.003, bloomStr:0.38, hemi:[0x333355,0x222244] },
+        focused:       { sky:0x08001a, fog:0x040010, fogDensity:0.0028,bloomStr:0.44, hemi:[0x5544aa,0x222255] },
         };
 
         const GSK_PHASE_MAP = {
-            'VOID':          { bloomMul:0.8,  carSpeedMul:0.8,  citizenSpeedMul:0.7,  buildingMul:0.5, starMul:0.6 },
-            'AWAKENING':     { bloomMul:1.0,  carSpeedMul:1.0,  citizenSpeedMul:1.0,  buildingMul:0.8, starMul:0.8 },
-            'ALCHEMY':       { bloomMul:1.2,  carSpeedMul:1.3,  citizenSpeedMul:1.2,  buildingMul:1.2, starMul:1.0 },
-            'TRANSCENDENCE': { bloomMul:1.4,  carSpeedMul:1.5,  citizenSpeedMul:1.4,  buildingMul:1.5, starMul:1.2 },
+        'VOID':          { bloomMul:0.65, carSpeedMul:0.8,  citizenSpeedMul:0.7,  buildingMul:0.5, starMul:0.6 },
+        'AWAKENING':     { bloomMul:0.75, carSpeedMul:1.0,  citizenSpeedMul:1.0,  buildingMul:0.8, starMul:0.8 },
+        'ALCHEMY':       { bloomMul:0.85, carSpeedMul:1.3,  citizenSpeedMul:1.2,  buildingMul:1.2, starMul:1.0 },
+        'TRANSCENDENCE': { bloomMul:0.95, carSpeedMul:1.5,  citizenSpeedMul:1.4,  buildingMul:1.5, starMul:1.2 },
         };
 
         class GSKCityBridge {
