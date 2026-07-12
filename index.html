@@ -3713,7 +3713,23 @@
                     const rx = isCargo ? 132 : isPod ? 46 : isMissile ? 76 : 98;
                     const rz = isCargo ? 66 : isPod ? 24 : isMissile ? 34 : 54;
                     const y = isCargo ? 62 : isPod ? 48 : isMissile ? 52 : 58;
-                    this.spaceMovers.push({ role, obj: wrap, center, rx, rz, y, phase: n * 1.7 + 0.4, speed: isPod ? 0.42 : isMissile ? 0.32 : isCargo ? 0.08 : 0.12, bob: isPod ? 2 : 4 });
+                    const m = { role, obj: wrap, center, rx, rz, y, phase: n * 1.7 + 0.4, speed: isPod ? 0.42 : isMissile ? 0.32 : isCargo ? 0.08 : 0.12, bob: isPod ? 2 : 4, shipColor: isMissile ? 0xff5544 : isCargo ? 0xffcc55 : 0x66ccff };
+                    // T2: contrail ribbon (additive, updates each frame in update())
+                    const TRAIL_LEN = 48;
+                    const tg = new THREE.BufferGeometry();
+                    const tpos = new Float32Array(TRAIL_LEN * 3);
+                    tg.setAttribute('position', new THREE.BufferAttribute(tpos, 3));
+                    const tmat = new THREE.LineBasicMaterial({ color: m.shipColor, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending });
+                    const trail = new THREE.Line(tg, tmat);
+                    trail.frustumCulled = false;
+                    this.spaceCity.add(trail);
+                    m.trail = { geom: tg, pos: tpos, line: trail, mat: tmat, len: TRAIL_LEN, hist: [] };
+                    // engine glow at the tail (small additive sprite, child of wrap so it tracks the ship)
+                    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 12), new THREE.MeshBasicMaterial({ color: m.shipColor, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending }));
+                    glow.position.set(0, 0, 1.1);
+                    wrap.add(glow);
+                    m.glow = glow;
+                    this.spaceMovers.push(m);
                     return;
                 }
 
@@ -3797,6 +3813,18 @@
                     const nz = m.center.z + Math.sin(na) * m.rz;
                     m.obj.position.set(x, y, z);
                     m.obj.lookAt(nx, y, nz);
+                    if (m.trail) {
+                        const h = m.trail.hist;
+                        h.unshift(m.obj.position.clone());
+                        if (h.length > m.trail.len) h.pop();
+                        for (let k = 0; k < m.trail.len; k++) {
+                            const p = h[Math.min(k, h.length - 1)] || m.obj.position;
+                            m.trail.pos[k * 3] = p.x; m.trail.pos[k * 3 + 1] = p.y; m.trail.pos[k * 3 + 2] = p.z;
+                        }
+                        m.trail.geom.attributes.position.needsUpdate = true;
+                        m.trail.mat.opacity = 0.18 + traffic * 0.4; // busier skies = brighter, longer-looking trails
+                        if (m.glow) m.glow.material.opacity = 0.4 + traffic * 0.4;
+                    }
                 }
                 for (const f of this.floaters) {
                     f.obj.position.y = f.baseY + Math.sin(time * 0.55 * traffic + f.phase) * f.bob;
