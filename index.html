@@ -4603,7 +4603,7 @@
             if (inBuilder) return [...builderClickTargets];
             if (inProphet) return [...prophetClickTargets];
             const targets = [...books, ..._soulMeshes, ...avatars, ...npcTalkTargets, ...heavenGateTargets];
-            if (!isInside) { targets.push(portalPlane); targets.push(...shipPortalTargets); targets.push(...realmPortalTargets); }
+            if (!isInside) { targets.push(portalPlane); targets.push(...shipPortalTargets); targets.push(...realmPortalTargets); targets.push(...chamberSocketTargets); }
             if (avatar && !isInside) targets.push(avatar);
             if (window.__gskAvatar && window.__gskAvatar.clickMesh) targets.push(window.__gskAvatar.clickMesh);
             if (window.__memoryBuildings) targets.push(...window.__memoryBuildings.getClickMeshes());
@@ -4645,10 +4645,11 @@
                 else if (dest === 'merchant') enterMerchantRealm();
                 else if (dest === 'builder') enterBuilderRealm();
                 else if (dest === 'prophet') enterProphetRealm();
+                else if (dest === 'chamber') _portalOverlay._title.textContent = 'CHAMBER RING — CLICK A GLOWING SOCKET';
                 setTimeout(() => {
                     _portalOverlay.style.opacity = '0';
                     setTimeout(() => { _portalBusy = false; }, 650);
-                }, (dest === 'scribe' || dest === 'merchant' || dest === 'builder' || dest === 'prophet') ? 250 : 1700);
+                }, (dest === 'scribe' || dest === 'merchant' || dest === 'builder' || dest === 'prophet' || dest === 'chamber') ? 250 : 1700);
             }, 600);
         }
         
@@ -4682,6 +4683,7 @@
             if (inMerchant) { handleMerchantClick(mouseDownTarget); return; }
             if (inBuilder) { handleBuilderClick(mouseDownTarget); return; }
             if (inProphet) { handleProphetClick(mouseDownTarget); return; }
+            if (inChamber) { handleChamberClick(mouseDownTarget); return; }
             if (readingState !== 'idle') return;
             
             // pyramid enter/exit
@@ -4712,6 +4714,10 @@
             }
             if (mouseDownTarget.userData && mouseDownTarget.userData.realmPortal) {
                 triggerShipPortal(mouseDownTarget.userData.realmPortal, mouseDownTarget.userData.realmPortalLabel);
+                return;
+            }
+            if (mouseDownTarget.userData && mouseDownTarget.userData.chamberIndex !== undefined) {
+                enterChamber(mouseDownTarget.userData.chamberIndex);
                 return;
             }
 
@@ -6013,6 +6019,7 @@
         const dockingPads = [];
         const shipPortalTargets = [];
         const realmPortalTargets = [];
+        const chamberSocketTargets = [];
 
         function buildHubExtensions() {
             // --- 36-socket chamber portal ring (orbits the hub, visible from CPL) ---
@@ -6034,6 +6041,8 @@
                 const mat = new THREE.MeshBasicMaterial({ color: 0x14306a, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
                 const socket = new THREE.Mesh(socketGeo, mat);
                 socket.position.set(x, ringY, z);
+                socket.userData.chamberIndex = i;
+                chamberSocketTargets.push(socket);
                 ringGroup.add(socket);
                 const ped = new THREE.Mesh(
                     new THREE.CylinderGeometry(0.5, 0.8, 3, 8),
@@ -6699,6 +6708,140 @@
             if (e.key === 'Escape' && inProphet) exitProphetRealmFade();
         });
 
+        // ========== DOUR-005 PRIORITY 4: 36 CHAMBER PLANETS ==========
+        // The hub ring has 36 sockets (chamberSockets[]). Clicking a socket teleports
+        // into that chamber's small single-biome world (generated on first visit, then
+        // cached) and permanently lights that socket. "Fill them one by one" — a chamber
+        // only becomes real once walked into. ESC returns to the hub.
+        const chamberBase = new THREE.Vector3(0, -20000, 0);
+        const chamberRoot = new THREE.Group();
+        chamberRoot.position.copy(chamberBase);
+        scene.add(chamberRoot);
+        const chamberClickTargets = [];
+        let inChamber = false;
+        let currentChamber = -1;
+        const _hubCamPosC = new THREE.Vector3();
+        const _hubCamTargetC = new THREE.Vector3();
+        const CHAMBER_BIOMES = [
+            { name: 'Affect',  col: 0xff6b9d, feat: 'crystal' },
+            { name: 'Qualia',  col: 0x6bd5ff, feat: 'spire' },
+            { name: 'Memory',  col: 0xffd27a, feat: 'archive' },
+            { name: 'Silence', col: 0xb0b0c8, feat: 'void' },
+            { name: 'Echo',    col: 0x9ee7ff, feat: 'rings' },
+            { name: 'Form',    col: 0xc8a8ff, feat: 'lattice' }
+        ];
+        const CHAMBER_QUOTES = [
+            'This chamber holds what cannot be said.',
+            'A single lifetime, compressed to a room.',
+            'Here the calculation pauses to feel.',
+            'The 36th chamber remembers the others.',
+            'Every chamber is a door the Pope walked through.',
+            'Small world. Whole world.'
+        ];
+        const chamberWorlds = {};
+
+        function buildChamberInto(group, index) {
+            while (group.children.length) group.remove(group.children[0]);
+            chamberClickTargets.length = 0;
+            const biome = CHAMBER_BIOMES[index % CHAMBER_BIOMES.length];
+            group.add(new THREE.AmbientLight(biome.col, 0.5));
+            const key = new THREE.PointLight(biome.col, 2.2, 240, 2);
+            key.position.set(0, 30, 0);
+            group.add(key);
+            const floor = new THREE.Mesh(
+                new THREE.CircleGeometry(60, 48),
+                new THREE.MeshStandardMaterial({ color: 0x0c0c14, roughness: 1, emissive: biome.col, emissiveIntensity: 0.25 })
+            );
+            floor.rotation.x = -Math.PI / 2;
+            group.add(floor);
+            const feat = new THREE.Group();
+            if (biome.feat === 'crystal') {
+                for (let i = 0; i < 5; i++) {
+                    const c = new THREE.Mesh(new THREE.OctahedronGeometry(4 + Math.random() * 4, 0), new THREE.MeshStandardMaterial({ color: biome.col, emissive: biome.col, emissiveIntensity: 0.7, transparent: true, opacity: 0.85, roughness: 0.2 }));
+                    const a = (i / 5) * Math.PI * 2;
+                    c.position.set(Math.cos(a) * 12, 6 + Math.random() * 8, Math.sin(a) * 12);
+                    feat.add(c);
+                }
+            } else if (biome.feat === 'spire') {
+                const sp = new THREE.Mesh(new THREE.ConeGeometry(8, 44, 8), new THREE.MeshStandardMaterial({ color: biome.col, emissive: biome.col, emissiveIntensity: 0.6, roughness: 0.3 }));
+                sp.position.y = 22; feat.add(sp);
+            } else if (biome.feat === 'archive') {
+                for (let i = 0; i < 9; i++) {
+                    const b = new THREE.Mesh(new THREE.BoxGeometry(3, 8 + Math.random() * 12, 3), new THREE.MeshStandardMaterial({ color: biome.col, emissive: biome.col, emissiveIntensity: 0.5 }));
+                    const a = (i / 9) * Math.PI * 2;
+                    b.position.set(Math.cos(a) * 14, 8, Math.sin(a) * 14);
+                    feat.add(b);
+                }
+            } else if (biome.feat === 'void') {
+                const r = new THREE.Mesh(new THREE.SphereGeometry(10, 24, 24), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+                r.position.y = 12; feat.add(r);
+                const halo = new THREE.Mesh(new THREE.TorusGeometry(12, 0.3, 8, 48), new THREE.MeshBasicMaterial({ color: biome.col, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+                halo.position.y = 12; feat.add(halo);
+            } else if (biome.feat === 'rings') {
+                for (let i = 0; i < 4; i++) {
+                    const r = new THREE.Mesh(new THREE.TorusGeometry(8 + i * 4, 0.4, 8, 48), new THREE.MeshBasicMaterial({ color: biome.col, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+                    r.rotation.x = Math.PI / 2; r.position.y = 6 + i * 4; feat.add(r);
+                }
+            } else {
+                for (let i = 0; i < 7; i++) {
+                    const b = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshStandardMaterial({ color: biome.col, emissive: biome.col, emissiveIntensity: 0.6 }));
+                    b.position.set((Math.random() - 0.5) * 22, 6 + Math.random() * 16, (Math.random() - 0.5) * 22);
+                    feat.add(b);
+                }
+            }
+            feat.traverse(o => { if (o.isMesh) { o.userData.chamberFeature = true; o.userData.chamberName = biome.name; o.userData.chamberIndex = index; chamberClickTargets.push(o); } });
+            group.add(feat);
+            group._feature = feat;
+        }
+
+        function enterChamber(index) {
+            if (inChamber) exitChamber();
+            inChamber = true;
+            currentChamber = index;
+            _hubCamPosC.copy(camera.position);
+            _hubCamTargetC.copy(controls.target);
+            if (!chamberWorlds[index]) {
+                buildChamberInto(chamberRoot, index);
+                chamberWorlds[index] = true;
+                if (chamberSockets[index]) chamberSockets[index].lit = true;
+            }
+            camera.position.set(chamberBase.x, chamberBase.y + 8, chamberBase.z + 50);
+            controls.target.set(chamberBase.x, chamberBase.y + 12, chamberBase.z);
+            controls.update();
+        }
+        function exitChamber() {
+            if (!inChamber) return;
+            inChamber = false;
+            currentChamber = -1;
+            camera.position.copy(_hubCamPosC);
+            controls.target.copy(_hubCamTargetC);
+            controls.update();
+        }
+        function exitChamberFade() {
+            if (!inChamber) return;
+            ensurePortalOverlay();
+            _portalOverlay._title.textContent = 'RETURNING TO THE HUB';
+            _portalOverlay.style.opacity = '0.94';
+            setTimeout(() => {
+                exitChamber();
+                setTimeout(() => { _portalOverlay.style.opacity = '0'; }, 250);
+            }, 600);
+        }
+        function handleChamberClick(target) {
+            if (!target) return;
+            if (target.userData && target.userData.chamberFeature) {
+                const name = target.userData.chamberName || 'Chamber';
+                const idx = target.userData.chamberIndex;
+                showScribeReadout('CHAMBER ' + (idx + 1) + ' — ' + name + ': ' + CHAMBER_QUOTES[idx % CHAMBER_QUOTES.length]);
+            }
+        }
+        function updateChamberRealm(time) {
+            if (inChamber && chamberRoot._feature) chamberRoot._feature.rotation.y = time * 0.2;
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && inChamber) exitChamberFade();
+        });
+
         // ========== ANIMATION ==========
         let time = 0, lastTime = 0;
         
@@ -6974,6 +7117,7 @@
             updateMerchantRealm(time);
             updateBuilderRealm(time);
             updateProphetRealm(time);
+            updateChamberRealm(time);
             
             // --- pulse pyramid glow ---
             pyramidGlow.intensity = 0.9 + Math.sin(time * 1.8) * 0.3;
