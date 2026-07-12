@@ -4598,7 +4598,7 @@
         const _moveIntersect = new THREE.Vector3();
         
         function getClickTargets() {
-            if (inScribe) return [...scribeClickTargets];
+            if (inScribe) return [...scribeClickTargets, ...(scribeRealm._memBooks || [])];
             if (inMerchant) return [...merchantClickTargets];
             if (inBuilder) return [...builderClickTargets];
             if (inProphet) return [...prophetClickTargets];
@@ -6224,6 +6224,11 @@
             'Memory 444 — a name spoken aloud reopened a closed book.'
         ];
         const BOOK_COLORS = [0xffd27a, 0xff9ec4, 0x9ee7ff, 0xc8a8ff, 0xfff2cf];
+        const SCRIBE_MEM_TYPE_COLORS = {
+            'memory': 0x9ee7ff, 'event': 0xffd27a, 'decision': 0xc8a8ff,
+            'pattern': 0xff9ec4, 'research': 0x9effc4, 'journal': 0xfff2cf,
+            'conversation': 0xffb27a, 'reflection': 0xb0a8ff
+        };
 
         function makeScribeShelf(x, z, h, rows, cols) {
             const g = new THREE.Group();
@@ -6294,6 +6299,53 @@
             scribeRealm.add(scribe);
             scribeRealm._scribe = scribe;
             scribeRealm._fbook = fbook;
+            scribeRealm._memBooks = [];
+            buildScribeMemoryShelf();
+        }
+        function buildScribeMemoryShelf() {
+            const shelf = new THREE.Group();
+            shelf.position.set(0, 0, 36);
+            const woodMat = new THREE.MeshStandardMaterial({ color: 0x3a2c18, roughness: 0.9, metalness: 0.05, emissive: 0x140d04, emissiveIntensity: 0.6 });
+            const base = new THREE.Mesh(new THREE.BoxGeometry(64, 2, 5), woodMat); base.position.y = 6; shelf.add(base);
+            const top = new THREE.Mesh(new THREE.BoxGeometry(64, 2, 5), woodMat); top.position.y = 24; shelf.add(top);
+            const back = new THREE.Mesh(new THREE.BoxGeometry(64, 20, 1), woodMat); back.position.set(0, 15, -2); shelf.add(back);
+            const plaque = new THREE.Mesh(new THREE.PlaneGeometry(20, 3), new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+            plaque.position.set(0, 26.5, 0.2); shelf.add(plaque);
+            scribeRealm.add(shelf);
+            scribeRealm._memShelf = shelf;
+        }
+        async function refreshScribeMemories() {
+            if (!gsk || !gskBridge || !gskBridge.gskOnline) return;
+            let data;
+            try { data = await gsk.memories(); } catch (e) { return; }
+            if (!data || !Array.isArray(data.memories)) return;
+            const shelf = scribeRealm._memShelf;
+            if (!shelf) return;
+            for (const b of scribeRealm._memBooks) shelf.remove(b);
+            scribeRealm._memBooks = [];
+            const mems = data.memories.slice(0, 36);
+            const perRow = 14, gap = 4.2;
+            const startX = -((perRow - 1) * gap) / 2;
+            mems.forEach((m, i) => {
+                const row = Math.floor(i / perRow);
+                const col = i % perRow;
+                const type = m.type || 'memory';
+                const weight = typeof m.weight === 'number' ? m.weight : 0.5;
+                const colHex = SCRIBE_MEM_TYPE_COLORS[type] || 0x9ee7ff;
+                const bright = 0.2 + weight * 1.2;
+                const bh = 4 + weight * 13;
+                const book = new THREE.Mesh(
+                    new THREE.BoxGeometry(2.6, bh, 3.0),
+                    new THREE.MeshStandardMaterial({ color: colHex, emissive: colHex, emissiveIntensity: bright, roughness: 0.55 })
+                );
+                book.position.set(startX + col * gap, 7.5 + bh / 2 + row * 1.5, 0);
+                book.userData.book = true;
+                book.userData.gskMemory = true;
+                book.userData.memoryObj = m;
+                shelf.add(book);
+                scribeRealm._memBooks.push(book);
+            });
+            if (scribeRealm._memCountEl) scribeRealm._memCountEl.textContent = (data.count != null ? data.count : mems.length) + ' GSK entries';
         }
         buildScribeRealm();
 
@@ -6305,6 +6357,7 @@
             camera.position.set(scribeBase.x, scribeBase.y + 10, scribeBase.z + 46);
             controls.target.set(scribeBase.x, scribeBase.y + 9, scribeBase.z);
             controls.update();
+            if (gskBridge && gskBridge.gskOnline) { scribeRealm._memLast = performance.now() / 1000; setTimeout(() => refreshScribeMemories(), 700); }
         }
         function exitScribeRealm() {
             if (!inScribe) return;
@@ -6325,7 +6378,9 @@
         }
         function handleScribeClick(target) {
             if (!target) return;
-            if (target.userData && target.userData.book) {
+            if (target.userData && target.userData.gskMemory && target.userData.memoryObj) {
+                handleScribeMemoryClick(target.userData.memoryObj);
+            } else if (target.userData && target.userData.book) {
                 showScribeReadout('📖 ' + target.userData.memory);
             } else if (target.userData && target.userData.scribe) {
                 showScribeReadout('SCRIBE: "You return. The shelves remember you. ' + SCRIBE_MEMORIES[Math.floor(Math.random() * SCRIBE_MEMORIES.length)] + '"');
@@ -6347,6 +6402,15 @@
         function updateScribeRealm(time) {
             if (scribeRealm._fbook) scribeRealm._fbook.rotation.z = Math.sin(time * 0.6) * 0.06;
             if (scribeRealm._scribe) scribeRealm._scribe.rotation.y = Math.sin(time * 0.2) * 0.15;
+            if (inScribe && gskBridge && gskBridge.gskOnline && (scribeRealm._memLast || 0) && time - scribeRealm._memLast > 30) {
+                scribeRealm._memLast = time;
+                refreshScribeMemories();
+            }
+        }
+        function handleScribeMemoryClick(m) {
+            const w = typeof m.weight === 'number' ? m.weight.toFixed(2) : '?';
+            const tags = Array.isArray(m.tags) ? m.tags.join(', ') : (m.tags || '');
+            showScribeReadout('📖 [' + (m.type || 'memory') + '] ' + (m.summary || '(no summary)') + (tags ? '  ·  ' + tags : '') + '  ·  weight ' + w);
         }
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && inScribe) exitScribeRealmFade();
