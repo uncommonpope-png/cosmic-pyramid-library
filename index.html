@@ -2749,6 +2749,66 @@ bloomPass.radius = 0.6;
             ships.push({ group: shipGroup, speed: 7 + Math.random() * 9, lane: i % 3, phase: Math.random() * 100 });
         }
 
+        // ========== GROUND TRAFFIC (real GLB cars) ==========
+        const groundCars = [];
+        
+        // Load road GLB
+        const roadLoader = makeGLTF();
+        roadLoader.load('assets/recent/roads_ii_100_free.glb', (gltf) => {
+            const model = gltf.scene;
+            const box = new THREE.Box3().setFromObject(model);
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z) || 1;
+            const s = 80 / maxDim;
+            model.position.set(-box.min.x * s, -box.min.y * s, -box.min.z * s);
+            const wrap = new THREE.Group();
+            wrap.add(model);
+            wrap.scale.setScalar(s);
+            wrap.position.set(0, 0.05, 20);
+            model.traverse((c) => { if (c.isMesh) { c.receiveShadow = true; } });
+            cityGroup.add(wrap);
+            console.log('[Road] loaded');
+        }, undefined, (err) => { console.warn('[Road] load failed:', err); });
+        
+        const carAssets = [
+            'assets/recent/cars/1979_bmw_m1.glb',
+            'assets/recent/cars/bmw_e39_free.glb',
+            'assets/recent/cars/porsche_992_gt3r-_roxy.glb',
+            'assets/recent/cars/wyvern_concept_car_-_free.glb',
+            'assets/recent/cars/free_cyberpunk_hovercar.glb'
+        ];
+        const carLoader = makeGLTF();
+        carAssets.forEach((carPath, idx) => {
+            carLoader.load(carPath, (gltf) => {
+                const model = gltf.scene;
+                const box = new THREE.Box3().setFromObject(model);
+                const size = box.getSize(new THREE.Vector3());
+                const center = box.getCenter(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z) || 1;
+                const s = 3.5 / maxDim;
+                model.position.set(-center.x, -box.min.y, -center.z);
+                const wrap = new THREE.Group();
+                wrap.add(model);
+                wrap.scale.setScalar(s);
+                model.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                
+                // Place car on road
+                const laneOffset = (idx % 3 - 1) * 4;
+                const startX = -60 + Math.random() * 120;
+                const startZ = 20 + laneOffset;
+                wrap.position.set(startX, 0.1, startZ);
+                wrap.rotation.y = idx % 2 === 0 ? 0 : Math.PI;
+                cityGroup.add(wrap);
+                
+                groundCars.push({
+                    group: wrap,
+                    speed: 8 + Math.random() * 6,
+                    direction: idx % 2 === 0 ? 1 : -1,
+                    lane: laneOffset
+                });
+            }, undefined, (err) => { console.warn('[GroundCar] load failed:', carPath, err); });
+        });
+
         // ========== PORSCHE 911 GT3 RS (grafted asset) ==========
         const porscheMarker = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff00ff }));
         porscheMarker.position.set(10, 0.4, 0);
@@ -7886,6 +7946,16 @@ bloomPass.radius = 0.6;
                     ship.group.position.x = -150;
                     ship.group.position.z = -160 - Math.random() * 80;
                     ship.group.position.y = 36 + Math.random() * 55;
+                }
+            }
+            
+            // --- ground traffic (real GLB cars) ---
+            for (const car of groundCars) {
+                car.group.position.x += car.speed * car.direction * 0.016;
+                if (car.group.position.x > 80) {
+                    car.group.position.x = -80;
+                } else if (car.group.position.x < -80) {
+                    car.group.position.x = 80;
                 }
             }
             
