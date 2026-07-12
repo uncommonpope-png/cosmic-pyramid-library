@@ -4603,7 +4603,7 @@
             if (inBuilder) return [...builderClickTargets];
             if (inProphet) return [...prophetClickTargets];
             const targets = [...books, ..._soulMeshes, ...avatars, ...npcTalkTargets, ...heavenGateTargets];
-            if (!isInside) { targets.push(portalPlane); targets.push(...shipPortalTargets); targets.push(...realmPortalTargets); targets.push(...chamberSocketTargets); }
+            if (!isInside) { targets.push(portalPlane); targets.push(...shipPortalTargets); targets.push(...realmPortalTargets); targets.push(...chamberSocketTargets); targets.push(...godWorldClickTargets); }
             if (avatar && !isInside) targets.push(avatar);
             if (window.__gskAvatar && window.__gskAvatar.clickMesh) targets.push(window.__gskAvatar.clickMesh);
             if (window.__memoryBuildings) targets.push(...window.__memoryBuildings.getClickMeshes());
@@ -4718,6 +4718,10 @@
             }
             if (mouseDownTarget.userData && mouseDownTarget.userData.chamberIndex !== undefined) {
                 enterChamber(mouseDownTarget.userData.chamberIndex);
+                return;
+            }
+            if (mouseDownTarget.userData && mouseDownTarget.userData.godWorld) {
+                showGodWorldReadout(mouseDownTarget.userData.godWorld);
                 return;
             }
 
@@ -6020,6 +6024,7 @@
         const shipPortalTargets = [];
         const realmPortalTargets = [];
         const chamberSocketTargets = [];
+        const godWorldClickTargets = [];
 
         function buildHubExtensions() {
             // --- 36-socket chamber portal ring (orbits the hub, visible from CPL) ---
@@ -6064,11 +6069,16 @@
                 const grp = new THREE.Group();
                 grp.position.set(g.pos[0], g.pos[1], g.pos[2]);
                 const core = new THREE.Mesh(new THREE.SphereGeometry(g.r, 32, 32), new THREE.MeshBasicMaterial({ color: g.color }));
+                core.userData.godWorld = g.name;
+                core.userData.godColor = g.color;
+                godWorldClickTargets.push(core);
                 grp.add(core);
                 const halo = new THREE.Mesh(
                     new THREE.SphereGeometry(g.r * 1.6, 32, 32),
                     new THREE.MeshBasicMaterial({ color: g.color, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide, fog: false })
                 );
+                halo.userData.godWorld = g.name;
+                godWorldClickTargets.push(halo);
                 grp.add(halo);
                 grp.add(new THREE.PointLight(g.color, 1.2, 0, 2));
                 scene.add(grp);
@@ -6098,6 +6108,20 @@
             }
         }
         buildHubExtensions();
+
+        // God-world click readout (DOUR-006 Task 7): name + live PLT weight from GSK bridge
+        function showGodWorldReadout(name) {
+            let weight = '--', online = false;
+            if (gskBridge && gskBridge.gskOnline) {
+                online = true;
+                if (name === 'Profit') weight = (gskBridge.plt.profit * 100).toFixed(0) + '%';
+                else if (name === 'Love') weight = (gskBridge.plt.love * 100).toFixed(0) + '%';
+                else if (name === 'Tax') weight = (gskBridge.plt.tax * 100).toFixed(0) + '%';
+                else if (name === 'Harvest') weight = (gskBridge.buildingPltAvg * 100).toFixed(0) + '%';
+            }
+            const line = 'GOD WORLD — ' + name.toUpperCase() + ': PLT weight ' + weight + (online ? '' : ' (GSK offline)');
+            showScribeReadout(line);
+        }
 
         // hub portal markers to sub-agent realms (BUILDER now; PROPHET added with its realm)
         function buildRealmPortals() {
