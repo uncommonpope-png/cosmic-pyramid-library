@@ -576,6 +576,11 @@
         <button class="avatar-btn" data-kind="builder">BUILDER</button>
         <button class="avatar-btn" data-kind="prophet">PROPHET</button>
         <button class="avatar-btn" data-kind="gsk">GSK</button>
+        <span class="avatar-sep">|</span>
+        <button class="avatar-btn" data-kind="catgirl">CAT GIRL</button>
+        <button class="avatar-btn" data-kind="lola">LOLA</button>
+        <button class="avatar-btn" data-kind="goku">GOKU</button>
+        <button class="avatar-btn" data-kind="skull">SKULL</button>
         <span id="npc-status">WASD move · Shift run · Space up/jump · Q down · F fly</span>
     </div>
 
@@ -2809,6 +2814,33 @@ bloomPass.radius = 0.6;
             }, undefined, (err) => { console.warn('[GroundCar] load failed:', carPath, err); });
         });
 
+        // ========== GLB AVATARS (real character models) ==========
+        const glbAvatars = {};
+        const avatarAssets = [
+            { kind: 'catgirl', path: 'assets/recent/avatars/cat_girl_-_rigged.glb' },
+            { kind: 'lola', path: 'assets/recent/avatars/lola_bunny__free.glb' },
+            { kind: 'goku', path: 'assets/recent/avatars/dragon_ball_z_baby_goku.glb' },
+            { kind: 'skull', path: 'assets/recent/avatars/skull_in_astronaut_helmet.glb' }
+        ];
+        const avatarLoader = makeGLTF();
+        avatarAssets.forEach((av) => {
+            avatarLoader.load(av.path, (gltf) => {
+                const model = gltf.scene;
+                const box = new THREE.Box3().setFromObject(model);
+                const size = box.getSize(new THREE.Vector3());
+                const center = box.getCenter(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z) || 1;
+                const s = 1.8 / maxDim;
+                model.position.set(-center.x, -box.min.y, -center.z);
+                const wrap = new THREE.Group();
+                wrap.add(model);
+                wrap.scale.setScalar(s);
+                model.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                glbAvatars[av.kind] = wrap;
+                console.log('[Avatar] loaded:', av.kind);
+            }, undefined, (err) => { console.warn('[Avatar] load failed:', av.path, err); });
+        });
+
         // ========== PORSCHE 911 GT3 RS (grafted asset) ==========
         const porscheMarker = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff00ff }));
         porscheMarker.position.set(10, 0.4, 0);
@@ -3418,12 +3450,18 @@ bloomPass.radius = 0.6;
         window.__playerNPC = playerNPC;
 
         function setPlayerAvatar(kind) {
-            if (!SUBAGENT_COLORS[kind]) return;
-            playerKind = kind;
             const pos = playerNPC.position.clone();
             const yaw = playerYaw;
             scene.remove(playerNPC);
-            playerNPC = buildSubagentAvatar(kind);
+            
+            // Use GLB avatar if available, otherwise fall back to procedural
+            if (glbAvatars[kind]) {
+                playerNPC = glbAvatars[kind].clone();
+                playerNPC.userData = { name: 'You (' + kind + ')', isPlayerNPC: true };
+            } else {
+                playerNPC = buildSubagentAvatar(kind);
+            }
+            
             playerNPC.position.copy(pos);
             playerNPC.rotation.y = yaw;
             scene.add(playerNPC);
