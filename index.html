@@ -553,6 +553,14 @@
         #intro-overlay .enter-btn { margin-top: 18px; font-family: Georgia, serif; font-size: 15px; letter-spacing: 2px;
           padding: 12px 34px; border-radius: 28px; border: 1px solid #66ffff; background: rgba(20,60,90,0.8); color: #dffaff; cursor: pointer; }
         #intro-overlay .enter-btn:hover { background: rgba(40,100,150,0.9); }
+        #objective { position: fixed; left: 14px; top: 14px; z-index: 60; max-width: 240px; padding: 10px 14px;
+          font-family: Georgia, serif; font-size: 12px; line-height: 1.5; color: #dcefff; text-align: left;
+          background: rgba(8,16,32,0.72); border: 1px solid rgba(102,255,255,0.3); border-radius: 12px; display: none;
+          box-shadow: 0 0 18px rgba(40,120,200,0.2); }
+        #objective b { color: #ffe0a8; letter-spacing: 2px; font-size: 13px; }
+        #quest-toast { position: fixed; left: 50%; top: 22px; transform: translateX(-50%); z-index: 220; padding: 10px 22px;
+          font-family: Georgia, serif; letter-spacing: 2px; font-size: 14px; color: #07121f; background: rgba(150,255,210,0.95);
+          border-radius: 22px; box-shadow: 0 0 28px rgba(120,255,200,0.6); opacity: 0; transition: opacity .5s ease; pointer-events: none; }
     </style>
 </head>
 <body>
@@ -3114,14 +3122,61 @@ bloomPass.radius = 0.6;
         };
         let playerKind = 'scribe';
 
+        // Phase 2: denizen identity + realm quest loops
+        const realmDenizenIds = {};
+        const metDenizens = new Set();
+        const questComplete = {};
+        const questDefs = {
+            scribe:   { name: "SCRIBE'S LIBRARY",  goal: 'Consult the Scribe Acolytes',   need: 5 },
+            merchant: { name: "MERCHANT'S MARKET", goal: 'Hear the Market Traders',       need: 5 },
+            builder:  { name: "BUILDER'S WORKSHOP", goal: 'Speak with the Apprentices',   need: 4 },
+            prophet:  { name: "PROPHET'S TOWER",   goal: 'Listen to the Tower Seers',     need: 4 }
+        };
+        const DENIZEN_IDENTITY = {
+            scribe: { title: 'Scribe Acolyte', names: ['Vell', 'Sefa', 'Orin', 'Mira', 'Tace', 'Juno'], lines: [
+                'Every memory GSK keeps is a star we are sworn to catalogue.',
+                'The ink remembers what the mind forgets. Sit. Read.',
+                'A book here is a life GSK refused to lose.',
+                'We copy the calculations so the dead may be cited in court.'] },
+            merchant: { title: 'Market Trader', names: ['Bram', 'Yuki', 'Cole', 'Dax', 'Rina', 'Sol'], lines: [
+                'Profit moves, Love stays, Tax is the toll. That is the whole market.',
+                'Name your need and I will price its weight in soul.',
+                "The stalls breathe with GSK's mood — dear when he is glad.",
+                'Trade is just love with a ledger.'] },
+            builder: { title: 'Workshop Apprentice', names: ['Fenn', 'Ivo', 'Kade', 'Lux', 'Orrin', 'Pax'], lines: [
+                'Give me a commission and I will make the world heavier with it.',
+                'The pedestal drafts what GSK has not yet built.',
+                'We forge the scaffolds Profit imagines.',
+                'A blueprint is a promise in line-form.'] },
+            prophet: { title: 'Tower Seer', names: ['Aza', 'Niam', 'Ophir', 'Sela', 'Tam', 'Uri'], lines: [
+                'The orb does not predict. It listens to GSK and repeats the future.',
+                'Climb, and the fog thins to a single sentence.',
+                'Prophecy is just memory projected forward.',
+                'I have seen the chamber where your name is spoken.'] }
+        };
+        function _denizenKeyFromLabel(label) {
+            const l = (label || '').toLowerCase();
+            if (l.includes('scribe')) return 'scribe';
+            if (l.includes('merchant')) return 'merchant';
+            if (l.includes('builder')) return 'builder';
+            if (l.includes('prophet')) return 'prophet';
+            return 'scribe';
+        }
+        let _denizenSeq = 0;
         function makeDenizen(color, label) {
+            const key = _denizenKeyFromLabel(label);
+            const idn = DENIZEN_IDENTITY[key];
+            const idx = _denizenSeq++;
+            const name = idn.names[idx % idn.names.length];
             const g = new THREE.Group();
             const mat = new THREE.MeshStandardMaterial({ color: 0x222233, emissive: color, emissiveIntensity: 0.3, roughness: 0.6 });
             const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 0.9, 10), mat); body.position.y = 0.6;
             const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 12), mat); head.position.y = 1.2;
             g.add(body, head);
             g.traverse(c => { if (c.isMesh) c.castShadow = true; });
-            g.userData = { npcTalk: { label: label || 'Denizen' }, denizen: true, phase: Math.random() * Math.PI * 2 };
+            const denId = key + ':' + idx;
+            g.userData = { npcTalk: { label: name, name: name, title: idn.title, lines: idn.lines }, denizen: true, denizenId: denId, phase: Math.random() * Math.PI * 2 };
+            (realmDenizenIds[key] = realmDenizenIds[key] || []).push(denId);
             return g;
         }
         function populateDenizens(realm, clickTargets, color, count, label, radius) {
@@ -3288,8 +3343,54 @@ bloomPass.radius = 0.6;
             const data = target.userData.npcTalk || { label: 'NPC' };
             const pos = new THREE.Vector3();
             target.getWorldPosition(pos);
-            const line = npcTalkLines[Math.floor(Math.random() * npcTalkLines.length)];
-            spawnWhisper(pos, `${data.label}: ${line}`);
+            let line;
+            if (target.userData.denizen && data.lines && data.lines.length) {
+                line = data.lines[Math.floor(Math.random() * data.lines.length)];
+                recordDenizen(target.userData.denizenId);
+            } else {
+                line = npcTalkLines[Math.floor(Math.random() * npcTalkLines.length)];
+            }
+            const who = data.name ? `${data.name} · ${data.title || ''}` : data.label;
+            spawnWhisper(pos, `${who}: ${line}`);
+        }
+
+        // Phase 2: quest progress + objective HUD
+        function recordDenizen(id) {
+            if (!id) return;
+            metDenizens.add(id);
+            const key = currentRealm();
+            if (!key || !questDefs[key]) return;
+            const ids = realmDenizenIds[key] || [];
+            const have = ids.filter(x => metDenizens.has(x)).length;
+            if (have >= questDefs[key].need && !questComplete[key]) {
+                questComplete[key] = true;
+                onQuestComplete(key);
+            }
+        }
+        let _objCache = '';
+        function refreshObjective() {
+            const el = document.getElementById('objective');
+            if (!el) return;
+            const key = currentRealm();
+            if (!key || !questDefs[key]) { if (el.style.display !== 'none') { el.style.display = 'none'; _objCache = ''; } return; }
+            const d = questDefs[key];
+            const have = (realmDenizenIds[key] || []).filter(x => metDenizens.has(x)).length;
+            const done = questComplete[key] ? ' · <span style="color:#9effc4">COMPLETE</span>' : '';
+            const txt = `<b>${d.name}</b><br><span style="opacity:.8">${d.goal}</span><br>${have} / ${d.need} met${done}`;
+            if (txt !== _objCache) { el.innerHTML = txt; el.style.display = 'block'; _objCache = txt; }
+        }
+        function onQuestComplete(key) {
+            const d = questDefs[key];
+            if (typeof gskAvatar !== 'undefined' && gskAvatar) {
+                spawnWhisper(gskAvatar.group.position.clone().add(new THREE.Vector3(0, 3, 0)), `GSK · ${d.name} understood.`);
+            }
+            showToast(`QUEST COMPLETE — ${d.name}`);
+        }
+        function showToast(msg) {
+            let t = document.getElementById('quest-toast');
+            if (!t) { t = document.createElement('div'); t.id = 'quest-toast'; document.body.appendChild(t); }
+            t.textContent = msg; t.style.opacity = '1';
+            clearTimeout(t._tm); t._tm = setTimeout(() => { t.style.opacity = '0'; }, 2800);
         }
 
         // ========== PAIMON NPC (Genshin Impact) — walking citizen ==========
@@ -7436,6 +7537,7 @@ bloomPass.radius = 0.6;
             time += dt;
             
             updateCompass();
+            refreshObjective();
             
             // --- souls orbiting & bobbing + mouse reaction ---
             souls.forEach(s => {
@@ -7763,6 +7865,8 @@ bloomPass.radius = 0.6;
             <button class="nav-btn on" id="poi-toggle">POI</button>
         </div>
     </div>
+
+    <div id="objective"></div>
 
 </body>
 </html>
