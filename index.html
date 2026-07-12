@@ -6808,6 +6808,11 @@
             'Every chamber is a door the Pope walked through.',
             'Small world. Whole world.'
         ];
+        const MOOD_COLORS = {
+            neutral: 0x88aaff, joy: 0xffd27a, happy: 0xffd27a, sadness: 0x5a7bd6,
+            anger: 0xcc3344, fear: 0x9a6cff, curious: 0x6bd5ff, love: 0xff5fa0,
+            calm: 0x8fe6c4, awe: 0xc8a8ff, anxious: 0xd66b6b, default: 0x88aaff
+        };
         const chamberWorlds = {};
 
         function buildChamberInto(group, index) {
@@ -6862,6 +6867,20 @@
             feat.traverse(o => { if (o.isMesh) { o.userData.chamberFeature = true; o.userData.chamberName = biome.name; o.userData.chamberIndex = index; chamberClickTargets.push(o); } });
             group.add(feat);
             group._feature = feat;
+
+            // DOUR-006 T6: mood-reactive weather layer (Affect chamber most visible)
+            const wgeo = new THREE.BufferGeometry();
+            const wp = [];
+            for (let i = 0; i < 320; i++) {
+                const rr = 18 + Math.random() * 46;
+                const aa = Math.random() * Math.PI * 2;
+                wp.push(Math.cos(aa) * rr, Math.random() * 62, Math.sin(aa) * rr);
+            }
+            wgeo.setAttribute('position', new THREE.Float32BufferAttribute(wp, 3));
+            const wmat = new THREE.PointsMaterial({ color: 0x88aaff, size: 0.7, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+            const weather = new THREE.Points(wgeo, wmat);
+            group.add(weather);
+            group._weather = weather;
         }
 
         function enterChamber(index) {
@@ -6907,6 +6926,13 @@
         }
         function updateChamberRealm(time) {
             if (inChamber && chamberRoot._feature) chamberRoot._feature.rotation.y = time * 0.2;
+            if (chamberRoot._weather) {
+                const mood = (gskBridge && gskBridge.gskOnline) ? (gskBridge.currentMood || 'neutral') : 'neutral';
+                const col = MOOD_COLORS[mood] || MOOD_COLORS.default;
+                chamberRoot._weather.material.color.setHex(col);
+                chamberRoot._weather.material.opacity = 0.35 + Math.sin(time * 0.5) * 0.15;
+                chamberRoot._weather.rotation.y = time * 0.05;
+            }
         }
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && inChamber) exitChamberFade();
