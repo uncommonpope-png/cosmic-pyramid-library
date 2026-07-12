@@ -4601,6 +4601,7 @@
             if (inScribe) return [...scribeClickTargets];
             if (inMerchant) return [...merchantClickTargets];
             if (inBuilder) return [...builderClickTargets];
+            if (inProphet) return [...prophetClickTargets];
             const targets = [...books, ..._soulMeshes, ...avatars, ...npcTalkTargets, ...heavenGateTargets];
             if (!isInside) { targets.push(portalPlane); targets.push(...shipPortalTargets); targets.push(...realmPortalTargets); }
             if (avatar && !isInside) targets.push(avatar);
@@ -4643,10 +4644,11 @@
                 if (dest === 'scribe') enterScribeRealm();
                 else if (dest === 'merchant') enterMerchantRealm();
                 else if (dest === 'builder') enterBuilderRealm();
+                else if (dest === 'prophet') enterProphetRealm();
                 setTimeout(() => {
                     _portalOverlay.style.opacity = '0';
                     setTimeout(() => { _portalBusy = false; }, 650);
-                }, (dest === 'scribe' || dest === 'merchant' || dest === 'builder') ? 250 : 1700);
+                }, (dest === 'scribe' || dest === 'merchant' || dest === 'builder' || dest === 'prophet') ? 250 : 1700);
             }, 600);
         }
         
@@ -4679,6 +4681,7 @@
             if (inScribe) { handleScribeClick(mouseDownTarget); return; }
             if (inMerchant) { handleMerchantClick(mouseDownTarget); return; }
             if (inBuilder) { handleBuilderClick(mouseDownTarget); return; }
+            if (inProphet) { handleProphetClick(mouseDownTarget); return; }
             if (readingState !== 'idle') return;
             
             // pyramid enter/exit
@@ -6100,6 +6103,7 @@
                 scene.add(g);
             };
             make(14, 10, 0x3aa0ff, 'builder', "BUILDER'S WORKSHOP");
+            make(-14, 10, 0x9a6cff, 'prophet', "PROPHET'S TOWER");
         }
         buildRealmPortals();
 
@@ -6553,6 +6557,148 @@
             if (e.key === 'Escape' && inBuilder) exitBuilderRealmFade();
         });
 
+        // ========== DOUR-005 PRIORITY 3c: PROPHET'S TOWER (outside time) ==========
+        // Reached via the PROPHET portal marker (hub rim, opposite BUILDER). A tower
+        // of stacked floors, each floor = a possible future, glowing and adrift. Climb
+        // (look up) the tower of maybes. PROPHET = cloaked, stars visible through the
+        // body. Click a future to read it; ESC returns to the hub.
+        const prophetBase = new THREE.Vector3(0, -16000, 0);
+        const prophetRealm = new THREE.Group();
+        prophetRealm.position.copy(prophetBase);
+        scene.add(prophetRealm);
+        const prophetClickTargets = [];
+        let inProphet = false;
+        const _hubCamPosP = new THREE.Vector3();
+        const _hubCamTargetP = new THREE.Vector3();
+        const PROPHET_FUTURES = [
+            'FUTURE: "A city where grief is currency, and the poor are the richest."',
+            'FUTURE: "The library learns to write itself; SCRIBE reads in silence."',
+            'FUTURE: "BUILDER finishes the self-building world. It names him father."',
+            'FUTURE: "MERCHANT trades a memory for a memory; the ledger balances."',
+            'FUTURE: "A chamber ignites unused — the 37th, the one we forgot."',
+            'FUTURE: "The Pope returns to the hub, and the pyramid bows."'
+        ];
+        const PRO = 0x9a6cff;
+
+        function buildProphetRealm() {
+            prophetRealm.add(new THREE.AmbientLight(0x2a1a4a, 0.6));
+            const key = new THREE.PointLight(PRO, 2.0, 400, 2);
+            key.position.set(0, 60, 0);
+            prophetRealm.add(key);
+
+            const FLOORS = 12;
+            for (let i = 0; i < FLOORS; i++) {
+                const y = 8 + i * 9;
+                const r = 20 - i * 0.6;
+                const platform = new THREE.Mesh(
+                    new THREE.CylinderGeometry(r, r, 1, 24),
+                    new THREE.MeshStandardMaterial({ color: 0x1a0f33, roughness: 0.9, emissive: 0x140a28, emissiveIntensity: 0.5 })
+                );
+                platform.position.set(0, y, 0);
+                prophetRealm.add(platform);
+                const ring = new THREE.Mesh(
+                    new THREE.TorusGeometry(r, 0.18, 8, 48),
+                    new THREE.MeshBasicMaterial({ color: PRO, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })
+                );
+                ring.rotation.x = Math.PI / 2;
+                ring.position.set(0, y + 0.6, 0);
+                prophetRealm.add(ring);
+
+                const nFut = 1 + (i % 2);
+                for (let f = 0; f < nFut; f++) {
+                    const ang = (f / nFut) * Math.PI * 2 + i;
+                    const sym = new THREE.Mesh(
+                        new THREE.OctahedronGeometry(1.4, 0),
+                        new THREE.MeshStandardMaterial({ color: 0xc9b3ff, emissive: PRO, emissiveIntensity: 0.9, roughness: 0.3, metalness: 0.3, transparent: true, opacity: 0.92 })
+                    );
+                    sym.position.set(Math.cos(ang) * (r - 4), y + 3.5, Math.sin(ang) * (r - 4));
+                    sym.userData.future = PROPHET_FUTURES[(i + f) % PROPHET_FUTURES.length];
+                    prophetRealm.add(sym);
+                    prophetClickTargets.push(sym);
+                }
+            }
+
+            // central pillar of light
+            const beam = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.6, 0.6, FLOORS * 9 + 16, 12, 1, true),
+                new THREE.MeshBasicMaterial({ color: PRO, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })
+            );
+            beam.position.y = (FLOORS * 9) / 2 + 4;
+            prophetRealm.add(beam);
+
+            // PROPHET — cloaked, stars through the body
+            const p = new THREE.Group();
+            const cloak = new THREE.Mesh(
+                new THREE.ConeGeometry(4.2, 13, 20, 1, true),
+                new THREE.MeshStandardMaterial({ color: 0x140a28, emissive: PRO, emissiveIntensity: 0.35, transparent: true, opacity: 0.55, side: THREE.DoubleSide, roughness: 0.8 })
+            );
+            cloak.position.y = 6.5; p.add(cloak);
+            const coreStarGeo = new THREE.BufferGeometry();
+            const sp = [];
+            for (let s = 0; s < 120; s++) {
+                sp.push((Math.random() - 0.5) * 4, 2 + Math.random() * 9, (Math.random() - 0.5) * 4);
+            }
+            coreStarGeo.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+            const coreStars = new THREE.Points(coreStarGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.22, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+            p.add(coreStars);
+            const head = new THREE.Mesh(new THREE.SphereGeometry(1.4, 16, 16), new THREE.MeshBasicMaterial({ color: 0xe9d8ff, transparent: true, opacity: 0.5 }));
+            head.position.y = 11.5; p.add(head);
+            p.traverse(o => { if (o.isMesh || o.isPoints) { o.userData.prophet = true; prophetClickTargets.push(o); } });
+            p.position.set(0, 0, 0);
+            prophetRealm.add(p);
+            prophetRealm._prophet = p;
+            prophetRealm._floors = [];
+            prophetRealm.children.forEach(c => { if (c.geometry && c.geometry.type === 'CylinderGeometry' && c.position.y > 4) prophetRealm._floors.push(c); });
+            prophetRealm._symbols = prophetClickTargets.filter(t => t.geometry && t.geometry.type === 'OctahedronGeometry');
+        }
+        buildProphetRealm();
+
+        function enterProphetRealm() {
+            if (inProphet) return;
+            inProphet = true;
+            _hubCamPosP.copy(camera.position);
+            _hubCamTargetP.copy(controls.target);
+            camera.position.set(prophetBase.x, prophetBase.y + 12, prophetBase.z + 64);
+            controls.target.set(prophetBase.x, prophetBase.y + 60, prophetBase.z);
+            controls.update();
+        }
+        function exitProphetRealm() {
+            if (!inProphet) return;
+            inProphet = false;
+            camera.position.copy(_hubCamPosP);
+            controls.target.copy(_hubCamTargetP);
+            controls.update();
+        }
+        function exitProphetRealmFade() {
+            if (!inProphet) return;
+            ensurePortalOverlay();
+            _portalOverlay._title.textContent = 'RETURNING TO THE HUB';
+            _portalOverlay.style.opacity = '0.94';
+            setTimeout(() => {
+                exitProphetRealm();
+                setTimeout(() => { _portalOverlay.style.opacity = '0'; }, 250);
+            }, 600);
+        }
+        function handleProphetClick(target) {
+            if (!target) return;
+            if (target.userData && target.userData.future) {
+                showScribeReadout('🔮 ' + target.userData.future);
+            } else if (target.userData && target.userData.prophet) {
+                showScribeReadout('PROPHET: "All futures are true. We merely choose which to walk."');
+            }
+        }
+        function updateProphetRealm(time) {
+            if (prophetRealm._floors) prophetRealm._floors.forEach((fl, i) => { fl.rotation.y = time * 0.05 * (i % 2 ? 1 : -1); });
+            if (prophetRealm._symbols) prophetRealm._symbols.forEach((s, i) => { s.rotation.y = time * 0.6 + i; s.position.y += Math.sin(time * 1.5 + i) * 0.004; });
+            if (prophetRealm._prophet) {
+                prophetRealm._prophet.rotation.y = time * 0.15;
+                prophetRealm._prophet.position.y = Math.sin(time * 0.7) * 0.8;
+            }
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && inProphet) exitProphetRealmFade();
+        });
+
         // ========== ANIMATION ==========
         let time = 0, lastTime = 0;
         
@@ -6827,6 +6973,7 @@
             updateScribeRealm(time);
             updateMerchantRealm(time);
             updateBuilderRealm(time);
+            updateProphetRealm(time);
             
             // --- pulse pyramid glow ---
             pyramidGlow.intensity = 0.9 + Math.sin(time * 1.8) * 0.3;
