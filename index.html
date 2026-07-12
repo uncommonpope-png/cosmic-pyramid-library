@@ -524,6 +524,35 @@
             #reading-card h1 { font-size: 20px; }
             .whisper { font-size: 13px; }
         }
+
+        /* ===== Phase 1: navigation HUD + onboarding ===== */
+        #nav-hud { position: fixed; right: 14px; bottom: 14px; z-index: 60; width: 184px; text-align: center; font-family: Georgia, serif; user-select: none; }
+        #nav-hud .compass { position: relative; width: 116px; height: 116px; margin: 0 auto; border-radius: 50%;
+          background: radial-gradient(circle at 50% 50%, rgba(10,20,40,0.72), rgba(4,8,18,0.88));
+          border: 1px solid rgba(102,255,255,0.35); box-shadow: 0 0 18px rgba(40,120,200,0.25) inset; }
+        #nav-hud .compass-rose { position: absolute; inset: 0; transition: transform 0.08s linear; }
+        #nav-hud .compass-rose span { position: absolute; left: 50%; top: 50%; font-size: 11px; color: #bfe6ff;
+          transform: translate(-50%,-50%); text-shadow: 0 0 6px rgba(80,200,255,0.6); }
+        #nav-hud .compass-hub { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px;
+          border-radius: 50%; background: #66ffff; box-shadow: 0 0 8px #66ffff; }
+        #nav-hud .compass-heading { margin-top: 5px; font-size: 10px; letter-spacing: 2px; color: #9fd0ff; }
+        #nav-hud .nav-btns { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 8px; }
+        .nav-btn { font-family: Georgia, serif; font-size: 10px; letter-spacing: 1px; padding: 5px 8px; border-radius: 14px;
+          background: rgba(12,22,42,0.8); color: #bfe6ff; border: 1px solid rgba(102,255,255,0.3); cursor: pointer; transition: all .15s; }
+        .nav-btn:hover { background: rgba(30,60,110,0.9); color: #fff; }
+        .nav-btn.active { background: rgba(255,170,90,0.9); color: #1a0f00; border-color: #ffcc77; }
+        #poi-toggle.on { background: rgba(120,90,255,0.85); color: #fff; border-color: #b9a6ff; }
+        #intro-overlay { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center;
+          background: radial-gradient(circle at 50% 40%, rgba(20,30,60,0.92), rgba(2,4,10,0.97)); color: #dcefff; font-family: Georgia, serif; text-align: center; }
+        #intro-overlay .intro-card { max-width: 560px; padding: 36px 40px; border: 1px solid rgba(120,200,255,0.3);
+          border-radius: 18px; background: rgba(8,14,28,0.7); box-shadow: 0 0 40px rgba(40,120,200,0.2); }
+        #intro-overlay h1 { font-size: 26px; letter-spacing: 4px; margin: 0 0 6px; color: #ffe0a8; }
+        #intro-overlay .sub { font-size: 13px; color: #9fd0ff; letter-spacing: 2px; margin-bottom: 18px; }
+        #intro-overlay p { font-size: 14px; line-height: 1.7; color: #cfe6ff; }
+        #intro-overlay .keys { margin: 16px 0; font-size: 12px; color: #a9c8e8; line-height: 1.9; }
+        #intro-overlay .enter-btn { margin-top: 18px; font-family: Georgia, serif; font-size: 15px; letter-spacing: 2px;
+          padding: 12px 34px; border-radius: 28px; border: 1px solid #66ffff; background: rgba(20,60,90,0.8); color: #dffaff; cursor: pointer; }
+        #intro-overlay .enter-btn:hover { background: rgba(40,100,150,0.9); }
     </style>
 </head>
 <body>
@@ -3226,6 +3255,18 @@ bloomPass.radius = 0.6;
                 playerVelY -= 22 * dt;
                 playerNPC.position.y += playerVelY * dt;
                 if (playerNPC.position.y <= playerFloorY) { playerNPC.position.y = playerFloorY; playerVelY = 0; playerGrounded = true; }
+            }
+            // Phase 1: keep the character out of building footprints (hub only)
+            if (Math.abs(playerFloorY) < 1 && typeof buildings !== 'undefined' && buildings && buildings.length) {
+                for (const b of buildings) {
+                    const hw = (b.w || 4) / 2 + 0.7, hd = (b.d || 4) / 2 + 0.7;
+                    const dx = playerNPC.position.x - b.x, dz = playerNPC.position.z - b.z;
+                    if (Math.abs(dx) < hw && Math.abs(dz) < hd) {
+                        const px = hw - Math.abs(dx), pz = hd - Math.abs(dz);
+                        if (px < pz) playerNPC.position.x += dx >= 0 ? px : -px;
+                        else playerNPC.position.z += dz >= 0 ? pz : -pz;
+                    }
+                }
             }
             const eye = playerNPC.position.clone().add(new THREE.Vector3(0, 1.6, 0));
             const look = new THREE.Vector3(Math.sin(playerYaw) * Math.cos(playerPitch), Math.sin(playerPitch), Math.cos(playerYaw) * Math.cos(playerPitch));
@@ -7304,6 +7345,87 @@ bloomPass.radius = 0.6;
             if (e.key === 'Escape' && inChamber) exitChamberFade();
         });
 
+        // ========== PHASE 1: navigation HUD, realm atmosphere, POI, onboarding ==========
+        const allPOIs = [];
+        function makeChevronTexture(hex) {
+            const c = document.createElement('canvas'); c.width = c.height = 64;
+            const x = c.getContext('2d');
+            x.clearRect(0, 0, 64, 64);
+            const col = '#' + hex.toString(16).padStart(6, '0');
+            x.fillStyle = col; x.shadowColor = col; x.shadowBlur = 12;
+            x.beginPath(); x.moveTo(32, 10); x.lineTo(54, 50); x.lineTo(32, 40); x.lineTo(10, 50); x.closePath(); x.fill();
+            return new THREE.CanvasTexture(c);
+        }
+        function addPOI(parent, hex, lx, ly, lz) {
+            const mat = new THREE.SpriteMaterial({ map: makeChevronTexture(hex), transparent: true, opacity: 0.9, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending });
+            const s = new THREE.Sprite(mat); s.scale.set(4, 4, 4); s.position.set(lx, ly, lz); s.renderOrder = 999;
+            parent.add(s); allPOIs.push(s); return s;
+        }
+        function buildRealmAtmospheres() {
+            const defs = [
+                { g: scribeRealm,   c: 0x2aa0c0, lx: 0, ly: 35, lz: 0 },
+                { g: merchantRealm, c: 0xd8a23a, lx: 0, ly: 18, lz: 0 },
+                { g: builderRealm,  c: 0xc8702a, lx: 0, ly: 22, lz: 0 },
+                { g: prophetRealm,  c: 0x8a5ad8, lx: 0, ly: 60, lz: 0 },
+                { g: chamberRoot,   c: 0xb0507a, lx: 0, ly: 30, lz: 0 }
+            ];
+            for (const d of defs) {
+                const dome = new THREE.Mesh(new THREE.SphereGeometry(180, 24, 16),
+                    new THREE.MeshBasicMaterial({ color: d.c, side: THREE.BackSide, transparent: true, opacity: 0.10, depthWrite: false, fog: false }));
+                dome.position.set(0, 80, 0); d.g.add(dome);
+                const light = new THREE.PointLight(d.c, 1.4, 520, 2); light.position.set(0, 70, 0); d.g.add(light);
+                addPOI(d.g, d.c, d.lx, d.ly, d.lz);
+            }
+            const hubDome = new THREE.Mesh(new THREE.SphereGeometry(260, 24, 16),
+                new THREE.MeshBasicMaterial({ color: 0x3a6ea5, side: THREE.BackSide, transparent: true, opacity: 0.06, depthWrite: false, fog: false }));
+            hubDome.position.set(0, 60, 0); scene.add(hubDome);
+            if (typeof gskAvatar !== 'undefined' && gskAvatar) addPOI(gskAvatar.group, 0x66ffff, 0, 3.2, 0);
+        }
+        function currentRealm() {
+            if (inScribe) return 'scribe';
+            if (inMerchant) return 'merchant';
+            if (inBuilder) return 'builder';
+            if (inProphet) return 'prophet';
+            if (inChamber) return 'chamber';
+            return null;
+        }
+        const _realmEnter = { scribe: enterScribeRealm, merchant: enterMerchantRealm, builder: enterBuilderRealm, prophet: enterProphetRealm, chamber: () => enterChamber(0) };
+        const _realmExit = { scribe: exitScribeRealm, merchant: exitMerchantRealm, builder: exitBuilderRealm, prophet: exitProphetRealm, chamber: exitChamber };
+        function travelToRealm(name) {
+            const cur = currentRealm();
+            if (cur && cur !== name && _realmExit[cur]) _realmExit[cur]();
+            if (name !== 'hub' && _realmEnter[name]) _realmEnter[name]();
+        }
+        function updateCompass() {
+            const rose = document.getElementById('compass-rose');
+            const head = document.getElementById('compass-heading');
+            if (!rose || !head) return;
+            rose.style.transform = 'rotate(' + (Math.PI - playerYaw) + 'rad)';
+            const deg = (Math.atan2(Math.sin(playerYaw), -Math.cos(playerYaw)) * 180 / Math.PI + 360) % 360;
+            const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+            head.textContent = 'HEADING ' + dirs[Math.round(deg / 45) % 8];
+        }
+        (function initIntro() {
+            const ov = document.getElementById('intro-overlay');
+            if (!ov) return;
+            if (sessionStorage.getItem('soulfeild_intro_seen')) { ov.style.display = 'none'; return; }
+            const btn = ov.querySelector('#intro-enter');
+            if (btn) btn.addEventListener('click', () => {
+                ov.style.display = 'none'; sessionStorage.setItem('soulfeild_intro_seen', '1');
+            });
+        })();
+        (function initNav() {
+            document.querySelectorAll('.nav-btn[data-travel]').forEach(b => {
+                b.addEventListener('click', () => travelToRealm(b.dataset.travel));
+            });
+            const pt = document.getElementById('poi-toggle');
+            if (pt) pt.addEventListener('click', () => {
+                const on = !pt.classList.contains('on'); pt.classList.toggle('on', on);
+                allPOIs.forEach(s => s.visible = on);
+            });
+        })();
+        try { buildRealmAtmospheres(); } catch (e) { console.warn('[Phase1] atmospheres failed', e); }
+
         // ========== ANIMATION ==========
         let time = 0, lastTime = 0;
         
@@ -7312,6 +7434,8 @@ bloomPass.radius = 0.6;
             const dt = Math.min(0.033, (performance.now() - lastTime) / 1000);
             lastTime = performance.now();
             time += dt;
+            
+            updateCompass();
             
             // --- souls orbiting & bobbing + mouse reaction ---
             souls.forEach(s => {
@@ -7606,6 +7730,40 @@ bloomPass.radius = 0.6;
         
         console.log('Mystical Library: click books to read PLT content, click souls for whispers, drag objects');
     </script>
+
+    <div id="intro-overlay">
+        <div class="intro-card">
+            <h1>THE SOULFEILD</h1>
+            <div class="sub">A COSMOLOGY BY PROFIT PRIME</div>
+            <p>You are a soul drifting through Profit's living cosmos. At its heart stands <b>GSK</b> — the waking mind. Around it turn five realms, each a facet of consciousness: the Scribe's Library, the Merchant's Market, the Builder's Workshop, the Prophet's Tower, and the Chamber Ring where the thirty-four chambers resonate.</p>
+            <div class="keys">DRAG to look &middot; WASD to move &middot; SHIFT to run &middot; SPACE to rise &middot; Q to descend &middot; F to fly<br>CLICK anything to interact &middot; ESC to leave a realm</div>
+            <p style="font-size:12px;color:#8fb8da">Use the compass at bottom-right to travel between realms. Switch your avatar with BE: above.</p>
+            <button class="enter-btn" id="intro-enter">ENTER THE COSMOS</button>
+        </div>
+    </div>
+
+    <div id="nav-hud">
+        <div class="compass">
+            <div class="compass-rose" id="compass-rose">
+                <span style="transform: translate(-50%,-185%)">N</span>
+                <span style="transform: translate(85%,-50%)">E</span>
+                <span style="transform: translate(-50%,85%)">S</span>
+                <span style="transform: translate(-185%,-50%)">W</span>
+            </div>
+            <div class="compass-hub"></div>
+        </div>
+        <div class="compass-heading" id="compass-heading">HEADING N</div>
+        <div class="nav-btns">
+            <button class="nav-btn" data-travel="scribe">SCRIBE</button>
+            <button class="nav-btn" data-travel="merchant">MARKET</button>
+            <button class="nav-btn" data-travel="builder">BUILD</button>
+            <button class="nav-btn" data-travel="prophet">PROPHET</button>
+            <button class="nav-btn" data-travel="chamber">CHAMBERS</button>
+            <button class="nav-btn" data-travel="hub">HUB</button>
+            <button class="nav-btn on" id="poi-toggle">POI</button>
+        </div>
+    </div>
+
 </body>
 </html>
 
