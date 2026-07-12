@@ -4603,7 +4603,7 @@
             if (inBuilder) return [...builderClickTargets];
             if (inProphet) return [...prophetClickTargets];
             const targets = [...books, ..._soulMeshes, ...avatars, ...npcTalkTargets, ...heavenGateTargets];
-            if (!isInside) { targets.push(portalPlane); targets.push(...shipPortalTargets); targets.push(...realmPortalTargets); targets.push(...chamberSocketTargets); targets.push(...godWorldClickTargets); }
+            if (!isInside) { targets.push(portalPlane); targets.push(...shipPortalTargets); targets.push(...realmPortalTargets); targets.push(...chamberSocketTargets); targets.push(...godWorldClickTargets); targets.push(...caretakerTargets); }
             if (avatar && !isInside) targets.push(avatar);
             if (window.__gskAvatar && window.__gskAvatar.clickMesh) targets.push(window.__gskAvatar.clickMesh);
             if (window.__memoryBuildings) targets.push(...window.__memoryBuildings.getClickMeshes());
@@ -4722,6 +4722,10 @@
             }
             if (mouseDownTarget.userData && mouseDownTarget.userData.godWorld) {
                 showGodWorldReadout(mouseDownTarget.userData.godWorld);
+                return;
+            }
+            if (mouseDownTarget.userData && mouseDownTarget.userData.caretaker) {
+                showCaretakerGuidance();
                 return;
             }
 
@@ -6025,6 +6029,7 @@
         const realmPortalTargets = [];
         const chamberSocketTargets = [];
         const godWorldClickTargets = [];
+        const caretakerTargets = [];
 
         function buildHubExtensions() {
             // --- 36-socket chamber portal ring (orbits the hub, visible from CPL) ---
@@ -6121,6 +6126,47 @@
             }
             const line = 'GOD WORLD — ' + name.toUpperCase() + ': PLT weight ' + weight + (online ? '' : ' (GSK offline)');
             showScribeReadout(line);
+        }
+
+        // DOUR-006 Task 5: Portal caretaker — a guide soul at the hub center
+        let portalCaretaker = null;
+        function buildPortalCaretaker() {
+            const g = new THREE.Group();
+            const goldMat = new THREE.MeshStandardMaterial({ color: 0xfff0c0, emissive: 0xffd27a, emissiveIntensity: 0.7, roughness: 0.3, metalness: 0.2 });
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.8, 8, 14), goldMat);
+            body.position.y = 4; g.add(body);
+            const head = new THREE.Mesh(new THREE.SphereGeometry(1.7, 16, 16), goldMat);
+            head.position.y = 9.5; g.add(head);
+            const cloak = new THREE.Mesh(new THREE.ConeGeometry(3.4, 9, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0x223a5a, emissive: 0x3a6cff, emissiveIntensity: 0.35, transparent: true, opacity: 0.5, side: THREE.DoubleSide, roughness: 0.8 }));
+            cloak.position.y = 4.5; g.add(cloak);
+            const orbCols = [0xffcc33, 0xff5fa0, 0xcc1f3a, 0xa64dff];
+            const orbs = [];
+            for (let i = 0; i < orbCols.length; i++) {
+                const o = new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 12), new THREE.MeshBasicMaterial({ color: orbCols[i] }));
+                g.add(o); orbs.push(o);
+            }
+            g.traverse(o => { if (o.isMesh) { o.userData.caretaker = true; caretakerTargets.push(o); } });
+            g.position.set(0, 6, 50);
+            scene.add(g);
+            portalCaretaker = { grp: g, orbs: orbs };
+        }
+        buildPortalCaretaker();
+
+        function showCaretakerGuidance() {
+            const t = 'CARETAKER: "Welcome, traveler. The hub is your door. ' +
+                "Helveta cruiser to SCRIBE's library. Cargo ship to MERCHANT's nebula. " +
+                "Blue rim portal to BUILDER's workshop. Violet rim portal to PROPHET's tower. " +
+                'The 36 ring sockets are chamber planets. The four god-stars show their PLT weight. Walk — and the worlds fill with life."';
+            showScribeReadout(t);
+        }
+
+        function updatePortalCaretaker(time) {
+            if (!portalCaretaker) return;
+            portalCaretaker.grp.rotation.y = time * 0.2;
+            portalCaretaker.orbs.forEach((o, i) => {
+                const a = time * 0.6 + (i / 4) * Math.PI * 2;
+                o.position.set(Math.cos(a) * 4.5, 6 + Math.sin(a * 1.3) * 1.5, Math.sin(a) * 4.5);
+            });
         }
 
         // hub portal markers to sub-agent realms (BUILDER now; PROPHET added with its realm)
@@ -7142,6 +7188,7 @@
             updateBuilderRealm(time);
             updateProphetRealm(time);
             updateChamberRealm(time);
+            updatePortalCaretaker(time);
             
             // --- pulse pyramid glow ---
             pyramidGlow.intensity = 0.9 + Math.sin(time * 1.8) * 0.3;
