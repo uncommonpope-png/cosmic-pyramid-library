@@ -3626,6 +3626,11 @@
                     const isPod = /pod/.test(f);
                     const isCargo = /cargo/.test(f);
                     const isMissile = /missile/.test(f);
+                    const shipDest = isMissile ? null : isCargo ? 'merchant' : isPod ? 'chamber' : 'scribe';
+                    if (shipDest) {
+                        const shipLabel = isCargo ? "MERCHANT'S MARKET NEBULA" : isPod ? 'CHAMBER SELECTOR' : "SCRIBE'S LIBRARY";
+                        wrap.traverse(o => { if (o.isMesh) { o.userData.shipPortal = shipDest; o.userData.shipPortalLabel = shipLabel; shipPortalTargets.push(o); } });
+                    }
                     const center = isCargo ? new THREE.Vector3(4, 0, -12) : isPod ? new THREE.Vector3(-28, 0, 16) : isMissile ? new THREE.Vector3(18, 0, -52) : new THREE.Vector3(-18, 0, 4);
                     const rx = isCargo ? 132 : isPod ? 46 : isMissile ? 76 : 98;
                     const rz = isCargo ? 66 : isPod ? 24 : isMissile ? 34 : 54;
@@ -4594,12 +4599,45 @@
         
         function getClickTargets() {
             const targets = [...books, ..._soulMeshes, ...avatars, ...npcTalkTargets, ...heavenGateTargets];
-            if (!isInside) targets.push(portalPlane);
+            if (!isInside) { targets.push(portalPlane); targets.push(...shipPortalTargets); }
             if (avatar && !isInside) targets.push(avatar);
             if (window.__gskAvatar && window.__gskAvatar.clickMesh) targets.push(window.__gskAvatar.clickMesh);
             if (window.__memoryBuildings) targets.push(...window.__memoryBuildings.getClickMeshes());
             if (window.__subagentNPCs) targets.push(...window.__subagentNPCs.getClickMeshes());
             return targets;
+        }
+
+        // ========== SHIP → PORTAL TRANSITION (DOUR-005 priority 1) ==========
+        // Clicking a ship fades to a transition card naming the destination realm.
+        // Realm interiors are built later; for now the portal opens and closes
+        // ("realm forming") to prove the door. This is where scene-swaps will hook in.
+        let _portalBusy = false;
+        let _portalOverlay = null;
+        function triggerShipPortal(dest, label) {
+            if (_portalBusy) return;
+            _portalBusy = true;
+            if (!_portalOverlay) {
+                _portalOverlay = document.createElement('div');
+                _portalOverlay.id = 'ship-portal-overlay';
+                _portalOverlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;color:#bfe6ff;font-family:Georgia,serif;letter-spacing:3px;text-align:center;opacity:0;pointer-events:none;transition:opacity .6s ease;';
+                const t = document.createElement('div');
+                t.className = 'ship-portal-title';
+                t.style.cssText = 'font-size:28px;text-shadow:0 0 18px rgba(120,200,255,.8);';
+                const s = document.createElement('div');
+                s.className = 'ship-portal-sub';
+                s.style.cssText = 'margin-top:14px;font-size:13px;opacity:.7;letter-spacing:2px;';
+                s.textContent = '— realm forming —';
+                _portalOverlay.appendChild(t);
+                _portalOverlay.appendChild(s);
+                document.body.appendChild(_portalOverlay);
+                _portalOverlay._title = t;
+            }
+            _portalOverlay._title.textContent = 'ENTERING ' + (label || String(dest).toUpperCase());
+            _portalOverlay.style.opacity = '0.94';
+            setTimeout(() => {
+                _portalOverlay.style.opacity = '0';
+                setTimeout(() => { _portalBusy = false; }, 650);
+            }, 1700);
         }
         
         const allInteriorHits = () => {
@@ -4650,6 +4688,10 @@
             }
             if (mouseDownTarget.userData && mouseDownTarget.userData.heavenGate) {
                 teleportPlayerToHeaven();
+                return;
+            }
+            if (mouseDownTarget.userData && mouseDownTarget.userData.shipPortal) {
+                triggerShipPortal(mouseDownTarget.userData.shipPortal, mouseDownTarget.userData.shipPortalLabel);
                 return;
             }
 
@@ -5949,6 +5991,7 @@
         const chamberSockets = [];
         const godWorlds = [];
         const dockingPads = [];
+        const shipPortalTargets = [];
 
         function buildHubExtensions() {
             // --- 36-socket chamber portal ring (orbits the hub, visible from CPL) ---
