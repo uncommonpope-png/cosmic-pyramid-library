@@ -3520,6 +3520,11 @@
                 this.spaceMovers = [];
                 this.spaceOrbiters = [];
                 this.spaceRoleCounts = { planet: 0, station: 0, ship: 0, figure: 0, curio: 0 };
+                this.spaceLights = [];
+                this.spaceFrameMat = null;
+                this.spaceShipyardMat = null;
+                this.spaceCore = null;
+                this.plt = { profit: 0.5, love: 0.5, tax: 0.2, _traffic: 1, _glow: 1 };
                 this.spaceCity = new THREE.Group();
                 this.spaceCity.name = 'Recent Downloads Space City';
                 this.spaceCity.position.set(70, 0, -115);
@@ -3537,8 +3542,10 @@
             _buildSpaceFrame() {
                 const col = 0x55aaff;
                 const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.45, roughness: 0.35, metalness: 0.35, transparent: true, opacity: 0.78 });
+                this.spaceFrameMat = mat;
                 const core = new THREE.Mesh(new THREE.CylinderGeometry(18, 20, 0.7, 64), mat);
                 core.position.y = 30;
+                this.spaceCore = core;
                 this.spaceCity.add(core);
                 for (let i = 0; i < 4; i++) {
                     const ring = new THREE.Mesh(new THREE.TorusGeometry(42 + i * 28, 0.28, 12, 128), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.34 - i * 0.05, blending: THREE.AdditiveBlending }));
@@ -3547,11 +3554,14 @@
                     this.spaceCity.add(ring);
                 }
                 const shipyardMat = new THREE.MeshStandardMaterial({ color: 0x0b1425, emissive: 0x184b88, emissiveIntensity: 0.35, roughness: 0.55, metalness: 0.35 });
+                this.spaceShipyardMat = shipyardMat;
                 const shipyard = new THREE.Mesh(new THREE.BoxGeometry(52, 1.1, 22), shipyardMat);
                 shipyard.position.set(-68, 32, -24);
                 this.spaceCity.add(shipyard);
                 const yardLight = new THREE.PointLight(0x66ccff, 2.5, 80, 2);
                 yardLight.position.set(-68, 48, -24);
+                yardLight.userData.base = 2.5;
+                this.spaceLights.push(yardLight);
                 this.spaceCity.add(yardLight);
                 for (let i = 0; i < 8; i++) {
                     const a = (i / 8) * Math.PI * 2;
@@ -3562,6 +3572,8 @@
                 }
                 const light = new THREE.PointLight(col, 4.5, 240, 2);
                 light.position.set(0, 44, 0);
+                light.userData.base = 4.5;
+                this.spaceLights.push(light);
                 this.spaceCity.add(light);
             }
 
@@ -3747,29 +3759,48 @@
             }
 
             update(dt, time) {
+                // --- T5: GSK/PLT-reactive Space City (profit->traffic, love->glow, tax->decay) ---
+                const g = (window.gskBridge && window.gskBridge.plt) ? window.gskBridge.plt : null;
+                const profit = g ? g.profit : 0.5;
+                const love = g ? g.love : 0.5;
+                const tax = g ? g.tax : 0.2;
+                // traffic: high profit = busy skies, high tax = sluggish. clamp 0.35..1.9
+                const traffic = Math.max(0.35, Math.min(1.9, 0.55 + profit * 1.15 - tax * 0.6));
+                // glow: high love = luminous, high tax = dim. clamp 0.25..1.8
+                const glow = Math.max(0.25, Math.min(1.8, 0.42 + love * 1.0 - tax * 0.35));
+                this.plt._traffic = traffic; this.plt._glow = glow;
+                if (this.spaceFrameMat) this.spaceFrameMat.emissiveIntensity = 0.45 * glow;
+                if (this.spaceShipyardMat) this.spaceShipyardMat.emissiveIntensity = 0.35 * glow;
+                if (this.spaceCore) {
+                    this.spaceCore.material.emissiveIntensity = 0.45 * glow;
+                    const ps = 1 + profit * 0.18;
+                    this.spaceCore.scale.set(ps, 1 + Math.sin(time * 0.6) * 0.04 * glow, ps);
+                }
+                for (const l of this.spaceLights) l.intensity = (l.userData.base || 2) * glow;
+
                 this.mixers.forEach(m => m.update(dt));
                 for (const o of this.spaceOrbiters) {
-                    const a = o.phase + time * o.speed;
+                    const a = o.phase + time * o.speed * traffic;
                     o.obj.position.x = Math.cos(a) * o.radius;
                     o.obj.position.z = Math.sin(a) * o.radius + o.zBias;
-                    o.obj.position.y = o.y + Math.sin(time * 0.22 + o.phase) * o.bob;
-                    o.obj.rotation.y += o.spin * (dt * 60);
-                    o.obj.rotation.x += o.spin * 0.35 * (dt * 60);
+                    o.obj.position.y = o.y + Math.sin(time * 0.22 + o.phase) * o.bob * glow;
+                    o.obj.rotation.y += o.spin * (dt * 60) * traffic;
+                    o.obj.rotation.x += o.spin * 0.35 * (dt * 60) * traffic;
                 }
                 for (const m of this.spaceMovers) {
-                    const a = m.phase + time * m.speed;
-                    const na = a + 0.035;
+                    const a = m.phase + time * m.speed * traffic;
+                    const na = a + 0.035 * traffic;
                     const x = m.center.x + Math.cos(a) * m.rx;
                     const z = m.center.z + Math.sin(a) * m.rz;
-                    const y = m.y + Math.sin(time * 0.7 + m.phase) * m.bob;
+                    const y = m.y + Math.sin(time * 0.7 + m.phase) * m.bob * glow;
                     const nx = m.center.x + Math.cos(na) * m.rx;
                     const nz = m.center.z + Math.sin(na) * m.rz;
                     m.obj.position.set(x, y, z);
                     m.obj.lookAt(nx, y, nz);
                 }
                 for (const f of this.floaters) {
-                    f.obj.position.y = f.baseY + Math.sin(time * 0.55 + f.phase) * f.bob;
-                    f.obj.rotation.y += f.spin * (dt * 60);
+                    f.obj.position.y = f.baseY + Math.sin(time * 0.55 * traffic + f.phase) * f.bob;
+                    f.obj.rotation.y += f.spin * (dt * 60) * traffic;
                 }
             }
         }
