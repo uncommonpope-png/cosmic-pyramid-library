@@ -5942,6 +5942,105 @@
         console.log('[GSK Bridge] City bridge active — atmosphere, buildings, NPCs, tasks wired to GSK state');
         console.log(`[GSK Bridge] Archetypes: ${gskBridge.npcArchetypes.join(', ')}`);
 
+        // ========== DOUR-DIRECTIVE-005 HUB EXTENSIONS (additive scaffold) ==========
+        // Visible-from-CPL additions only: 36-socket chamber portal ring, 4 god-world
+        // stars, and a functional-looking docking platform at the shipyard. Ship-portal
+        // interaction + realm interiors are later phases (directive priorities 1 & 2).
+        const chamberSockets = [];
+        const godWorlds = [];
+        const dockingPads = [];
+
+        function buildHubExtensions() {
+            // --- 36-socket chamber portal ring (orbits the hub, visible from CPL) ---
+            const ringRadius = 150, ringY = 14;
+            const ringGroup = new THREE.Group();
+            scene.add(ringGroup);
+            const ringTorus = new THREE.Mesh(
+                new THREE.TorusGeometry(ringRadius, 0.6, 8, 128),
+                new THREE.MeshBasicMaterial({ color: 0x2a6cff, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })
+            );
+            ringTorus.rotation.x = Math.PI / 2;
+            ringTorus.position.y = ringY;
+            ringGroup.add(ringTorus);
+            const socketGeo = new THREE.OctahedronGeometry(1.1, 0);
+            for (let i = 0; i < 36; i++) {
+                const a = (i / 36) * Math.PI * 2;
+                const x = Math.cos(a) * ringRadius;
+                const z = Math.sin(a) * ringRadius;
+                const mat = new THREE.MeshBasicMaterial({ color: 0x14306a, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+                const socket = new THREE.Mesh(socketGeo, mat);
+                socket.position.set(x, ringY, z);
+                ringGroup.add(socket);
+                const ped = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.5, 0.8, 3, 8),
+                    new THREE.MeshStandardMaterial({ color: 0x0a1430, emissive: 0x0a2a6a, emissiveIntensity: 0.5, roughness: 0.6, metalness: 0.3 })
+                );
+                ped.position.set(x, ringY - 1.8, z);
+                ringGroup.add(ped);
+                chamberSockets.push({ mesh: socket, mat, index: i, lit: false });
+            }
+
+            // --- 4 god-world stars (visible from CPL as colored stars) ---
+            const godDefs = [
+                { name: 'Profit', color: 0xffcc33, pos: [320, 190, 300], r: 26 },
+                { name: 'Love', color: 0xff5fa0, pos: [-320, 150, 300], r: 24 },
+                { name: 'Tax', color: 0xcc1f3a, pos: [300, 210, -300], r: 24 },
+                { name: 'Harvest', color: 0xa64dff, pos: [-300, 165, -320], r: 26 }
+            ];
+            for (const g of godDefs) {
+                const grp = new THREE.Group();
+                grp.position.set(g.pos[0], g.pos[1], g.pos[2]);
+                const core = new THREE.Mesh(new THREE.SphereGeometry(g.r, 32, 32), new THREE.MeshBasicMaterial({ color: g.color }));
+                grp.add(core);
+                const halo = new THREE.Mesh(
+                    new THREE.SphereGeometry(g.r * 1.6, 32, 32),
+                    new THREE.MeshBasicMaterial({ color: g.color, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide, fog: false })
+                );
+                grp.add(halo);
+                grp.add(new THREE.PointLight(g.color, 1.2, 0, 2));
+                scene.add(grp);
+                godWorlds.push({ grp, core, halo, def: g });
+            }
+
+            // --- docking platform at the shipyard (functional-looking landing pad) ---
+            const sy = new THREE.Vector3(-68, 32, -24);
+            const padMat = new THREE.MeshBasicMaterial({ color: 0x18b6ff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+            const padRing = new THREE.Mesh(new THREE.RingGeometry(22, 24, 64), padMat);
+            padRing.rotation.x = -Math.PI / 2;
+            padRing.position.set(sy.x, sy.y + 0.7, sy.z);
+            scene.add(padRing);
+            const padRing2 = new THREE.Mesh(new THREE.RingGeometry(14, 15, 48), padMat.clone());
+            padRing2.rotation.x = -Math.PI / 2;
+            padRing2.position.set(sy.x, sy.y + 0.7, sy.z);
+            scene.add(padRing2);
+            for (let i = 0; i < 6; i++) {
+                const a = (i / 6) * Math.PI * 2;
+                const b = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.6, 2.4, 8),
+                    new THREE.MeshBasicMaterial({ color: 0x18b6ff, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })
+                );
+                b.position.set(sy.x + Math.cos(a) * 24, sy.y + 1.6, sy.z + Math.sin(a) * 24);
+                scene.add(b);
+                dockingPads.push(b);
+            }
+        }
+        buildHubExtensions();
+
+        function updateHubExtensions(time) {
+            for (const s of chamberSockets) {
+                const p = 0.4 + Math.sin(time * 1.3 + s.index) * 0.18;
+                s.mat.opacity = s.lit ? 0.95 : p;
+                s.mesh.rotation.y += 0.004;
+            }
+            for (const g of godWorlds) {
+                g.grp.rotation.y += 0.0006;
+                g.halo.material.opacity = 0.1 + Math.sin(time * 0.6 + g.def.pos[0]) * 0.04;
+            }
+            for (const b of dockingPads) {
+                b.material.opacity = 0.45 + Math.sin(time * 2 + b.position.x) * 0.3;
+            }
+        }
+
         // ========== ANIMATION ==========
         let time = 0, lastTime = 0;
         
@@ -6212,6 +6311,7 @@
             
             // --- portal ripple animation ---
             if (portalUniforms) portalUniforms.uTime.value = time;
+            updateHubExtensions(time);
             
             // --- pulse pyramid glow ---
             pyramidGlow.intensity = 0.9 + Math.sin(time * 1.8) * 0.3;
