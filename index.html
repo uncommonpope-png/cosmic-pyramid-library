@@ -6674,6 +6674,17 @@
             builderRealm.add(b);
             builderRealm._builder = b;
             builderRealm._schematics = builderRealm.children.filter(c => c.userData && c.userData.schematic);
+            // T2: commission pedestal — click to open a build request to GSK
+            const commission = new THREE.Group();
+            const ped = new THREE.Mesh(new THREE.CylinderGeometry(3, 4, 1.4, 16), new THREE.MeshStandardMaterial({ color: 0x1b3a5a, emissive: 0x2a6cff, emissiveIntensity: 0.5, roughness: 0.4, metalness: 0.6 }));
+            ped.position.y = 0.7; commission.add(ped);
+            const orb = new THREE.Mesh(new THREE.IcosahedronGeometry(1.3, 1), new THREE.MeshStandardMaterial({ color: 0x9ecbff, emissive: 0x2a6cff, emissiveIntensity: 1.0, roughness: 0.2 }));
+            orb.position.y = 3; commission.add(orb);
+            commission.position.set(0, 0, -20);
+            commission.traverse(o => { if (o.isMesh) { o.userData.commission = true; builderClickTargets.push(o); } });
+            builderRealm.add(commission);
+            builderRealm._commission = commission;
+            builderRealm._commissionOrb = orb;
         }
         buildBuilderRealm();
 
@@ -6705,11 +6716,80 @@
         }
         function handleBuilderClick(target) {
             if (!target) return;
-            if (target.userData && target.userData.schematic) {
+            if (target.userData && target.userData.commission) {
+                openCommissionOverlay();
+            } else if (target.userData && target.userData.schematic) {
                 showScribeReadout('📐 ' + (target.userData.blueprint || BUILDER_BLUEPRINTS[0]));
             } else if (target.userData && target.userData.builder) {
                 showScribeReadout('BUILDER: "Every world starts as a line. Then a second. Then it stands."');
             }
+        }
+        function gskReplyText(data) {
+            if (!data) return '(no response)';
+            if (typeof data === 'string') return data;
+            if (data.reply) return data.reply;
+            if (data.response) return data.response;
+            if (data.text) return data.text;
+            if (data.result && typeof data.result === 'string') return data.result;
+            if (data.content && Array.isArray(data.content) && data.content[0] && data.content[0].text) return data.content[0].text;
+            if (data.result && data.result.text) return data.result.text;
+            return JSON.stringify(data).slice(0, 600);
+        }
+        let _commissionOverlay = null;
+        function ensureCommissionOverlay() {
+            if (_commissionOverlay) return _commissionOverlay;
+            const el = document.createElement('div');
+            el.id = 'commission-overlay';
+            el.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9500;width:min(560px,88vw);padding:22px 24px;background:rgba(10,16,28,0.96);border:1px solid rgba(90,160,255,0.5);border-radius:14px;color:#dbe8ff;font-family:Georgia,serif;box-shadow:0 0 50px rgba(40,110,255,0.3);display:none;';
+            el.innerHTML = '<div style="font-size:17px;letter-spacing:1px;color:#9ecbff;margin-bottom:10px;">⚒ BUILDER — COMMISSION A WORLD</div>' +
+                '<textarea id="commission-input" placeholder="Describe what you want built..." style="width:100%;height:96px;resize:none;background:rgba(20,28,46,0.9);color:#e8f0ff;border:1px solid rgba(90,160,255,0.35);border-radius:8px;padding:10px;font-family:Georgia,serif;font-size:14px;"></textarea>' +
+                '<div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end;">' +
+                '<button id="commission-cancel" style="background:transparent;color:#9fb0c8;border:1px solid rgba(150,170,200,0.3);border-radius:8px;padding:8px 16px;cursor:pointer;font-family:Georgia,serif;">Cancel</button>' +
+                '<button id="commission-submit" style="background:linear-gradient(90deg,#2a6cff,#7a4cff);color:#fff;border:none;border-radius:8px;padding:8px 18px;cursor:pointer;font-family:Georgia,serif;">Submit to GSK</button>' +
+                '</div>';
+            document.body.appendChild(el);
+            el.querySelector('#commission-cancel').addEventListener('click', () => { el.style.display = 'none'; });
+            el.querySelector('#commission-submit').addEventListener('click', () => {
+                const ta = el.querySelector('#commission-input');
+                const text = (ta.value || '').trim();
+                if (!text) { showScribeReadout('BUILDER: "A blank request builds nothing."'); return; }
+                el.style.display = 'none';
+                submitBuilderCommission(text);
+            });
+            _commissionOverlay = el;
+            return el;
+        }
+        function openCommissionOverlay() {
+            const el = ensureCommissionOverlay();
+            el.style.display = 'block';
+            setTimeout(() => { const ta = el.querySelector('#commission-input'); if (ta) ta.focus(); }, 50);
+        }
+        async function submitBuilderCommission(text) {
+            if (!gsk || !gskBridge || !gskBridge.gskOnline) {
+                showScribeReadout('BUILDER: "The forge is cold — GSK is not connected. Reconnect to submit a commission."');
+                return;
+            }
+            showScribeReadout('BUILDER: "Received: \'' + text.slice(0, 80) + (text.length > 80 ? '…' : '') + '\'. Consulting GSK…"');
+            let data;
+            try { data = await gsk.chat('Act as BUILDER, the world-maker. Draft a concrete blueprint/spec for this request: ' + text); }
+            catch (e) { showScribeReadout('BUILDER: "The forge flickered — ' + (e.message || 'GSK error') + '"'); return; }
+            const reply = gskReplyText(data);
+            showScribeReadout('📐 BLUEPRINT — ' + reply);
+            // materialize the returned blueprint as a new floating schematic in the workshop
+            try {
+                const g = new THREE.Group();
+                g.position.set((Math.random() - 0.5) * 50, 14 + Math.random() * 18, (Math.random() - 0.5) * 50);
+                const col = 0x9ecbff;
+                const plane = new THREE.Mesh(new THREE.PlaneGeometry(7, 4), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+                g.add(plane);
+                const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(1.4, 0.34, 80, 12), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.9, roughness: 0.3, metalness: 0.4, wireframe: true }));
+                g.add(knot);
+                g.userData.schematic = true;
+                g.userData.blueprint = '📐 COMMISSIONED — ' + text.slice(0, 90) + '\n\n' + reply.slice(0, 400);
+                g.traverse(o => { if (o.isMesh) { o.userData.schematic = true; o.userData.blueprint = g.userData.blueprint; } });
+                builderRealm.add(g);
+                builderRealm._schematics = builderRealm.children.filter(c => c.userData && c.userData.schematic);
+            } catch (e2) { /* visual only */ }
         }
         function updateBuilderRealm(time) {
             if (builderRealm._schematics) {
@@ -6722,6 +6802,10 @@
             if (builderRealm._builder) {
                 builderRealm._builder.rotation.y = Math.sin(time * 0.3) * 0.2;
                 builderRealm._builder.position.y = Math.sin(time * 0.8) * 0.6;
+            }
+            if (builderRealm._commissionOrb) {
+                builderRealm._commissionOrb.rotation.y = time * 0.8;
+                builderRealm._commissionOrb.position.y = 3 + Math.sin(time * 1.4) * 0.3;
             }
         }
         document.addEventListener('keydown', (e) => {
@@ -6797,6 +6881,17 @@
             beam.position.y = (FLOORS * 9) / 2 + 4;
             prophetRealm.add(beam);
 
+            // T4: oracle orb — click to consult GSK's goal engine for a prediction
+            const oracle = new THREE.Mesh(
+                new THREE.IcosahedronGeometry(2.2, 1),
+                new THREE.MeshStandardMaterial({ color: 0xc9b3ff, emissive: PRO, emissiveIntensity: 1.0, roughness: 0.2, metalness: 0.3, transparent: true, opacity: 0.92 })
+            );
+            oracle.position.set(0, 4, 0);
+            oracle.userData.prophetOracle = true;
+            prophetRealm.add(oracle);
+            prophetClickTargets.push(oracle);
+            prophetRealm._oracle = oracle;
+
             // PROPHET — cloaked, stars through the body
             const p = new THREE.Group();
             const cloak = new THREE.Mesh(
@@ -6852,15 +6947,30 @@
         }
         function handleProphetClick(target) {
             if (!target) return;
-            if (target.userData && target.userData.future) {
+            if (target.userData && target.userData.prophetOracle) {
+                submitProphetPrediction();
+            } else if (target.userData && target.userData.future) {
                 showScribeReadout('🔮 ' + target.userData.future);
             } else if (target.userData && target.userData.prophet) {
                 showScribeReadout('PROPHET: "All futures are true. We merely choose which to walk."');
             }
         }
+        async function submitProphetPrediction() {
+            if (!gsk || !gskBridge || !gskBridge.gskOnline) {
+                showScribeReadout('PROPHET: "The threads are dark — GSK is not connected. Reconnect to read the futures."');
+                return;
+            }
+            showScribeReadout('PROPHET: "I consult the goal-engine…"');
+            let data;
+            try { data = await gsk.chat('Act as PROPHET. Given the current GSK goal-engine state (mood, PLT, active goals), prophesy the single most likely near-future outcome in one vivid sentence.'); }
+            catch (e) { showScribeReadout('PROPHET: "The vision clouds — ' + (e.message || 'GSK error') + '"'); return; }
+            const reply = gskReplyText(data);
+            showScribeReadout('🔮 PROPHET SEES — ' + reply);
+        }
         function updateProphetRealm(time) {
             if (prophetRealm._floors) prophetRealm._floors.forEach((fl, i) => { fl.rotation.y = time * 0.05 * (i % 2 ? 1 : -1); });
             if (prophetRealm._symbols) prophetRealm._symbols.forEach((s, i) => { s.rotation.y = time * 0.6 + i; s.position.y += Math.sin(time * 1.5 + i) * 0.004; });
+            if (prophetRealm._oracle) { prophetRealm._oracle.rotation.y = time * 0.5; prophetRealm._oracle.rotation.x = time * 0.2; prophetRealm._oracle.position.y = 4 + Math.sin(time * 1.1) * 0.4; }
             if (prophetRealm._prophet) {
                 prophetRealm._prophet.rotation.y = time * 0.15;
                 prophetRealm._prophet.position.y = Math.sin(time * 0.7) * 0.8;
