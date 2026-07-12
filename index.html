@@ -1327,6 +1327,19 @@ bloomPass.radius = 0.6;
         groundDisc.receiveShadow = true;
         scene.add(groundDisc);
         
+        // Large ground plane to prevent falling through the world
+        const largeGroundGeo = new THREE.PlaneGeometry(200, 200);
+        const largeGroundMat = new THREE.MeshStandardMaterial({
+            color: 0x0a0a1a,
+            roughness: 0.95, metalness: 0.05,
+            side: THREE.DoubleSide
+        });
+        const largeGround = new THREE.Mesh(largeGroundGeo, largeGroundMat);
+        largeGround.rotation.x = -Math.PI / 2;
+        largeGround.position.y = -0.1;
+        largeGround.receiveShadow = true;
+        scene.add(largeGround);
+        
         // ========== NEBULA BACKGROUND ==========
         function createNebulaTexture(palette) {
             const canvas = document.createElement('canvas');
@@ -3429,8 +3442,8 @@ bloomPass.radius = 0.6;
                 playerNPC.position.y += playerVelY * dt;
                 if (playerNPC.position.y <= playerFloorY) { playerNPC.position.y = playerFloorY; playerVelY = 0; playerGrounded = true; }
             }
-            // Phase 1: keep the character out of building footprints (hub only)
-            if (!_commandCenter && Math.abs(playerFloorY) < 1 && typeof buildings !== 'undefined' && buildings && buildings.length) {
+            // Collision: keep the character out of building footprints (all realms)
+            if (!_commandCenter && typeof buildings !== 'undefined' && buildings && buildings.length) {
                 for (const b of buildings) {
                     const hw = (b.w || 4) / 2 + 0.7, hd = (b.d || 4) / 2 + 0.7;
                     const dx = playerNPC.position.x - b.x, dz = playerNPC.position.z - b.z;
@@ -3439,6 +3452,19 @@ bloomPass.radius = 0.6;
                         if (px < pz) playerNPC.position.x += dx >= 0 ? px : -px;
                         else playerNPC.position.z += dz >= 0 ? pz : -pz;
                     }
+                }
+            }
+            // Pyramid collision (hub only, pyramid at origin)
+            if (!_commandCenter && Math.abs(playerFloorY) < 1) {
+                const pyramidRadius = 8;
+                const dx = playerNPC.position.x;
+                const dz = playerNPC.position.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist < pyramidRadius && dist > 0) {
+                    const pushX = (dx / dist) * pyramidRadius;
+                    const pushZ = (dz / dist) * pyramidRadius;
+                    playerNPC.position.x = pushX;
+                    playerNPC.position.z = pushZ;
                 }
             }
             // Keep the character inside the command center room
