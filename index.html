@@ -1263,7 +1263,7 @@ bloomPass.radius = 0.7;
             size: 0.12, vertexColors: true, transparent: true, opacity: 0.35,
             blending: THREE.AdditiveBlending, depthWrite: false
         }));
-        scene.add(dustParticles);
+        scene.add(floatingDust);
 
         // ========== COLORED ACCENT LIGHTS ==========
         // Pyramid glow (cyan)
@@ -2072,7 +2072,7 @@ bloomPass.radius = 0.7;
         
         // ========== LOAD AVATAR ==========
         let avatar = null;
-        const avatarLoader = makeGLTF();
+        const avatarLoader = makeGLTF({ lazy: true });
         avatarLoader.load(
             'https://models.readyplayer.me/65893b0514f9f5f28e61d783.glb',
             (gltf) => {
@@ -8488,7 +8488,20 @@ bloomPass.radius = 0.7;
             effectComposer.render();
         }
         animate();
-        
+
+        // Hide the loader the moment the world has rendered its first frame.
+        // Robust against any single (remote/missing) GLB failing — the city shows regardless.
+        let _firstFrameReady = false;
+        function markReady() {
+            if (_firstFrameReady) return;
+            _firstFrameReady = true;
+            _refreshProgress();
+            loaderPct.textContent = 'entering the library…';
+            hideLoader();
+            window.__cplReady = true;
+        }
+        requestAnimationFrame(() => requestAnimationFrame(markReady));
+
         // ========== RESIZE ==========
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
