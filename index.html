@@ -1246,20 +1246,20 @@ bloomPass.radius = 0.7;
 
         // ========== FLOATING DUST PARTICLES (atmosphere) ==========
         const dustCount = 800;
-        const dustGeo = new THREE.BufferGeometry();
-        const dustPos = new Float32Array(dustCount * 3);
-        const dustCols = new Float32Array(dustCount * 3);
+        const floatingDustGeo = new THREE.BufferGeometry();
+        const floatingDustPos = new Float32Array(dustCount * 3);
+        const floatingDustCols = new Float32Array(dustCount * 3);
         for (let i = 0; i < dustCount; i++) {
-            dustPos[i*3] = (Math.random() - 0.5) * 120;
-            dustPos[i*3+1] = Math.random() * 30 + 0.5;
-            dustPos[i*3+2] = (Math.random() - 0.5) * 120;
+            floatingDustPos[i*3] = (Math.random() - 0.5) * 120;
+            floatingDustPos[i*3+1] = Math.random() * 30 + 0.5;
+            floatingDustPos[i*3+2] = (Math.random() - 0.5) * 120;
             const hue = 0.5 + Math.random() * 0.15;
             const c = new THREE.Color().setHSL(hue, 0.5, 0.4 + Math.random() * 0.3);
-            dustCols[i*3] = c.r; dustCols[i*3+1] = c.g; dustCols[i*3+2] = c.b;
+            floatingDustCols[i*3] = c.r; floatingDustCols[i*3+1] = c.g; floatingDustCols[i*3+2] = c.b;
         }
-        dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-        dustGeo.setAttribute('color', new THREE.BufferAttribute(dustCols, 3));
-        const floatingDust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+        floatingDustGeo.setAttribute('position', new THREE.BufferAttribute(floatingDustPos, 3));
+        floatingDustGeo.setAttribute('color', new THREE.BufferAttribute(floatingDustCols, 3));
+        const floatingDust = new THREE.Points(floatingDustGeo, new THREE.PointsMaterial({
             size: 0.12, vertexColors: true, transparent: true, opacity: 0.35,
             blending: THREE.AdditiveBlending, depthWrite: false
         }));
