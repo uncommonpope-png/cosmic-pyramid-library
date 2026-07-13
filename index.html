@@ -857,6 +857,9 @@
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
+        // ========== SOUL GUN E: decode the ~800MB of GLBs OFF the main thread ==========
+        try { MeshoptDecoder.useWorkers(4); } catch (e) { console.warn('[PERF] meshopt workers unavailable', e); }
+
         // ========== COMPRESSED-GLB LOADER FACTORY (God Mode perf build) ==========
         // All GLBs are pre-compressed with gltfpack -cc (EXT_meshopt_compression).
         // MeshoptDecoder decodes them (~1 GB/s Wasm SIMD). Shared LoadingManager
@@ -1226,13 +1229,40 @@ bloomPass.radius = 0.7;
                 if (PERF_MODE !== 'auto') return;
                 const fps = dt > 0 ? 1 / dt : 60;
                 this.fpsEMA = this.fpsEMA * 0.92 + fps * 0.08;
+                const gpu = this.gpuMsEMA || 0;
+                // Soul Gun G: degrade on ACTUAL gpu stall, not just JS frame time
+                if (gpu > 24 && this.tier === 'high') { this.slow++; if (this.slow > 60) this.setTier('medium'); return; }
+                if (gpu > 30 && this.tier === 'medium') { this.slow++; if (this.slow > 90) this.setTier('low'); return; }
+                if (gpu > 0 && gpu < 10 && this.tier !== 'high') { this.fast++; if (this.fast > 200) this.setTier(this.tier === 'low' ? 'medium' : 'high'); return; }
                 if (this.fpsEMA < 38 && this.tier === 'high') { this.slow++; if (this.slow > 90) this.setTier('medium'); }
                 else if (this.fpsEMA < 30 && this.tier === 'medium') { this.slow++; if (this.slow > 120) this.setTier('low'); }
                 else if (this.fpsEMA > 55 && this.tier !== 'high') { this.fast++; if (this.fast > 200) this.setTier(this.tier === 'low' ? 'medium' : 'high'); }
                 else { this.slow = 0; this.fast = 0; }
             },
-            setTier(t) { if (t === this.tier) return; this.tier = t; this.apply(); }
+            setTier(t) { if (t === this.tier) return; this.tier = t; this.apply(); },
+            // --- Soul Gun G: measure REAL gpu frame time (catches GPU stalls CPU dt cannot) ---
+            gl: null, gpuExt: null, gpuQuery: null, gpuInFlight: false, gpuMsEMA: 0,
+            initGpu() {
+                try {
+                    this.gl = renderer.getContext();
+                    this.gpuExt = this.gl.getExtension('EXT_disjoint_timer_query_webgl2') ||
+                                  this.gl.getExtension('EXT_disjoint_timer_query');
+                } catch (e) { this.gpuExt = null; }
+            },
+            beginGpu() { if (!this.gpuExt || this.gpuInFlight || this.gpuQuery) return; try { this.gpuQuery = this.gl.createQuery(); this.gl.beginQuery(this.gpuExt.TIME_ELAPSED_EXT, this.gpuQuery); } catch (e) { this.gpuQuery = null; } },
+            endGpu() { if (!this.gpuExt || !this.gpuQuery) return; try { this.gl.endQuery(this.gpuExt.TIME_ELAPSED_EXT); this.gpuInFlight = true; } catch (e) { this.gpuQuery = null; } },
+            pollGpu() {
+                if (!this.gpuExt || !this.gpuInFlight || !this.gpuQuery) return;
+                const gl = this.gl; let available = false, disjoint = false;
+                try { available = gl.getQueryParameter(this.gpuQuery, gl.QUERY_RESULT_AVAILABLE); disjoint = gl.getParameter(this.gpuExt.GPU_DISJOINT_EXT); } catch (e) {}
+                if (available) {
+                    if (!disjoint) { try { const ns = gl.getQueryParameter(this.gpuQuery, gl.QUERY_RESULT); const ms = ns / 1e6; this.gpuMsEMA = this.gpuMsEMA ? this.gpuMsEMA * 0.9 + ms * 0.1 : ms; } catch (e) {} }
+                    try { gl.deleteQuery(this.gpuQuery); } catch (e) {}
+                    this.gpuQuery = null; this.gpuInFlight = false;
+                }
+            }
         };
+        perf.initGpu();
         bloomPass.setSize(Math.max(1, Math.floor(window.innerWidth * BLOOM_SCALE)), Math.max(1, Math.floor(window.innerHeight * BLOOM_SCALE)));
         
         // ========== ORBIT CONTROLS ==========
@@ -1731,10 +1761,17 @@ bloomPass.radius = 0.7;
                 coverTexCache[info.title] = generateCoverTexture(info.title, info.author, bookData?.coverUrl, idx);
                 spineTexCache[info.title] = generateSpineTexture(info.title);
             }
+            const col = bookColors[idx % bookColors.length];
+            const c = hexToRgb(col);
+            const sideCol = `rgb(${Math.floor(c.r*0.3)},${Math.floor(c.g*0.3)},${Math.floor(c.b*0.3)})`;
+            // Soul Guns B+I: share material instances across all books of the same title (fewer programs + fewer draw groups)
+            const bodyMat = new THREE.MeshStandardMaterial({ color: sideCol, roughness: 0.8 });
+            const frontMat = new THREE.MeshStandardMaterial({ map: coverTexCache[info.title], roughness: 0.6, metalness: 0.05 });
+            const spineMat = new THREE.MeshStandardMaterial({ map: spineTexCache[info.title], roughness: 0.5, metalness: 0.2 });
             bookMatCache.push({
                 cover: coverTexCache[info.title],
                 spine: spineTexCache[info.title],
-                color: bookColors[idx % bookColors.length]
+                color: col, bodyMat, frontMat, spineMat
             });
         });
         
@@ -1747,22 +1784,17 @@ bloomPass.radius = 0.7;
                 if (titleIdx >= bookTitles.length) titleIdx = 0;
                 const info = bookTitles[titleIdx];
                 const mats = bookMatCache[titleIdx];
-                const c = hexToRgb(mats.color);
-                const sideCol = `rgb(${Math.floor(c.r*0.3)},${Math.floor(c.g*0.3)},${Math.floor(c.b*0.3)})`;
-                
-                const frontMat = new THREE.MeshStandardMaterial({ map: mats.cover, roughness: 0.6, metalness: 0.05 });
-                const spineMat = new THREE.MeshStandardMaterial({ map: mats.spine, roughness: 0.5, metalness: 0.2 });
-                const sideMat = new THREE.MeshStandardMaterial({ color: sideCol, roughness: 0.8 });
-                const backMat = new THREE.MeshStandardMaterial({ color: sideCol, roughness: 0.8 });
-                const topMat = new THREE.MeshStandardMaterial({ color: sideCol, roughness: 0.8 });
-                const bottomMat = new THREE.MeshStandardMaterial({ color: sideCol, roughness: 0.8 });
-                
+                const frontMat = mats.frontMat;
+                const spineMat = mats.spineMat;
+                const bodyMat = mats.bodyMat;
+
                 // right-shelf books rotate so spines face center
                 const isRightShelf = pos[0] > 0;
                 // +x(spine), -x, +y(top), -y(bottom), +z(front), -z(back)
+                // Soul Guns B+I: 3 shared materials -> 3 draw groups per book instead of 6
                 const matsOrder = isRightShelf
-                    ? [sideMat, spineMat, topMat, bottomMat, backMat, frontMat]
-                    : [spineMat, sideMat, topMat, bottomMat, frontMat, backMat];
+                    ? [bodyMat, spineMat, bodyMat, bodyMat, bodyMat, frontMat]
+                    : [spineMat, bodyMat, bodyMat, bodyMat, frontMat, bodyMat];
                 const book = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.55, 0.28), matsOrder);
                 const xOff = -0.8 + i * 0.4;
                 const shelfPos = new THREE.Vector3(pos[0] + xOff, pos[1] + 0.3, pos[2] + 0.1);
@@ -8566,7 +8598,10 @@ bloomPass.radius = 0.7;
             
             updatePlayerNPC(dt);
             if (cameraMode === 'orbit') controls.update();
+            perf.beginGpu();
             effectComposer.render();
+            perf.endGpu();
+            perf.pollGpu();
         }
 
         // ========== GUN D: precompile all visible shaders once so the first frames don't hitch ==========
