@@ -1,7 +1,7 @@
 // Cosmic Pyramid Library — Service Worker
 // Cache-first for immutable assets (GLBs, CDN libs) -> repeat visits load instantly.
 // Network-first for HTML/JS so deployments show up; falls back to cache offline.
-const CACHE = 'cpl-v14';
+const CACHE = 'cpl-v15';
 const ASSET_RE = /\/assets\//;
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(
