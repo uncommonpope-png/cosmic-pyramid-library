@@ -1159,6 +1159,7 @@ renderer.toneMappingExposure = 0.75;
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
+        THREE.Cache.enabled = true; // cache GLB/texture requests across reloads -> faster repeat loads
 
         // ========== IBL ENVIRONMENT (image-based lighting -> realistic metallic reflections) ==========
         // Metals (Porsche, Cadillac, showroom) stop rendering black; whole scene gets soft ambient bounce.
@@ -1185,6 +1186,51 @@ bloomPass.radius = 0.7;
         // ========== GAMMA CORRECTION (linear -> sRGB for correct color through composer) ==========
         const gammaPass = new ShaderPass(GammaCorrectionShader);
         effectComposer.addPass(gammaPass);
+
+        // ========== PERFORMANCE SOUL GUN (adaptive quality) ==========
+        // Keeps the experience SMOOTH. When frame rate sags it progressively
+        // drops bloom, pixel ratio, wide-area fill lights, and CPU-heavy
+        // particle updates; recovers automatically when headroom returns.
+        // Force a tier with ?perf=high|medium|low (default auto).
+        const PERF_MODE = (new URLSearchParams(location.search).get('perf') || 'auto');
+        const BLOOM_SCALE = 0.5; // bloom is a full-screen post pass -> half res = ~4x cheaper
+        const _perfTmp = new THREE.Vector3();
+        let _perfRunning = true; // pause the loop when the tab is hidden
+        const perf = {
+            tier: PERF_MODE === 'auto' ? 'high' : PERF_MODE,
+            fpsEMA: 60, slow: 0, fast: 0,
+            lowLights: null,
+            ensureLights() {
+                if (this.lowLights) return;
+                this.lowLights = [];
+                scene.traverse(o => { if (o.isPointLight && o.distance >= 50) this.lowLights.push(o); });
+            },
+            apply() {
+                const t = this.tier;
+                bloomPass.enabled = (t !== 'low');
+                renderer.setPixelRatio(t === 'low' ? 0.6 : (t === 'medium' ? 0.75 : 1.0));
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                if (typeof effectComposer !== 'undefined') effectComposer.setSize(window.innerWidth, window.innerHeight);
+                bloomPass.setSize(Math.max(1, Math.floor(window.innerWidth * BLOOM_SCALE)), Math.max(1, Math.floor(window.innerHeight * BLOOM_SCALE)));
+                this.ensureLights();
+                this.lowLights.forEach(l => { if (l) l.visible = (t !== 'low'); });
+                if (typeof floatingDust !== 'undefined') floatingDust.visible = (t !== 'low');
+                if (typeof embers !== 'undefined') embers.visible = (t !== 'low');
+                if (typeof dust !== 'undefined') dust.visible = (t !== 'low');
+                console.log('[PERF] tier=' + t + ' bloom=' + bloomPass.enabled + ' px=' + renderer.getPixelRatio().toFixed(2) + ' fillLightsOff=' + (t === 'low' ? this.lowLights.length : 0));
+            },
+            sample(dt) {
+                if (PERF_MODE !== 'auto') return;
+                const fps = dt > 0 ? 1 / dt : 60;
+                this.fpsEMA = this.fpsEMA * 0.92 + fps * 0.08;
+                if (this.fpsEMA < 38 && this.tier === 'high') { this.slow++; if (this.slow > 90) this.setTier('medium'); }
+                else if (this.fpsEMA < 30 && this.tier === 'medium') { this.slow++; if (this.slow > 120) this.setTier('low'); }
+                else if (this.fpsEMA > 55 && this.tier !== 'high') { this.fast++; if (this.fast > 200) this.setTier(this.tier === 'low' ? 'medium' : 'high'); }
+                else { this.slow = 0; this.fast = 0; }
+            },
+            setTier(t) { if (t === this.tier) return; this.tier = t; this.apply(); }
+        };
+        bloomPass.setSize(Math.max(1, Math.floor(window.innerWidth * BLOOM_SCALE)), Math.max(1, Math.floor(window.innerHeight * BLOOM_SCALE)));
         
         // ========== ORBIT CONTROLS ==========
         const controls = new OrbitControls(camera, renderer.domElement);
@@ -8177,9 +8223,11 @@ bloomPass.radius = 0.7;
         
         function animate() {
             requestAnimationFrame(animate);
+            if (!_perfRunning) return; // tab hidden -> stop the loop entirely
             const dt = Math.min(0.033, (performance.now() - lastTime) / 1000);
             lastTime = performance.now();
             time += dt;
+            perf.sample(dt);
             
             updateCompass();
             refreshObjective();
@@ -8251,7 +8299,7 @@ bloomPass.radius = 0.7;
             stars.rotation.y += 0.0003;
             stars.rotation.x += 0.0002;
             // Floating dust drift
-            if (typeof floatingDust !== 'undefined') {
+            if (typeof floatingDust !== 'undefined' && floatingDust.visible) {
                 floatingDust.rotation.y += 0.0008;
                 const fp = floatingDust.geometry.attributes.position.array;
                 for (let i = 0; i < fp.length; i += 3) {
@@ -8303,6 +8351,7 @@ bloomPass.radius = 0.7;
             });
             
             // --- animate embers ---
+            if (typeof embers !== 'undefined' && embers.visible) {
             const emberPosAttr = embers.geometry.attributes.position;
             const epos = emberPosAttr.array;
             for (let i = 0; i < emberCount; i++) {
@@ -8318,6 +8367,7 @@ bloomPass.radius = 0.7;
                 }
             }
             emberPosAttr.needsUpdate = true;
+            }
             
             // --- floating pages ---
             pages.forEach(p => {
@@ -8386,7 +8436,7 @@ bloomPass.radius = 0.7;
                     c.target = new THREE.Vector3(Math.cos(a) * r, 0.2, Math.sin(a) * r);
                 }
                 if (c.target) {
-                    const dir = new THREE.Vector3().subVectors(c.target, c.group.position);
+                    const dir = _perfTmp.subVectors(c.target, c.group.position);
                     if (dir.length() > 0.3) {
                         dir.normalize().multiplyScalar(c.speed * 0.016);
                         c.group.position.add(dir);
@@ -8403,7 +8453,7 @@ bloomPass.radius = 0.7;
                     const r = 6 + Math.random() * 22;
                     paimonTarget.set(Math.cos(a) * r, 0, Math.sin(a) * r);
                 }
-                const pdir = new THREE.Vector3().subVectors(paimonTarget, paimonNPC.position);
+                const pdir = _perfTmp.subVectors(paimonTarget, paimonNPC.position);
                 if (pdir.length() > 0.3) {
                     pdir.normalize().multiplyScalar(2.0 * 0.016);
                     paimonNPC.position.x += pdir.x;
@@ -8506,8 +8556,18 @@ bloomPass.radius = 0.7;
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
-            effectComposer.setSize(window.innerWidth, window.innerHeight);
             renderer.setSize(window.innerWidth, window.innerHeight);
+            effectComposer.setSize(window.innerWidth, window.innerHeight);
+            bloomPass.setSize(Math.max(1, Math.floor(window.innerWidth * BLOOM_SCALE)), Math.max(1, Math.floor(window.innerHeight * BLOOM_SCALE)));
+        });
+
+        // ========== PERF: apply tier once the whole world exists ==========
+        perf.apply();
+
+        // ========== PERF: pause rendering when tab hidden (no GPU/CPU waste) ==========
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) { _perfRunning = false; }
+            else if (!_perfRunning) { _perfRunning = true; lastTime = performance.now(); requestAnimationFrame(animate); }
         });
         
         console.log('Mystical Library: click books to read PLT content, click souls for whispers, drag objects');
