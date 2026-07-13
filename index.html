@@ -8267,7 +8267,7 @@ bloomPass.radius = 0.7;
         try { buildRealmAtmospheres(); } catch (e) { console.warn('[Phase1] atmospheres failed', e); }
 
         // ========== ANIMATION ==========
-        let time = 0, lastTime = 0;
+        let time = 0, lastTime = 0, _frameCount = 0;
         
         function animate() {
             requestAnimationFrame(animate);
@@ -8275,14 +8275,15 @@ bloomPass.radius = 0.7;
             const dt = Math.min(0.033, (performance.now() - lastTime) / 1000);
             lastTime = performance.now();
             time += dt;
+            const _slow = (_frameCount++ & 1) === 0; // half-rate for cosmetic-only systems (Gun H)
             perf.sample(dt);
             
             updateCompass();
             refreshObjective();
             updateCommandCenter(dt, time);
             
-            // --- souls orbiting & bobbing + mouse reaction ---
-            souls.forEach(s => {
+            // --- souls orbiting & bobbing + mouse reaction (half-rate: cosmetic) ---
+            if (_slow) souls.forEach(s => {
                 if (s.obj.userData.isDragging) return;
                 // mouse proximity: flee from cursor
                 const dx = s.obj.position.x - mouseWorldPos.x;
@@ -8394,8 +8395,8 @@ bloomPass.radius = 0.7;
             
             // --- embers are GPU-animated via emberUniforms.uTime (no per-frame CPU work) ---
             
-            // --- floating pages ---
-            pages.forEach(p => {
+            // --- floating pages (half-rate: cosmetic) ---
+            if (_slow) pages.forEach(p => {
                 p.mesh.position.x += p.speedX;
                 p.mesh.position.y += Math.sin(time * 1.2) * 0.002;
                 p.mesh.position.z += p.speedZ;
@@ -8405,8 +8406,8 @@ bloomPass.radius = 0.7;
                 if (p.mesh.position.y > 4) p.mesh.position.y = 0.2;
             });
             
-            // --- orbs drift ---
-            orbs.forEach((orb, i) => {
+            // --- orbs drift (half-rate: cosmetic) ---
+            if (_slow) orbs.forEach((orb, i) => {
                 orb.position.x += Math.sin(time * 0.6 + i) * 0.002;
                 orb.position.y += Math.cos(time * 0.5 + i) * 0.002;
             });
@@ -8545,11 +8546,11 @@ bloomPass.radius = 0.7;
             if (floatDustUniforms) floatDustUniforms.uTime.value = time;
             if (emberUniforms) emberUniforms.uTime.value = time;
             updateHubExtensions(time);
-            updateScribeRealm(time);
-            updateMerchantRealm(time);
-            updateBuilderRealm(time);
-            updateProphetRealm(time);
-            updateChamberRealm(time);
+            if (inScribe) updateScribeRealm(time);
+            if (inMerchant) updateMerchantRealm(time);
+            if (inBuilder) updateBuilderRealm(time);
+            if (inProphet) updateProphetRealm(time);
+            if (inChamber) updateChamberRealm(time);
             updatePortalCaretaker(time);
             
             // --- pulse pyramid glow ---
