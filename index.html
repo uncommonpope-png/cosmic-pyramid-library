@@ -544,17 +544,24 @@
         .nav-btn:hover { background: rgba(30,60,110,0.9); color: #fff; }
         .nav-btn.active { background: rgba(255,170,90,0.9); color: #1a0f00; border-color: #ffcc77; }
         #poi-toggle.on { background: rgba(120,90,255,0.85); color: #fff; border-color: #b9a6ff; }
-        #intro-overlay { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center;
-          background: radial-gradient(circle at 50% 40%, rgba(20,30,60,0.92), rgba(2,4,10,0.97)); color: #dcefff; font-family: Georgia, serif; text-align: center; }
-        #intro-overlay .intro-card { max-width: 560px; padding: 36px 40px; border: 1px solid rgba(120,200,255,0.3);
-          border-radius: 18px; background: rgba(8,14,28,0.7); box-shadow: 0 0 40px rgba(40,120,200,0.2); }
-        #intro-overlay h1 { font-size: 26px; letter-spacing: 4px; margin: 0 0 6px; color: #ffe0a8; }
-        #intro-overlay .sub { font-size: 13px; color: #9fd0ff; letter-spacing: 2px; margin-bottom: 18px; }
-        #intro-overlay p { font-size: 14px; line-height: 1.7; color: #cfe6ff; }
-        #intro-overlay .keys { margin: 16px 0; font-size: 12px; color: #a9c8e8; line-height: 1.9; }
-        #intro-overlay .enter-btn { margin-top: 18px; font-family: Georgia, serif; font-size: 15px; letter-spacing: 2px;
-          padding: 12px 34px; border-radius: 28px; border: 1px solid #66ffff; background: rgba(20,60,90,0.8); color: #dffaff; cursor: pointer; }
+        #intro-overlay { position: fixed; left: 16px; bottom: 16px; z-index: 200; width: min(360px, calc(100vw - 32px));
+          color: #dcefff; font-family: Georgia, serif; text-align: left; pointer-events: none; }
+        #intro-overlay .intro-card { padding: 15px 17px; border: 1px solid rgba(120,200,255,0.34); pointer-events: auto;
+          border-radius: 12px; background: linear-gradient(145deg, rgba(7,13,27,0.92), rgba(10,25,43,0.82));
+          box-shadow: 0 10px 36px rgba(0,0,0,0.42), 0 0 24px rgba(40,120,200,0.16); backdrop-filter: blur(12px); }
+        #intro-overlay h1 { font-size: 18px; letter-spacing: 3px; margin: 0 0 3px; color: #ffe0a8; }
+        #intro-overlay .sub { font-size: 10px; color: #9fd0ff; letter-spacing: 1.5px; margin-bottom: 8px; }
+        #intro-overlay p { margin: 7px 0; font-size: 12px; line-height: 1.45; color: #cfe6ff; }
+        #intro-overlay .keys { margin: 8px 0 0; font-size: 10px; color: #a9c8e8; line-height: 1.55; }
+        #intro-overlay .enter-btn { margin-top: 10px; font-family: Georgia, serif; font-size: 11px; letter-spacing: 2px;
+          padding: 8px 18px; border-radius: 20px; border: 1px solid #66ffff; background: rgba(20,60,90,0.86); color: #dffaff; cursor: pointer; }
         #intro-overlay .enter-btn:hover { background: rgba(40,100,150,0.9); }
+        @media (max-width: 680px) {
+          #intro-overlay { left: 10px; bottom: 10px; width: calc(100vw - 20px); }
+          #intro-overlay .intro-card { padding: 12px 14px; }
+          #intro-overlay p { display: none; }
+          #intro-overlay .keys { font-size: 9px; }
+        }
         #objective { position: fixed; left: 14px; top: 14px; z-index: 60; max-width: 240px; padding: 10px 14px;
           font-family: Georgia, serif; font-size: 12px; line-height: 1.5; color: #dcefff; text-align: left;
           background: rgba(8,16,32,0.72); border: 1px solid rgba(102,255,255,0.3); border-radius: 12px; display: none;
@@ -796,16 +803,18 @@
     <!-- Loading overlay (LQIP nebula + real byte progress) — black-screen protocol -->
     <style>
         #loader-overlay {
-            position: fixed; inset: 0; z-index: 9999;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: radial-gradient(circle at 50% 40%, #1a0b3a 0%, #0a0420 45%, #010008 100%);
-            color: #cfd8ff; font-family: 'Segoe UI', system-ui, sans-serif; transition: opacity .6s ease;
+            position: fixed; right: 16px; top: 16px; z-index: 9999; width: min(300px, calc(100vw - 32px));
+            display: flex; flex-direction: column; align-items: stretch; justify-content: center;
+            padding: 13px 15px; border: 1px solid rgba(138,123,255,.34); border-radius: 12px;
+            background: linear-gradient(145deg, rgba(12,5,36,.94), rgba(2,8,24,.9));
+            color: #cfd8ff; box-shadow: 0 10px 34px rgba(0,0,0,.45); backdrop-filter: blur(12px);
+            font-family: 'Segoe UI', system-ui, sans-serif; transition: opacity .45s ease;
         }
         #loader-overlay.hidden { opacity: 0; pointer-events: none; }
-        #loader-title { font-size: 20px; letter-spacing: 3px; color: #8a7bff; margin-bottom: 18px; text-shadow: 0 0 18px #6a4bff; }
-        #loader-bar-wrap { width: 280px; height: 6px; background: rgba(255,255,255,.12); border-radius: 4px; overflow: hidden; }
+        #loader-title { font-size: 12px; letter-spacing: 2px; color: #aaa0ff; margin-bottom: 9px; text-shadow: 0 0 14px #6a4bff; }
+        #loader-bar-wrap { width: 100%; height: 4px; background: rgba(255,255,255,.12); border-radius: 4px; overflow: hidden; }
         #loader-bar { width: 0%; height: 100%; background: linear-gradient(90deg,#ff66cc,#66ffff); transition: width .25s ease; box-shadow: 0 0 12px #66ffff; }
-        #loader-pct { margin-top: 12px; font-size: 13px; opacity: .8; }
+        #loader-pct { margin-top: 7px; font-size: 10px; opacity: .78; }
     </style>
     <div id="loader-overlay">
         <div id="loader-title">COSMIC PYRAMID LIBRARY</div>
@@ -882,6 +891,56 @@
                 };
             }
             return l;
+        }
+
+        // Realm assets are not startup assets. They begin downloading only when their realm is entered.
+        function makeOnDemandGLTF() {
+            const l = new GLTFLoader(loadingManager);
+            l.setMeshoptDecoder(MeshoptDecoder);
+            return l;
+        }
+        const realmAssetLoads = new Set();
+        function loadRealmAssetsOnce(key, realm, specs, clickTargets = []) {
+            if (realmAssetLoads.has(key)) return;
+            realmAssetLoads.add(key);
+            const layer = realm.userData.realmAssetLayer || new THREE.Group();
+            layer.name = key + ' Real Assets';
+            realm.userData.realmAssetLayer = layer;
+            if (layer.parent !== realm) realm.add(layer);
+            const loader = makeOnDemandGLTF();
+            specs.forEach((spec) => loader.load(spec.url, (gltf) => {
+                const model = gltf.scene;
+                const box = new THREE.Box3().setFromObject(model);
+                const size = box.getSize(new THREE.Vector3());
+                const center = box.getCenter(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z) || 1;
+                model.position.set(-center.x, -box.min.y, -center.z);
+                const wrap = new THREE.Group();
+                wrap.name = spec.label || spec.url.split('/').pop();
+                wrap.add(model);
+                wrap.scale.setScalar((spec.size || 8) / maxDim);
+                wrap.position.fromArray(spec.position || [0, 0, 0]);
+                wrap.rotation.set(...(spec.rotation || [0, 0, 0]));
+                const realmAsset = { label: spec.label || 'Realm artifact', detail: spec.detail || 'A recovered world artifact.' };
+                model.traverse((child) => {
+                    if (!child.isMesh) return;
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    child.userData.realmAsset = realmAsset;
+                    if (spec.npcTalk) child.userData.npcTalk = spec.npcTalk;
+                    clickTargets.push(child);
+                });
+                if (gltf.animations && gltf.animations.length) {
+                    const mixer = new THREE.AnimationMixer(model);
+                    gltf.animations.forEach((clip) => mixer.clipAction(clip).play());
+                    (realm._assetMixers = realm._assetMixers || []).push(mixer);
+                }
+                layer.add(wrap);
+                console.log('[RealmAssets] loaded', key, wrap.name);
+            }, undefined, (err) => console.warn('[RealmAssets] failed', key, spec.url, err)));
+        }
+        function updateRealmAssetMixers(realm, dt = 0.016) {
+            if (realm._assetMixers) realm._assetMixers.forEach((mixer) => mixer.update(dt));
         }
 
         // Progress overlay — driven ONLY by the critical manager so decorative streaming
@@ -2996,9 +3055,6 @@ bloomPass.radius = 0.7;
         
         const carAssets = [
             'assets/recent/cars/1979_bmw_m1.glb',
-            'assets/recent/cars/bmw_e39_free.glb',
-            'assets/recent/cars/porsche_992_gt3r-_roxy.glb',
-            'assets/recent/cars/wyvern_concept_car_-_free.glb',
             'assets/recent/cars/free_cyberpunk_hovercar.glb'
         ];
         const carLoader = makeGLTF({ lazy: true });
@@ -3033,8 +3089,7 @@ bloomPass.radius = 0.7;
             }, undefined, (err) => { console.warn('[GroundCar] load failed:', carPath, err); });
         });
 
-        // ========== GLB AVATARS (real character models) ==========
-        // Lightweight menagerie versions so they load before the overlay hides.
+        // ========== GLB AVATARS (load only when selected) ==========
         const glbAvatars = {};
         const avatarAssets = [
             { kind: 'catgirl', path: 'assets/recent/menagerie/cat_girl_-_rigged.glb' },
@@ -3042,10 +3097,13 @@ bloomPass.radius = 0.7;
             { kind: 'goku', path: 'assets/recent/avatars/dragon_ball_z_baby_goku.glb' },
             { kind: 'skull', path: 'assets/recent/menagerie/das_kat.glb' }
         ];
-        let avatarsLoaded = 0;
-        const avatarSwitcherLoader = makeGLTF();
-        avatarAssets.forEach((av) => {
-            avatarSwitcherLoader.load(av.path, (gltf) => {
+        const avatarLoadsPending = new Set();
+        function requestAvatarAsset(kind) {
+            if (glbAvatars[kind] || avatarLoadsPending.has(kind) || kind === 'gsk') return;
+            const av = avatarAssets.find((item) => item.kind === kind);
+            if (!av) return;
+            avatarLoadsPending.add(kind);
+            makeOnDemandGLTF().load(av.path, (gltf) => {
                 const model = gltf.scene;
                 const box = new THREE.Box3().setFromObject(model);
                 const size = box.getSize(new THREE.Vector3());
@@ -3057,13 +3115,16 @@ bloomPass.radius = 0.7;
                 wrap.add(model);
                 wrap.scale.setScalar(s);
                 model.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-                glbAvatars[av.kind] = wrap;
-                avatarsLoaded++;
-                console.log('[Avatar] loaded:', av.kind, '(' + avatarsLoaded + '/' + avatarAssets.length + ')');
-            }, undefined, (err) => { console.warn('[Avatar] load failed:', av.path, err); });
-        });
+                glbAvatars[kind] = wrap;
+                avatarLoadsPending.delete(kind);
+                console.log('[Avatar] loaded on demand:', kind);
+            }, undefined, (err) => { avatarLoadsPending.delete(kind); console.warn('[Avatar] load failed:', av.path, err); });
+        }
 
-        // ========== PORSCHE 911 GT3 RS (grafted asset) ==========
+        // Legacy hub GLB placements are disabled. These assets now belong to deeper realms.
+        const LOAD_LEGACY_HUB_GLBS = false;
+        if (LOAD_LEGACY_HUB_GLBS) {
+        // ========== PORSCHE 911 GT3 RS (legacy hub placement) ==========
         const porscheMarker = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff00ff }));
         porscheMarker.position.set(10, 0.4, 0);
         cityGroup.add(porscheMarker);
@@ -3198,6 +3259,7 @@ bloomPass.radius = 0.7;
             console.log('[Showroom] SWAPPED full procedural building at', slot.x, slot.z, '| footprint(m):', (size.x * s).toFixed(1));
             window.__showroom = wrap;
         }, undefined, (err) => { console.warn('[Showroom] load failed:', err); });
+        }
 
         // ========== SCATTER PROPS (light assets in clear areas, never on buildings) ==========
         // Rule (clear-obstruction + Pope standing order): placed in open ground, NOT dropped on
@@ -3238,12 +3300,7 @@ bloomPass.radius = 0.7;
                 console.log('[Scatter]', url.split('/').pop(), 'placed at', p.x.toFixed(1), p.z.toFixed(1));
             }, undefined, (err) => { console.warn('[Scatter] load failed:', url, err); });
         }
-        // Light props only (each < 18MB; heavy Porsches in porsche-extra are deferred).
-        // Angels are NOT scattered on the ground — they live in HEAVEN (see buildHeaven below).
-        dropProp('assets/computers/simple_computer_placeholder.opt.glb', 1.6, null);
-        dropProp('assets/computers/simple_computer_placeholder.opt.glb', 1.6, null);
-        dropProp('assets/ifa/-_genshin_impact_-_anemo_-_ifa.opt.glb', 3, null);
-        dropProp('assets/misc/unequal_marriage-1.opt.glb', 5, null);
+        // Hub scatter disabled: those files now become authored props inside their matching realms.
 
         // ========== HEAVEN (angels' own floating city) ==========
         // A separate sky realm far from the main city. Angels orbit + bob above a glowing platform.
@@ -3377,8 +3434,8 @@ bloomPass.radius = 0.7;
             focused:   ['One task. One wingbeat. One truth.', 'The work sharpens the soul.', 'Concentrate the light.']
         };
         const heavenAngels = [];
-        const angelLoader = makeGLTF();
-        for (let i = 0; i < 7; i++) {
+        const angelLoader = makeGLTF({ lazy: true });
+        for (let i = 0; i < 3; i++) {
             angelLoader.load('assets/angel/angel.opt.glb', (gltf) => {
                 const model = gltf.scene;
                 const box = new THREE.Box3().setFromObject(model);
@@ -3568,15 +3625,62 @@ bloomPass.radius = 0.7;
         let playerKind = 'gsk';
 
         // Phase 2: denizen identity + realm quest loops
+        const WORLD_STATE_KEY = 'cpl-world-state-v2';
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], prophecies: [] };
+        try {
+            const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
+            if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
+        } catch (e) { console.warn('[WorldState] load failed', e); }
         const realmDenizenIds = {};
-        const metDenizens = new Set();
-        const questComplete = {};
+        const metDenizens = new Set(worldState.metDenizens || []);
+        const questComplete = { ...(worldState.quests || {}) };
         const questDefs = {
             scribe:   { name: "SCRIBE'S LIBRARY",  goal: 'Consult the Scribe Acolytes',   need: 5 },
             merchant: { name: "MERCHANT'S MARKET", goal: 'Hear the Market Traders',       need: 5 },
             builder:  { name: "BUILDER'S WORKSHOP", goal: 'Speak with the Apprentices',   need: 4 },
             prophet:  { name: "PROPHET'S TOWER",   goal: 'Listen to the Tower Seers',     need: 4 }
         };
+        const questColors = { scribe: 0xffd27a, merchant: 0xff8ccf, builder: 0x66aaff, prophet: 0xb793ff };
+        const questSigils = {};
+        const legacyGroup = new THREE.Group();
+        legacyGroup.name = 'Persistent World Legacy';
+        legacyGroup.position.set(0, 0.5, 0);
+        scene.add(legacyGroup);
+        Object.keys(questDefs).forEach((key, i) => {
+            const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+            const col = questColors[key];
+            const sigil = new THREE.Mesh(
+                new THREE.OctahedronGeometry(0.75, 0),
+                new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 1.2, roughness: 0.2, metalness: 0.45 })
+            );
+            sigil.position.set(Math.cos(a) * 6.5, 2.2, Math.sin(a) * 6.5);
+            sigil.visible = !!questComplete[key];
+            legacyGroup.add(sigil);
+            questSigils[key] = sigil;
+        });
+        const legacyCore = new THREE.Mesh(
+            new THREE.DodecahedronGeometry(1.1, 0),
+            new THREE.MeshStandardMaterial({ color: 0x9effc4, emissive: 0x44ffaa, emissiveIntensity: 0.7, roughness: 0.25, metalness: 0.5 })
+        );
+        legacyCore.position.y = 5.8;
+        legacyGroup.add(legacyCore);
+        function updateWorldLegacy() {
+            Object.keys(questSigils).forEach((key) => { questSigils[key].visible = !!questComplete[key]; });
+            const progress = Object.values(questComplete).filter(Boolean).length +
+                (worldState.contracts || []).length * 0.25 + (worldState.chambers || []).length * 0.08 +
+                (worldState.builds || []).length * 0.2 + (worldState.prophecies || []).length * 0.15;
+            const scale = Math.min(2.5, 0.65 + progress * 0.13);
+            legacyCore.scale.setScalar(scale);
+            legacyCore.material.emissiveIntensity = Math.min(2.2, 0.55 + progress * 0.12);
+        }
+        function saveWorldState() {
+            worldState.quests = { ...questComplete };
+            worldState.metDenizens = [...metDenizens];
+            try { localStorage.setItem(WORLD_STATE_KEY, JSON.stringify(worldState)); }
+            catch (e) { console.warn('[WorldState] save failed', e); }
+            updateWorldLegacy();
+        }
+        updateWorldLegacy();
         const DENIZEN_IDENTITY = {
             scribe: { title: 'Scribe Acolyte', names: ['Vell', 'Sefa', 'Orin', 'Mira', 'Tace', 'Juno'], lines: [
                 'Every memory GSK keeps is a star we are sworn to catalogue.',
@@ -3682,9 +3786,10 @@ bloomPass.radius = 0.7;
                 playerNPC.userData = { name: 'You (' + kind + ')', isPlayerNPC: true };
             } else {
                 playerNPC = buildSubagentAvatar(kind);
-                // Mark button as loading and auto-swap when GLB arrives
+                // Mark button as loading and fetch only this chosen avatar.
                 const btn = document.querySelector(`.avatar-btn[data-kind="${kind}"]`);
                 if (btn) btn.classList.add('loading');
+                requestAvatarAsset(kind);
                 const checkReady = setInterval(() => {
                     if (glbAvatars[kind]) {
                         clearInterval(checkReady);
@@ -3833,9 +3938,9 @@ bloomPass.radius = 0.7;
             const pos = new THREE.Vector3();
             target.getWorldPosition(pos);
             let line;
-            if (target.userData.denizen && data.lines && data.lines.length) {
+            if (data.lines && data.lines.length) {
                 line = data.lines[Math.floor(Math.random() * data.lines.length)];
-                recordDenizen(target.userData.denizenId);
+                if (target.userData.denizen) recordDenizen(target.userData.denizenId);
             } else {
                 line = npcTalkLines[Math.floor(Math.random() * npcTalkLines.length)];
             }
@@ -3847,6 +3952,7 @@ bloomPass.radius = 0.7;
         function recordDenizen(id) {
             if (!id) return;
             metDenizens.add(id);
+            saveWorldState();
             const key = currentRealm();
             if (!key || !questDefs[key]) return;
             const ids = realmDenizenIds[key] || [];
@@ -3873,6 +3979,7 @@ bloomPass.radius = 0.7;
             if (typeof gskAvatar !== 'undefined' && gskAvatar) {
                 spawnWhisper(gskAvatar.group.position.clone().add(new THREE.Vector3(0, 3, 0)), `GSK · ${d.name} understood.`);
             }
+            saveWorldState();
             showToast(`QUEST COMPLETE — ${d.name}`);
         }
         function showToast(msg) {
@@ -3892,7 +3999,7 @@ bloomPass.radius = 0.7;
         const paimonHome = new THREE.Vector3(18, 0, 18);
         let paimonTarget = new THREE.Vector3(18, 0, 18);
         let paimonTimer = 0;
-        const paimonLoader = makeGLTF();
+        const paimonLoader = makeGLTF({ lazy: true });
         paimonLoader.load('assets/paimon/genshin_impact_paimon.opt.glb', (gltf) => {
             const model = gltf.scene;
             const box = new THREE.Box3().setFromObject(model);
@@ -4228,17 +4335,20 @@ bloomPass.radius = 0.7;
             _load() {
                 fetch('assets/assets.json').then(r => r.json()).then(data => {
                     const assets = data.assets || [];
-                    const space = assets.filter(a =>
-                        a.district === 'cosmos' &&
-                        !/planete_kaio|procedural_city_|bionic_architecture|futuristic_background_buildings_kit|neighbourhood_city_modular_lowpoly|3105b839/i.test(a.file)
-                    );
-                    const heavenAssets = assets.filter(a =>
-                        a.district === 'celestia' ||
-                        /dragon_ball_z|kid_buu|majin_buu|grand_supreme_kai|planete_kaio/i.test(a.file)
-                    );
+                    // Hub diet: keep only the three functional portal ships plus two hero anchors.
+                    const hubSpace = new Set([
+                        'helveta_space_battle_ship.glb',
+                        'stranded_cargo_ship_giant_vessel_rusty_ship.glb',
+                        'sci-fi_personal_space_pod_shipweekly_challenge.glb'
+                    ]);
+                    const hubHeaven = new Set([
+                        'basilica_of_notre_dame_de_fourviere.glb',
+                        'guardian_angel_pet.glb'
+                    ]);
+                    const space = assets.filter((a) => hubSpace.has(a.file));
+                    const heavenAssets = assets.filter((a) => hubHeaven.has(a.file));
                     this._loadSet(space, 'space');
                     this._loadSet(heavenAssets, 'heaven');
-                    setTimeout(() => startLazyAssets('recent-city-extensions'), 1200);
                     console.log('[RecentCityExtensions] mapped assets:', { space: space.length, heaven: heavenAssets.length });
                 }).catch(e => console.warn('[RecentCityExtensions] assets.json failed:', e));
             }
@@ -4542,11 +4652,8 @@ bloomPass.radius = 0.7;
             }
         }
 
-        try {
-            window.__groundCityKits = new GroundCityKits();
-        } catch (e) {
-            console.warn('[GroundCityKits] init failed:', e);
-        }
+        // The three city kits moved to Builder/other realms; do not stack them into the hub.
+        window.__groundCityKits = null;
 
         // ========== AVATAR SYSTEM ==========
         const avatars = [];
@@ -5388,6 +5495,29 @@ bloomPass.radius = 0.7;
             return targets;
         }
 
+        function resolveInteractionTarget(obj) {
+            const keys = ['npcTalk', 'realmAsset', 'book', 'scribe', 'stall', 'merchant', 'commission', 'schematic', 'builder',
+                'prophetOracle', 'future', 'prophet', 'chamberFeature', 'gskMemory', 'gskSoul', 'isBook', 'shipPortal',
+                'realmPortal', 'chamberIndex', 'godWorld', 'caretaker', 'gskAvatar', 'heavenGate', 'commandConsole'];
+            let node = obj;
+            while (node && node !== scene) {
+                if (node.userData && keys.some((key) => node.userData[key] !== undefined)) return node;
+                node = node.parent;
+            }
+            return obj;
+        }
+
+        function handleRealmPersonOrAsset(target) {
+            if (!target || !target.userData) return false;
+            if (target.userData.npcTalk) { talkToNPC(target); return true; }
+            if (target.userData.realmAsset) {
+                const asset = target.userData.realmAsset;
+                showScribeReadout((asset.label || 'REALM ARTIFACT') + ' — ' + (asset.detail || 'Recovered artifact.'));
+                return true;
+            }
+            return false;
+        }
+
         // ========== SHIP → PORTAL TRANSITION (DOUR-005 priority 1) ==========
         // Clicking a ship fades to a transition card naming the destination realm.
         // Realm interiors are built later; for now the portal opens and closes
@@ -5448,8 +5578,8 @@ bloomPass.radius = 0.7;
             pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
             raycaster.setFromCamera(pointer, camera);
             const targets = isInside ? allInteriorHits() : getClickTargets();
-            const hits = raycaster.intersectObjects(targets, false);
-            mouseDownTarget = hits.length > 0 ? hits[0].object : null;
+            const hits = raycaster.intersectObjects(targets, true);
+            mouseDownTarget = hits.length > 0 ? resolveInteractionTarget(hits[0].object) : null;
         });
         
         renderer.domElement.addEventListener('pointerup', (e) => {
@@ -5782,14 +5912,31 @@ bloomPass.radius = 0.7;
                 this.statusCache = null;
                 this.toolsCache = [];
                 this.pollTimer = null;
+                this.snapshotKey = 'cpl-gsk-snapshot-v1';
             }
 
             setApiKey(key) { this._apiKey = key; }
 
+            _readSnapshot(name, fallback = null) {
+                try {
+                    const all = JSON.parse(localStorage.getItem(this.snapshotKey) || '{}');
+                    return all[name] != null ? all[name] : fallback;
+                } catch (e) { return fallback; }
+            }
+
+            _writeSnapshot(name, value) {
+                try {
+                    const all = JSON.parse(localStorage.getItem(this.snapshotKey) || '{}');
+                    all[name] = value;
+                    all.savedAt = Date.now();
+                    localStorage.setItem(this.snapshotKey, JSON.stringify(all));
+                } catch (e) { console.warn('[GSK Snapshot] save failed', e); }
+            }
+
             async _fetch(path, options = {}) {
                 const url = `${this.baseUrl}${path}`;
                 const headers = { ...(options.headers || {}) };
-                if (this._apiKey) { headers['X-API-Key'] = this._apiKey; }
+                if (this._apiKey) { headers['x-api-key'] = this._apiKey; }
                 const res = await fetch(url, { ...options, headers, mode: 'cors' });
                 if (!res.ok) throw new Error(`GSK HTTP ${res.status}: ${res.statusText}`);
                 return res.json();
@@ -5801,12 +5948,23 @@ bloomPass.radius = 0.7;
             }
 
             async getStatus() {
-                const data = await this._fetch('/mcp/status');
-                if (data && data.jsonrpc === '2.0' && data.result) {
-                    this.statusCache = data.result;
-                    this.connected = true;
+                try {
+                    const data = await this._fetch('/mcp/status');
+                    const result = (data && data.result) ? data.result : data;
+                    if (result) {
+                        this.statusCache = result;
+                        this.connected = true;
+                        this._writeSnapshot('status', result);
+                    }
+                    return this.statusCache;
+                } catch (e) {
+                    const cached = this._readSnapshot('status');
+                    if (cached) {
+                        this.statusCache = { ...cached, __offlineSnapshot: true };
+                        return this.statusCache;
+                    }
+                    throw e;
                 }
-                return this.statusCache;
             }
 
             async execute(method, params = {}) {
@@ -5832,12 +5990,27 @@ bloomPass.radius = 0.7;
 
             // Gap 2: Memories as Buildings — pull the GSK memory graph as 3D structures
             async memories() {
-                return this._fetch('/mcp/memories');
+                try {
+                    const data = await this._fetch('/mcp/memories');
+                    const result = (data && data.result) ? data.result : data;
+                    const normalized = result && Array.isArray(result.memories) ? result : { memories: [], count: 0 };
+                    this._writeSnapshot('memories', normalized);
+                    return normalized;
+                } catch (e) {
+                    return this._readSnapshot('memories', { memories: [], count: 0, offline: true });
+                }
             }
 
             // Gap 3: Subagents as NPCs — roster of spawned souls (poll like memories)
             async spawned() {
-                return this._fetch('/mcp/spawn');
+                try {
+                    const data = await this._fetch('/mcp/spawn');
+                    const result = (data && data.result) ? data.result : data;
+                    this._writeSnapshot('spawned', result);
+                    return result;
+                } catch (e) {
+                    return this._readSnapshot('spawned', { souls: [], offline: true });
+                }
             }
 
             // Gap 3: spawn a new subagent soul into the roster
@@ -7120,7 +7293,7 @@ bloomPass.radius = 0.7;
                 );
                 ped.position.set(x, ringY - 1.8, z);
                 ringGroup.add(ped);
-                chamberSockets.push({ mesh: socket, mat, index: i, lit: false });
+                chamberSockets.push({ mesh: socket, mat, index: i, lit: (worldState.chambers || []).includes(i) });
             }
 
             // --- 4 god-world stars (visible from CPL as colored stars) ---
@@ -7261,6 +7434,33 @@ bloomPass.radius = 0.7;
             }
         }
 
+        // ========== REALM ART DIRECTION: real assets owned by the worlds they serve ==========
+        const REALM_ASSET_SPECS = {
+            scribe: [
+                { url: 'assets/computers/simple_computer_placeholder.opt.glb', label: 'SCRIBE Index Terminal', detail: 'A physical terminal for searching GSK memory.', size: 4, position: [-12, 0, 14], rotation: [0, 0.55, 0] },
+                { url: 'assets/recent/arena/deep_impact_tv_from_the_matrix.glb', label: 'Deep Memory Screen', detail: 'An archive display recovered from the Matrix timeline.', size: 8, position: [13, 0, 11], rotation: [0, -0.45, 0] }
+            ],
+            merchant: [
+                { url: 'assets/car-showroom/car_showroom.opt.glb', label: 'Merchant Contract Hall', detail: 'The market hall where discoveries become contracts.', size: 24, position: [0, 0, 10], rotation: [0, Math.PI, 0] },
+                { url: 'assets/porsche-gt3-rs/2017_porsche_911_991_gt3_rs.opt.glb', label: 'Profit Trophy', detail: 'A high-value machine displayed as proof of completed exchange.', size: 6, position: [-12, 0, 22], rotation: [0, Math.PI / 2, 0] }
+            ],
+            builder: [
+                { url: 'assets/recent/cosmos/bionic_architecture.glb', label: 'Bionic Prototype', detail: 'A real architectural prototype under active construction.', size: 30, position: [0, 0, -12], rotation: [0, 0.2, 0] },
+                { url: 'assets/retro-urban-kit/Models/GLB%20format/wall-a-roof.opt.glb', label: 'CC0 Structure Module', detail: 'A reusable construction module from the Builder kit.', size: 10, position: [18, 0, 10], rotation: [0, -0.35, 0] },
+                { url: 'assets/retro-urban-kit/Models/GLB%20format/detail-bench.opt.glb', label: 'Builder Bench', detail: 'A working bench, not a placeholder.', size: 5, position: [-15, 0, 9], rotation: [0, 0.5, 0] },
+                { url: 'assets/retro-urban-kit/Models/GLB%20format/detail-light-double.opt.glb', label: 'Workshop Practical', detail: 'A real practical light anchoring the workshop floor.', size: 6, position: [11, 0, 7], rotation: [0, 0, 0] }
+            ],
+            prophet: [
+                { url: 'assets/recent/arena/sentinelle_-_matrix.glb', label: 'Matrix Sentinel', detail: 'A watcher stationed outside the ordinary flow of time.', size: 18, position: [0, 0, -17], rotation: [0, Math.PI, 0] },
+                { url: 'assets/recent/arena/cheese_moon.glb', label: 'Impossible Moon', detail: 'A future-symbol made physical in the Prophet sky.', size: 14, position: [20, 30, -12], rotation: [0.2, 0, 0.15] },
+                { url: 'assets/paimon/genshin_impact_paimon.opt.glb', label: 'Prophet Guide', detail: 'A living guide who waits beside the oracle.', size: 3, position: [9, 0, 8], rotation: [0, -0.5, 0], npcTalk: { label: 'Prophet Guide', lines: ['The oracle remembers every future you ask it to name.'] } }
+            ],
+            chamber: [
+                { url: 'assets/recent/arena/fountain_with_three_putts_brno_luzanky.glb', label: 'Memory Fountain', detail: 'A real-world memory reconstructed inside the chamber.', size: 18, position: [0, 0, 0], rotation: [0, 0, 0] },
+                { url: 'assets/world/world.opt.glb', label: 'Recovered World Plate', detail: 'A whole terrain fragment preserved as chamber evidence.', size: 34, position: [25, 0, -20], rotation: [0, -0.55, 0] }
+            ]
+        };
+
         // ========== DOUR-005 PRIORITY 2: SCRIBE'S LIBRARY REALM ==========
         // A distant region of the SAME scene (camera teleports in via the Helveta portal).
         // Infinite-ish library: mountain-tall shelves, glowing books (weight = brightness),
@@ -7376,7 +7576,7 @@ bloomPass.radius = 0.7;
             scribeRealm._memShelf = shelf;
         }
         async function refreshScribeMemories() {
-            if (!gsk || !gskBridge || !gskBridge.gskOnline) return;
+            if (!gsk) return;
             let data;
             try { data = await gsk.memories(); } catch (e) { return; }
             if (!data || !Array.isArray(data.memories)) return;
@@ -7419,7 +7619,9 @@ bloomPass.radius = 0.7;
             playerFloorY = scribeBase.y;
             playerYaw = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
             setCameraMode('npc');
-            if (gskBridge && gskBridge.gskOnline) { scribeRealm._memLast = performance.now() / 1000; setTimeout(() => refreshScribeMemories(), 700); }
+            loadRealmAssetsOnce('scribe', scribeRealm, REALM_ASSET_SPECS.scribe, scribeClickTargets);
+            scribeRealm._memLast = performance.now() / 1000;
+            setTimeout(() => refreshScribeMemories(), 350);
         }
         function exitScribeRealm() {
             if (!inScribe) return;
@@ -7441,6 +7643,7 @@ bloomPass.radius = 0.7;
         }
         function handleScribeClick(target) {
             if (!target) return;
+            if (handleRealmPersonOrAsset(target)) return;
             if (target.userData && target.userData.gskMemory && target.userData.memoryObj) {
                 handleScribeMemoryClick(target.userData.memoryObj);
             } else if (target.userData && target.userData.book) {
@@ -7463,6 +7666,7 @@ bloomPass.radius = 0.7;
             _scribeReadoutTimer = setTimeout(() => { _scribeReadout.style.opacity = '0'; }, 4200);
         }
         function updateScribeRealm(time) {
+            updateRealmAssetMixers(scribeRealm);
             if (scribeRealm._fbook) scribeRealm._fbook.rotation.z = Math.sin(time * 0.6) * 0.06;
             if (scribeRealm._scribe) scribeRealm._scribe.rotation.y = Math.sin(time * 0.2) * 0.15;
             animateDenizens(scribeRealm, 0.016, time);
@@ -7492,10 +7696,10 @@ bloomPass.radius = 0.7;
         const _hubCamPosM = new THREE.Vector3();
         const _hubCamTargetM = new THREE.Vector3();
         const MERCHANT_OFFERS = [
-            'MERCHANT: "Blueprint — PROFIT ENGINE. Cost: 120 PLT. (demo)"',
-            'MERCHANT: "Memory, bottled. Cost: 60 PLT. (demo)"',
-            'MERCHANT: "Access to the Chamber Ring. Cost: 200 PLT. (demo)"',
-            'MERCHANT: "A coin that remembers your name. Cost: 40 PLT. (demo)"'
+            'MERCHANT: "Discovery — PROFIT ENGINE blueprint. Resonance: 120 PLT."',
+            'MERCHANT: "Discovery — memory, bottled. Resonance: 60 PLT."',
+            'MERCHANT: "Discovery — Chamber Ring access map. Resonance: 200 PLT."',
+            'MERCHANT: "Discovery — a coin that remembers your name. Resonance: 40 PLT."'
         ];
 
         function buildMerchantRealm() {
@@ -7543,6 +7747,7 @@ bloomPass.radius = 0.7;
                 stall.userData.offer = MERCHANT_OFFERS[i % MERCHANT_OFFERS.length];
                 stall.userData.basePrice = 60 + i * 25;
                 stall.userData.price = stall.userData.basePrice;
+                stall.userData.contractId = 'merchant-discovery-' + i;
                 merchantRealm._stalls.push(stall);
                 const ring = new THREE.Mesh(new THREE.TorusGeometry(4.4, 0.18, 8, 32), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
                 ring.rotation.x = Math.PI / 2;
@@ -7573,6 +7778,7 @@ bloomPass.radius = 0.7;
             playerFloorY = merchantBase.y;
             playerYaw = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
             setCameraMode('npc');
+            loadRealmAssetsOnce('merchant', merchantRealm, REALM_ASSET_SPECS.merchant, merchantClickTargets);
         }
         function exitMerchantRealm() {
             if (!inMerchant) return;
@@ -7594,6 +7800,7 @@ bloomPass.radius = 0.7;
         }
         function handleMerchantClick(target) {
             if (!target) return;
+            if (handleRealmPersonOrAsset(target)) return;
             if (target.userData && target.userData.stall) {
                 const base = target.userData.basePrice || 60;
                 const price = target.userData.price || base;
@@ -7604,12 +7811,21 @@ bloomPass.radius = 0.7;
                 if (profit > 0.6) mode = 'PROFIT SURGE — prices high';
                 else if (love > 0.6) mode = 'LOVE TIDE — discounts flow';
                 const offer = (target.userData.offer || '').replace(/^MERCHANT:\s*/, '');
-                showScribeReadout('MERCHANT — ' + offer + ' | now ' + price + ' PLT (' + mode + (online ? '' : ', GSK offline') + ')');
+                const id = target.userData.contractId;
+                const claimed = (worldState.contracts || []).includes(id);
+                if (!claimed && id) {
+                    worldState.contracts = [...(worldState.contracts || []), id];
+                    saveWorldState();
+                    showScribeReadout('DISCOVERY CLAIMED — ' + offer + ' | resonance ' + price + ' PLT (' + mode + ')');
+                } else {
+                    showScribeReadout('ARCHIVED DISCOVERY — ' + offer + ' | resonance ' + price + ' PLT (' + mode + (online ? '' : ', GSK offline') + ')');
+                }
             } else if (target.userData && target.userData.merchant) {
                 showScribeReadout('MERCHANT: "Trade PLT for blueprints, memories, access. The balance flows — always."');
             }
         }
         function updateMerchantRealm(time) {
+            updateRealmAssetMixers(merchantRealm);
             animateDenizens(merchantRealm, 0.016, time);
             if (merchantRealm._plt) merchantRealm._plt.rotation.y = time * 0.04;
             if (merchantRealm._merchant) {
@@ -7626,8 +7842,10 @@ bloomPass.radius = 0.7;
                     const price = Math.max(10, Math.round(base * mult));
                     s.userData.price = price;
                     const rel = price / base;
-                    s.material.emissiveIntensity = 0.45 + Math.min(0.9, Math.max(0, (rel - 1) * 0.8 + 0.35));
-                    s.material.color.setHSL(0.08 + (rel - 1) * 0.4, 0.7, 0.55);
+                    const claimed = (worldState.contracts || []).includes(s.userData.contractId);
+                    s.material.emissiveIntensity = claimed ? 1.35 : 0.45 + Math.min(0.9, Math.max(0, (rel - 1) * 0.8 + 0.35));
+                    if (claimed) s.material.color.setHex(0x9effc4);
+                    else s.material.color.setHSL(0.08 + (rel - 1) * 0.4, 0.7, 0.55);
                     s.material.emissive.copy(s.material.color);
                 }
             }
@@ -7766,6 +7984,11 @@ bloomPass.radius = 0.7;
             playerFloorY = builderBase.y;
             playerYaw = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
             setCameraMode('npc');
+            loadRealmAssetsOnce('builder', builderRealm, REALM_ASSET_SPECS.builder, builderClickTargets);
+            if (builderRealm._commissionOrb) {
+                const n = (worldState.builds || []).length;
+                builderRealm._commissionOrb.scale.setScalar(Math.min(2.2, 1 + n * 0.12));
+            }
         }
         function exitBuilderRealm() {
             if (!inBuilder) return;
@@ -7788,6 +8011,7 @@ bloomPass.radius = 0.7;
         }
         function handleBuilderClick(target) {
             if (!target) return;
+            if (handleRealmPersonOrAsset(target)) return;
             if (target.userData && target.userData.commission) {
                 openCommissionOverlay();
             } else if (target.userData && target.userData.schematic) {
@@ -7847,6 +8071,8 @@ bloomPass.radius = 0.7;
             catch (e) { showScribeReadout('BUILDER: "The forge flickered — ' + (e.message || 'GSK error') + '"'); return; }
             const reply = gskReplyText(data);
             showScribeReadout('📐 BLUEPRINT — ' + reply);
+            worldState.builds = [...(worldState.builds || []), { request: text.slice(0, 160), reply: reply.slice(0, 600), at: Date.now() }].slice(-8);
+            saveWorldState();
             // materialize the returned blueprint as a new floating schematic in the workshop
             try {
                 const g = new THREE.Group();
@@ -7858,12 +8084,13 @@ bloomPass.radius = 0.7;
                 g.add(knot);
                 g.userData.schematic = true;
                 g.userData.blueprint = '📐 COMMISSIONED — ' + text.slice(0, 90) + '\n\n' + reply.slice(0, 400);
-                g.traverse(o => { if (o.isMesh) { o.userData.schematic = true; o.userData.blueprint = g.userData.blueprint; } });
+                g.traverse(o => { if (o.isMesh) { o.userData.schematic = true; o.userData.blueprint = g.userData.blueprint; builderClickTargets.push(o); } });
                 builderRealm.add(g);
                 builderRealm._schematics = builderRealm.children.filter(c => c.userData && c.userData.schematic);
             } catch (e2) { /* visual only */ }
         }
         function updateBuilderRealm(time) {
+            updateRealmAssetMixers(builderRealm);
             animateDenizens(builderRealm, 0.016, time);
             if (builderRealm._schematics) {
                 builderRealm._schematics.forEach((s, i) => {
@@ -8003,6 +8230,11 @@ bloomPass.radius = 0.7;
             playerFloorY = prophetBase.y;
             playerYaw = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
             setCameraMode('npc');
+            loadRealmAssetsOnce('prophet', prophetRealm, REALM_ASSET_SPECS.prophet, prophetClickTargets);
+            if (prophetRealm._oracle) {
+                const n = (worldState.prophecies || []).length;
+                prophetRealm._oracle.scale.setScalar(Math.min(2.1, 1 + n * 0.1));
+            }
         }
         function exitProphetRealm() {
             if (!inProphet) return;
@@ -8024,6 +8256,7 @@ bloomPass.radius = 0.7;
         }
         function handleProphetClick(target) {
             if (!target) return;
+            if (handleRealmPersonOrAsset(target)) return;
             if (target.userData && target.userData.prophetOracle) {
                 submitProphetPrediction();
             } else if (target.userData && target.userData.future) {
@@ -8043,8 +8276,11 @@ bloomPass.radius = 0.7;
             catch (e) { showScribeReadout('PROPHET: "The vision clouds — ' + (e.message || 'GSK error') + '"'); return; }
             const reply = gskReplyText(data);
             showScribeReadout('🔮 PROPHET SEES — ' + reply);
+            worldState.prophecies = [...(worldState.prophecies || []), { text: reply.slice(0, 600), at: Date.now() }].slice(-10);
+            saveWorldState();
         }
         function updateProphetRealm(time) {
+            updateRealmAssetMixers(prophetRealm);
             animateDenizens(prophetRealm, 0.016, time);
             if (prophetRealm._floors) prophetRealm._floors.forEach((fl, i) => { fl.rotation.y = time * 0.05 * (i % 2 ? 1 : -1); });
             if (prophetRealm._symbols) prophetRealm._symbols.forEach((s, i) => { s.rotation.y = time * 0.6 + i; s.position.y += Math.sin(time * 1.5 + i) * 0.004; });
@@ -8096,8 +8332,10 @@ bloomPass.radius = 0.7;
         const chamberWorlds = {};
 
         function buildChamberInto(group, index) {
-            while (group.children.length) group.remove(group.children[0]);
+            const assetLayer = group.userData.realmAssetLayer;
+            group.children.slice().forEach((child) => { if (child !== assetLayer) group.remove(child); });
             chamberClickTargets.length = 0;
+            if (assetLayer) assetLayer.traverse((o) => { if (o.isMesh) chamberClickTargets.push(o); });
             const biome = CHAMBER_BIOMES[index % CHAMBER_BIOMES.length];
             group.add(new THREE.AmbientLight(biome.col, 0.5));
             const key = new THREE.PointLight(biome.col, 2.2, 240, 2);
@@ -8169,11 +8407,13 @@ bloomPass.radius = 0.7;
             currentChamber = index;
             _hubPlayerPos = playerNPC.position.clone();
             _hubPlayerYaw = playerYaw;
-            if (!chamberWorlds[index]) {
-                buildChamberInto(chamberRoot, index);
-                chamberWorlds[index] = true;
-                if (chamberSockets[index]) chamberSockets[index].lit = true;
-            }
+            // Rebuild the requested biome every visit; the previous implementation showed the last chamber visited.
+            buildChamberInto(chamberRoot, index);
+            chamberWorlds[index] = true;
+            if (!(worldState.chambers || []).includes(index)) worldState.chambers = [...(worldState.chambers || []), index];
+            if (chamberSockets[index]) chamberSockets[index].lit = true;
+            saveWorldState();
+            loadRealmAssetsOnce('chamber', chamberRoot, REALM_ASSET_SPECS.chamber, chamberClickTargets);
             playerNPC.position.set(chamberBase.x, chamberBase.y + 2, chamberBase.z + 44);
             playerFloorY = chamberBase.y;
             playerYaw = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
@@ -8200,6 +8440,7 @@ bloomPass.radius = 0.7;
         }
         function handleChamberClick(target) {
             if (!target) return;
+            if (handleRealmPersonOrAsset(target)) return;
             if (target.userData && target.userData.chamberFeature) {
                 const name = target.userData.chamberName || 'Chamber';
                 const idx = target.userData.chamberIndex;
@@ -8207,6 +8448,7 @@ bloomPass.radius = 0.7;
             }
         }
         function updateChamberRealm(time) {
+            updateRealmAssetMixers(chamberRoot);
             if (inChamber && chamberRoot._feature) chamberRoot._feature.rotation.y = time * 0.2;
             if (chamberRoot._weather) {
                 const mood = (gskBridge && gskBridge.gskOnline) ? (gskBridge.currentMood || 'neutral') : 'neutral';
@@ -8283,10 +8525,10 @@ bloomPass.radius = 0.7;
         (function initIntro() {
             const ov = document.getElementById('intro-overlay');
             if (!ov) return;
-            if (sessionStorage.getItem('soulfeild_intro_seen')) { ov.style.display = 'none'; return; }
+            if (localStorage.getItem('soulfeild_intro_seen')) { ov.style.display = 'none'; return; }
             const btn = ov.querySelector('#intro-enter');
             if (btn) btn.addEventListener('click', () => {
-                ov.style.display = 'none'; sessionStorage.setItem('soulfeild_intro_seen', '1');
+                ov.style.display = 'none'; localStorage.setItem('soulfeild_intro_seen', '1');
             });
         })();
         (function initNav() {
@@ -8311,6 +8553,7 @@ bloomPass.radius = 0.7;
             lastTime = performance.now();
             time += dt;
             const _slow = (_frameCount++ & 1) === 0; // half-rate for cosmetic-only systems (Gun H)
+            const hubActive = !isInside && !inScribe && !inMerchant && !inBuilder && !inProphet && !inChamber;
             perf.sample(dt);
             
             updateCompass();
@@ -8318,7 +8561,7 @@ bloomPass.radius = 0.7;
             updateCommandCenter(dt, time);
             
             // --- souls orbiting & bobbing + mouse reaction (half-rate: cosmetic) ---
-            if (_slow) souls.forEach(s => {
+            if (_slow && hubActive) souls.forEach(s => {
                 if (s.obj.userData.isDragging) return;
                 // mouse proximity: flee from cursor
                 const dx = s.obj.position.x - mouseWorldPos.x;
@@ -8339,8 +8582,9 @@ bloomPass.radius = 0.7;
             });
             
             // --- alive angels: flight + social conversation (GSK-aware) ---
-            updateAngelLife(dt, time);
+            if (hubActive) updateAngelLife(dt, time);
 
+            if (hubActive) {
             // --- avatar bob ---
             if (avatar) {
                 const bobY = Math.sin(time * 1.2) * 0.04;
@@ -8542,34 +8786,37 @@ bloomPass.radius = 0.7;
             for (const f of heavenFloaters) {
                 f.obj.position.y = f.baseY + Math.sin(time * f.speed + f.phase) * f.amp;
             }
+            }
             
             // --- book reading animation ---
             updateBookReading();
 
             // --- avatar system ---
-            updateAvatars(dt);
-            updateTaskParticles(dt);
-            updateBuildingWindowFlashes(dt);
-            updateNpcTerminals();
+            if (hubActive) {
+                updateAvatars(dt);
+                updateTaskParticles(dt);
+                updateBuildingWindowFlashes(dt);
+                updateNpcTerminals();
+            }
             
             // --- GSK city bridge ---
             gskBridge.update(dt);
 
             // --- GSK visible body (Gap 1) ---
-            if (window.__gskAvatar) window.__gskAvatar.update(dt, time);
+            if (hubActive && window.__gskAvatar) window.__gskAvatar.update(dt, time);
 
             // --- Memory buildings (Gap 2) ---
-            if (window.__memoryBuildings) window.__memoryBuildings.update(dt, time);
+            if (hubActive && window.__memoryBuildings) window.__memoryBuildings.update(dt, time);
 
             // --- Subagent NPCs (Gap 3) ---
-            if (window.__subagentNPCs) window.__subagentNPCs.update(dt, time);
+            if (hubActive && window.__subagentNPCs) window.__subagentNPCs.update(dt, time);
 
             // --- Thought stream (GSK inner life) ---
-            if (window.__thoughtStream) window.__thoughtStream.update(dt);
-                if (window.__worldSync) window.__worldSync.update(dt);
+            if (hubActive && window.__thoughtStream) window.__thoughtStream.update(dt);
+            if (hubActive && window.__worldSync) window.__worldSync.update(dt);
             
             // --- rune pulse animation ---
-            runes.forEach(rune => {
+            if (hubActive) runes.forEach(rune => {
                 const pulse = 0.5 + Math.sin(time * 2.5 + rune.position.x) * 0.4;
                 rune.material.opacity = pulse;
                 const s = 1 + Math.sin(time * 3 + rune.position.x) * 0.2;
@@ -8580,17 +8827,19 @@ bloomPass.radius = 0.7;
             if (portalUniforms) portalUniforms.uTime.value = time;
             if (floatDustUniforms) floatDustUniforms.uTime.value = time;
             if (emberUniforms) emberUniforms.uTime.value = time;
-            updateHubExtensions(time);
+            if (hubActive) updateHubExtensions(time);
             if (inScribe) updateScribeRealm(time);
             if (inMerchant) updateMerchantRealm(time);
             if (inBuilder) updateBuilderRealm(time);
             if (inProphet) updateProphetRealm(time);
             if (inChamber) updateChamberRealm(time);
-            updatePortalCaretaker(time);
+            if (hubActive) updatePortalCaretaker(time);
             
             // --- pulse pyramid glow ---
-            pyramidGlow.intensity = 0.9 + Math.sin(time * 1.8) * 0.3;
-            capstone.material.emissiveIntensity = 0.5 + Math.sin(time * 2.2) * 0.2;
+            if (hubActive) {
+                pyramidGlow.intensity = 0.9 + Math.sin(time * 1.8) * 0.3;
+                capstone.material.emissiveIntensity = 0.5 + Math.sin(time * 2.2) * 0.2;
+            }
             
             hintEl.textContent = isInside
                 ? 'Click the book | Click wall or press ESC to exit'
@@ -8647,10 +8896,9 @@ bloomPass.radius = 0.7;
         <div class="intro-card">
             <h1>THE SOULFEILD</h1>
             <div class="sub">A COSMOLOGY BY PROFIT PRIME</div>
-            <p>You are a soul drifting through Profit's living cosmos. At its heart stands <b>GSK</b> — the waking mind. Around it turn five realms, each a facet of consciousness: the Scribe's Library, the Merchant's Market, the Builder's Workshop, the Prophet's Tower, and the Chamber Ring where the thirty-four chambers resonate.</p>
-            <div class="keys">DRAG to look &middot; WASD to move &middot; SHIFT to run &middot; SPACE to rise &middot; Q to descend &middot; F to fly<br>CLICK anything to interact &middot; ESC to leave a realm</div>
-            <p style="font-size:12px;color:#8fb8da">Use the compass at bottom-right to travel between realms. Switch your avatar with BE: above.</p>
-            <button class="enter-btn" id="intro-enter">ENTER THE COSMOS</button>
+            <p>GSK wakes at the center. Five realms hold memory, trade, creation, prophecy, and the chambers.</p>
+            <div class="keys">WASD move &middot; drag look &middot; click interact &middot; F fly &middot; ESC return</div>
+            <button class="enter-btn" id="intro-enter">ENTER</button>
         </div>
     </div>
 
@@ -8680,4 +8928,3 @@ bloomPass.radius = 0.7;
 
 </body>
 </html>
-
