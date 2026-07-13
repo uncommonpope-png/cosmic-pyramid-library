@@ -2758,7 +2758,7 @@ bloomPass.radius = 0.6;
         const groundCars = [];
         
         // Load road GLB
-        const roadLoader = makeGLTF();
+        const roadLoader = makeGLTF({ lazy: true });
         roadLoader.load('assets/recent/roads_ii_100_free.glb', (gltf) => {
             const model = gltf.scene;
             const box = new THREE.Box3().setFromObject(model);
@@ -2782,7 +2782,7 @@ bloomPass.radius = 0.6;
             'assets/recent/cars/wyvern_concept_car_-_free.glb',
             'assets/recent/cars/free_cyberpunk_hovercar.glb'
         ];
-        const carLoader = makeGLTF();
+        const carLoader = makeGLTF({ lazy: true });
         carAssets.forEach((carPath, idx) => {
             carLoader.load(carPath, (gltf) => {
                 const model = gltf.scene;
@@ -2822,9 +2822,9 @@ bloomPass.radius = 0.6;
             { kind: 'goku', path: 'assets/recent/avatars/dragon_ball_z_baby_goku.glb' },
             { kind: 'skull', path: 'assets/recent/avatars/skull_in_astronaut_helmet.glb' }
         ];
-        const avatarLoader = makeGLTF();
+        const glbAvatarLoader = makeGLTF({ lazy: true });
         avatarAssets.forEach((av) => {
-            avatarLoader.load(av.path, (gltf) => {
+            glbAvatarLoader.load(av.path, (gltf) => {
                 const model = gltf.scene;
                 const box = new THREE.Box3().setFromObject(model);
                 const size = box.getSize(new THREE.Vector3());
