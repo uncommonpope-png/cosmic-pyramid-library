@@ -561,6 +561,35 @@
         #quest-toast { position: fixed; left: 50%; top: 22px; transform: translateX(-50%); z-index: 220; padding: 10px 22px;
           font-family: Georgia, serif; letter-spacing: 2px; font-size: 14px; color: #07121f; background: rgba(150,255,210,0.95);
           border-radius: 22px; box-shadow: 0 0 28px rgba(120,255,200,0.6); opacity: 0; transition: opacity .5s ease; pointer-events: none; }
+        /* --- GSK COMMAND CONSOLE (in-world, bidirectional) --- */
+        #gsk-command-console {
+            position: fixed; left: 14px; bottom: 14px; z-index: 70; width: 280px;
+            display: none; flex-direction: column; gap: 8px;
+            font-family: Georgia, serif; color: #dcefff;
+            background: rgba(8,16,32,0.86); border: 1px solid rgba(102,255,255,0.35);
+            border-radius: 14px; padding: 12px 14px;
+            box-shadow: 0 0 28px rgba(40,120,200,0.3);
+        }
+        #gsk-command-console.active { display: flex; }
+        #gsk-command-console h3 { margin: 0; font-size: 13px; letter-spacing: 2px; color: #66ffff; }
+        #gsk-command-console .cc-sub { font-size: 10px; color: #8fb6d8; letter-spacing: 1px; margin-top: -4px; }
+        #gsk-command-console .cc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        #gsk-command-console button {
+            font-family: Georgia, serif; font-size: 11px; letter-spacing: 1px; cursor: pointer;
+            padding: 7px 6px; border-radius: 9px; color: #dffaff;
+            background: rgba(20,40,70,0.8); border: 1px solid rgba(102,255,255,0.25);
+        }
+        #gsk-command-console button:hover { background: rgba(40,80,130,0.9); border-color: #66ffff; }
+        #gsk-command-console .cc-row { display: flex; gap: 6px; }
+        #gsk-command-console input {
+            flex: 1; min-width: 0; font-family: monospace; font-size: 11px; color: #dffaff;
+            background: rgba(4,10,22,0.9); border: 1px solid rgba(102,255,255,0.3);
+            border-radius: 8px; padding: 6px 8px;
+        }
+        #gsk-command-console input:focus { outline: none; border-color: #ffaa66; }
+        #gsk-command-console .cc-status { font-size: 10px; letter-spacing: 1px; color: #88aacc; min-height: 13px; }
+        #gsk-command-console .cc-status.ok { color: #8affc4; }
+        #gsk-command-console .cc-status.err { color: #ff9a9a; }
     </style>
 </head>
 <body>
@@ -705,6 +734,25 @@
         <button class="gsk-thought-btn" id="gsk-thought-btn">SEND THOUGHT &#9650;</button>
         <div class="gsk-response" id="gsk-response" style="display:none"></div>
         <div id="gsk-thought-feed" class="gsk-feed"></div>
+    </div>
+
+    <!-- GSK Command Console (bidirectional: GSK / you-as-GSK -> Sanctum -> CPL) -->
+    <div id="gsk-command-console">
+        <h3>GSK · WORLD COMMAND</h3>
+        <div class="cc-sub">you are GSK — issue commands to the living world</div>
+        <div class="cc-grid">
+            <button data-cmd="spawn" data-arg='{"entity":"soul","archetype":"visitor","theme":"creative"}'>SPAWN SOUL</button>
+            <button data-cmd="spawn" data-arg='{"entity":"building","archetype":"tower","theme":"ascendant"}'>SPAWN TOWER</button>
+            <button data-cmd="tune" data-arg='{"mood":"ascendant","phase":"TRANSCENDENCE"}'>SURGE</button>
+            <button data-cmd="tune" data-arg='{"mood":"void","phase":"VOID"}'>CALM</button>
+            <button data-cmd="clear" data-arg='{}'>CLEAR WORLD</button>
+            <button data-cmd="recall" data-arg='{}'>RECALL STATE</button>
+        </div>
+        <div class="cc-row">
+            <input id="gsk-cmd-input" type="text" placeholder="free command (e.g. spawn garden)" />
+            <button id="gsk-cmd-send">SEND</button>
+        </div>
+        <div class="cc-status" id="gsk-cmd-status">sanctum: idle</div>
     </div>
 
     <!-- GSK Thought Overlay -->
@@ -4860,6 +4908,7 @@ bloomPass.radius = 0.6;
                 requestAnimationFrame(animEnter);
             }
             if (typeof exitBtn !== 'undefined') exitBtn.style.display = 'block';
+            if (typeof gskCmdConsole !== 'undefined' && gskCmdConsole) gskCmdConsole.classList.add('active');
         }
 
         function exitPyramid() {
@@ -4892,6 +4941,7 @@ bloomPass.radius = 0.6;
                 requestAnimationFrame(animExit);
             }
             if (typeof exitBtn !== 'undefined') exitBtn.style.display = 'none';
+            if (typeof gskCmdConsole !== 'undefined' && gskCmdConsole) gskCmdConsole.classList.remove('active');
         }
         
         // open book 3D group (shown when fully opened)
@@ -6549,15 +6599,56 @@ bloomPass.radius = 0.6;
                 const c = { pyramid: 0xffcc66, crystal: 0x66ffff, factory: 0xff8866, scribe: 0x88ffcc, default: 0xaa99ff };
                 return (c[(theme || 'default')] !== undefined) ? c[theme] : c.default;
             }
+            _glbFor(entity) {
+                if (entity.type === 'building') {
+                    const t = (entity.visual && entity.visual.theme) || 'default';
+                    const map = {
+                        pyramid:  'assets/recent/cosmos/bionic_architecture.glb',
+                        crystal:  'assets/recent/cosmos/procedural_city_5.glb',
+                        factory:  'assets/recent/cosmos/futuristic_background_buildings_kit_volume_2.glb',
+                        default:  'assets/recent/cosmos/neighbourhood_city_modular_lowpoly.glb'
+                    };
+                    return map[t] || map.default;
+                }
+                if (entity.type === 'soul') {
+                    const a = (entity.visual && entity.visual.archetype) || 'default';
+                    const map = {
+                        scribe:   'assets/recent/avatars/cat_girl_-_rigged.glb',
+                        merchant: 'assets/recent/avatars/lola_bunny__free.glb',
+                        builder:  'assets/recent/avatars/dragon_ball_z_baby_goku.glb',
+                        prophet:  'assets/recent/avatars/skull_in_astronaut_helmet.glb',
+                        default:  'assets/recent/guardian_angel_pet.glb'
+                    };
+                    return map[a] || map.default;
+                }
+                return null;
+            }
             _makeMesh(entity) {
-                const t = (entity.visual && entity.visual.theme) || (entity.type === 'soul' ? 'scribe' : 'default');
-                let geo;
-                if (entity.type === 'building') geo = new THREE.BoxGeometry(3, 6, 3);
-                else geo = new THREE.SphereGeometry(1.2, 16, 12);
-                const mat = new THREE.MeshStandardMaterial({ color: this._themeColor(t), emissive: this._themeColor(t), emissiveIntensity: 0.4, roughness: 0.5 });
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.castShadow = true;
-                return mesh;
+                const t = (entity.visual && (entity.visual.theme || entity.visual.archetype)) || (entity.type === 'soul' ? 'scribe' : 'default');
+                const group = new THREE.Group();
+                // Instant placeholder so the entity appears immediately, then swap in the GLB.
+                const phGeo = entity.type === 'building' ? new THREE.BoxGeometry(3, 6, 3) : new THREE.SphereGeometry(1.2, 16, 12);
+                const ph = new THREE.Mesh(phGeo, new THREE.MeshStandardMaterial({ color: this._themeColor(t), emissive: this._themeColor(t), emissiveIntensity: 0.4, roughness: 0.5, wireframe: true }));
+                group.add(ph);
+                const path = this._glbFor(entity);
+                if (path) {
+                    try {
+                        makeGLTF({ lazy: true }).load(path, (gltf) => {
+                            const model = gltf.scene;
+                            const box = new THREE.Box3().setFromObject(model);
+                            const size = box.getSize(new THREE.Vector3());
+                            const maxDim = Math.max(size.x, size.y, size.z) || 1;
+                            const target = entity.type === 'building' ? 10 : 3;
+                            const s = target / maxDim;
+                            model.scale.setScalar(s);
+                            model.position.y = entity.type === 'building' ? (size.y * s) / 2 : 0;
+                            group.remove(ph);
+                            group.add(model);
+                            console.log('[WorldSync] GLB loaded', entity.id, path);
+                        }, undefined, (e) => { console.warn('[WorldSync] GLB load fail', path, e && e.message); });
+                    } catch (e) { console.warn('[WorldSync] loader err', e); }
+                }
+                return group;
             }
             applyState(data) {
                 if (!data || !data.entities) return;
@@ -6722,6 +6813,77 @@ bloomPass.radius = 0.6;
 
         console.log('[GSK Bridge] City bridge active — atmosphere, buildings, NPCs, tasks wired to GSK state');
         console.log(`[GSK Bridge] Archetypes: ${gskBridge.npcArchetypes.join(', ')}`);
+
+        // ========== GSK COMMAND CONSOLE (DOUR #4 — bidirectional world command) ==========
+        // The command center is now GSK's living quarters + a two-way throat:
+        // you-as-GSK (or GSK himself) issues commands that flow
+        // GSK -> Sanctum (ws://localhost:9001) -> CPL (WorldSyncEngine renders them).
+        let gskCmdConsole = null;
+        function setCmdStatus(text, cls) {
+            const el = document.getElementById('gsk-cmd-status');
+            if (!el) return;
+            el.textContent = text;
+            el.className = 'cc-status' + (cls ? ' ' + cls : '');
+        }
+        function issueWorldCommand(type, data) {
+            const s = (typeof window !== 'undefined') ? window.__sanctum : null;
+            if (!s || !s.ws || s.ws.readyState !== WebSocket.OPEN) {
+                setCmdStatus('sanctum: offline — command not sent', 'err');
+                return false;
+            }
+            try {
+                s.sendCommand(type, data || {});
+                const label = (typeof data === 'object' && data) ? JSON.stringify(data) : '';
+                setCmdStatus('→ sent ' + type + (label ? ' ' + label : '') + ' to sanctum', 'ok');
+                return true;
+            } catch (e) {
+                setCmdStatus('send failed: ' + e.message, 'err');
+                return false;
+            }
+        }
+        try {
+            gskCmdConsole = document.getElementById('gsk-command-console');
+            gskCmdConsole.querySelectorAll('button[data-cmd]').forEach(b => {
+                b.addEventListener('click', () => {
+                    let arg = {};
+                    try { arg = JSON.parse(b.dataset.arg || '{}'); } catch (_) { arg = {}; }
+                    issueWorldCommand(b.dataset.cmd, arg);
+                });
+            });
+            const cmdInput = document.getElementById('gsk-cmd-input');
+            const cmdSend = document.getElementById('gsk-cmd-send');
+            const sendFree = () => {
+                const txt = (cmdInput.value || '').trim();
+                if (!txt) return;
+                issueWorldCommand('say', { text: txt });
+                cmdInput.value = '';
+            };
+            cmdSend.addEventListener('click', sendFree);
+            cmdInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendFree(); });
+            // Reflect Sanctum connection state into the status line
+            const tickSanctum = setInterval(() => {
+                const s = window.__sanctum;
+                if (!s || !s.ws || s.ws.readyState !== WebSocket.OPEN) setCmdStatus('sanctum: offline', 'err');
+                else if (gskCmdConsole && !gskCmdConsole.classList.contains('active')) setCmdStatus('sanctum: online (enter command center)', 'ok');
+            }, 2500);
+            setCmdStatus('sanctum: connecting…');
+        } catch (e) {
+            console.warn('[GSK Command Console] init failed:', e);
+        }
+
+        // GSK himself drives the world: when his phase shifts, emit a Sanctum tune command
+        // so the soul's inner state animates the body (closes the GSK->Sanctum->CPL loop, #3/#4).
+        const origFeedStatus = gskBridge.feedStatus.bind(gskBridge);
+        let _lastGskPhase = null;
+        gskBridge.feedStatus = function (status) {
+            origFeedStatus(status);
+            if (!status || !gskBridge.gskOnline) return;
+            const phase = gskBridge.currentPhase;
+            if (phase && phase !== _lastGskPhase) {
+                _lastGskPhase = phase;
+                issueWorldCommand('tune', { mood: gskBridge.currentMood, phase: phase });
+            }
+        };
 
         // ========== DOUR-DIRECTIVE-005 HUB EXTENSIONS (additive scaffold) ==========
         // Visible-from-CPL additions only: 36-socket chamber portal ring, 4 god-world
