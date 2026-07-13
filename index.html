@@ -92,6 +92,8 @@
             box-shadow: 0 0 12px rgba(255,180,90,0.10);
         }
         .avatar-btn.active { background: rgba(255,170,60,0.30); color: #fff; border-color: #ffcf8a; }
+        .avatar-btn.loading { opacity: 0.5; cursor: wait; }
+        .avatar-btn.loading::after { content: ' ⏳'; }
         #npc-status {
             background: rgba(0,0,0,0.55); color: #d8ccff;
             padding: 6px 10px; border-radius: 16px; font-size: 11px;
@@ -607,9 +609,9 @@
         <button class="avatar-btn active" data-kind="gsk">GSK</button>
         <span class="avatar-sep">|</span>
         <button class="avatar-btn" data-kind="catgirl">CAT GIRL</button>
-        <button class="avatar-btn" data-kind="lola">LOLA</button>
+        <button class="avatar-btn" data-kind="lola">CAT WITCH</button>
         <button class="avatar-btn" data-kind="goku">GOKU</button>
-        <button class="avatar-btn" data-kind="skull">SKULL</button>
+        <button class="avatar-btn" data-kind="skull">DAS KAT</button>
         <span id="npc-status">WASD move · Shift run · Space up/jump · Q down · F fly</span>
     </div>
 
@@ -1144,7 +1146,7 @@
         // ========== SCENE ==========
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x010008);
-        scene.fog = new THREE.FogExp2(0x010008, 0.003);
+        scene.fog = new THREE.FogExp2(0x010008, 0.0015);
         
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(12, 10, 18);
@@ -1153,7 +1155,7 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.42;
+renderer.toneMappingExposure = 0.75;
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
@@ -1167,9 +1169,9 @@ renderer.toneMappingExposure = 0.42;
         // ========== POSTPROCESSING ==========
         const renderScene = new RenderPass(scene, camera);
         const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-bloomPass.threshold = 0.5;
-bloomPass.strength = 0.4;
-bloomPass.radius = 0.6;
+bloomPass.threshold = 0.4;
+bloomPass.strength = 0.6;
+bloomPass.radius = 0.7;
         const effectComposer = new EffectComposer(renderer);
         effectComposer.addPass(renderScene);
         effectComposer.addPass(bloomPass);
@@ -1220,7 +1222,7 @@ bloomPass.radius = 0.6;
         pyramidGlow.position.set(0, 2.2, 0); scene.add(pyramidGlow);
         
         // ========== STARS ==========
-        const starCount = 2500;
+        const starCount = 5000;
         const starGeo = new THREE.BufferGeometry();
         const starPos = new Float32Array(starCount * 3);
         const starCols = new Float32Array(starCount * 3);
@@ -1239,8 +1241,47 @@ bloomPass.radius = 0.6;
         starGeo.setAttribute('color', new THREE.BufferAttribute(starCols, 3));
         starGeo.setAttribute('phase', new THREE.BufferAttribute(starPhases, 1));
         starGeo.setAttribute('speed', new THREE.BufferAttribute(starSpeeds, 1));
-        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 0.18, vertexColors: true, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending }));
+        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 0.4, vertexColors: true, transparent: true, opacity: 1.0, blending: THREE.AdditiveBlending }));
         scene.add(stars);
+
+        // ========== FLOATING DUST PARTICLES (atmosphere) ==========
+        const dustCount = 800;
+        const dustGeo = new THREE.BufferGeometry();
+        const dustPos = new Float32Array(dustCount * 3);
+        const dustCols = new Float32Array(dustCount * 3);
+        for (let i = 0; i < dustCount; i++) {
+            dustPos[i*3] = (Math.random() - 0.5) * 120;
+            dustPos[i*3+1] = Math.random() * 30 + 0.5;
+            dustPos[i*3+2] = (Math.random() - 0.5) * 120;
+            const hue = 0.5 + Math.random() * 0.15;
+            const c = new THREE.Color().setHSL(hue, 0.5, 0.4 + Math.random() * 0.3);
+            dustCols[i*3] = c.r; dustCols[i*3+1] = c.g; dustCols[i*3+2] = c.b;
+        }
+        dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+        dustGeo.setAttribute('color', new THREE.BufferAttribute(dustCols, 3));
+        const floatingDust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+            size: 0.12, vertexColors: true, transparent: true, opacity: 0.35,
+            blending: THREE.AdditiveBlending, depthWrite: false
+        }));
+        scene.add(dustParticles);
+
+        // ========== COLORED ACCENT LIGHTS ==========
+        // Pyramid glow (cyan)
+        const pyramidLight = new THREE.PointLight(0x66ffff, 3, 40, 2);
+        pyramidLight.position.set(0, 6, 0);
+        scene.add(pyramidLight);
+        // Heaven glow (gold)
+        const heavenAccentLight = new THREE.PointLight(0xffcc66, 2, 50, 2);
+        heavenAccentLight.position.set(0, 35, 0);
+        scene.add(heavenAccentLight);
+        // City rim lights (cyan + magenta corners)
+        const rimColors = [0x66ffff, 0xff66cc, 0x66ff99, 0xffaa44];
+        const rimPositions = [[-50, 2, -50], [50, 2, -50], [-50, 2, 50], [50, 2, 50]];
+        for (let i = 0; i < 4; i++) {
+            const rl = new THREE.PointLight(rimColors[i], 1.5, 60, 2);
+            rl.position.set(...rimPositions[i]);
+            scene.add(rl);
+        }
 
         // ========== UNIVERSE SKY DOME (actual visible sky image, generated locally) ==========
         function createUniverseSkyTexture() {
@@ -1383,8 +1424,9 @@ bloomPass.radius = 0.6;
         // Large ground plane to prevent falling through the world
         const largeGroundGeo = new THREE.PlaneGeometry(200, 200);
         const largeGroundMat = new THREE.MeshStandardMaterial({
-            color: 0x0a0a1a,
-            roughness: 0.95, metalness: 0.05,
+            color: 0x080818,
+            roughness: 0.8, metalness: 0.15,
+            emissive: 0x040410, emissiveIntensity: 0.1,
             side: THREE.DoubleSide
         });
         const largeGround = new THREE.Mesh(largeGroundGeo, largeGroundMat);
@@ -2316,7 +2358,7 @@ bloomPass.radius = 0.6;
         
         // Ground plane - large city floor
         const cityGroundGeo = new THREE.PlaneGeometry(200, 200);
-        const cityGroundMat = new THREE.MeshStandardMaterial({ color: 0x020204, roughness: 0.95, metalness: 0.05 });
+        const cityGroundMat = new THREE.MeshStandardMaterial({ color: 0x080818, roughness: 0.8, metalness: 0.15, emissive: 0x040410, emissiveIntensity: 0.1 });
         const cityGround = new THREE.Mesh(cityGroundGeo, cityGroundMat);
         cityGround.rotation.x = -Math.PI / 2;
         cityGround.position.y = -0.1;
@@ -2404,7 +2446,7 @@ bloomPass.radius = 0.6;
             const mat = new THREE.MeshStandardMaterial({
                 color: 0xffffff,
                 map: facadeMap,
-                emissive: new THREE.Color(c[0] * 0.08, c[1] * 0.08, c[2] * 0.08),
+                emissive: new THREE.Color(c[0] * 0.25, c[1] * 0.25, c[2] * 0.25),
                 roughness: 0.82, metalness: 0.14
             });
 
@@ -2863,29 +2905,32 @@ bloomPass.radius = 0.6;
         });
 
         // ========== GLB AVATARS (real character models) ==========
+        // Lightweight menagerie versions so they load before the overlay hides.
         const glbAvatars = {};
         const avatarAssets = [
-            { kind: 'catgirl', path: 'assets/recent/avatars/cat_girl_-_rigged.glb' },
-            { kind: 'lola', path: 'assets/recent/avatars/lola_bunny__free.glb' },
+            { kind: 'catgirl', path: 'assets/recent/menagerie/cat_girl_-_rigged.glb' },
+            { kind: 'lola', path: 'assets/recent/menagerie/cat_witch.glb' },
             { kind: 'goku', path: 'assets/recent/avatars/dragon_ball_z_baby_goku.glb' },
-            { kind: 'skull', path: 'assets/recent/avatars/skull_in_astronaut_helmet.glb' }
+            { kind: 'skull', path: 'assets/recent/menagerie/das_kat.glb' }
         ];
-        const glbAvatarLoader = makeGLTF({ lazy: true });
+        let avatarsLoaded = 0;
+        const avatarLoader = makeGLTF(); // critical — loads before overlay hides
         avatarAssets.forEach((av) => {
-            glbAvatarLoader.load(av.path, (gltf) => {
+            avatarLoader.load(av.path, (gltf) => {
                 const model = gltf.scene;
                 const box = new THREE.Box3().setFromObject(model);
                 const size = box.getSize(new THREE.Vector3());
                 const center = box.getCenter(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z) || 1;
                 const s = 1.8 / maxDim;
-                model.position.set(-center.x, -box.min.y, -center.z);
+                model.position.set(-center.x, -box.min.y, -box.min.z);
                 const wrap = new THREE.Group();
                 wrap.add(model);
                 wrap.scale.setScalar(s);
                 model.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
                 glbAvatars[av.kind] = wrap;
-                console.log('[Avatar] loaded:', av.kind);
+                avatarsLoaded++;
+                console.log('[Avatar] loaded:', av.kind, '(' + avatarsLoaded + '/' + avatarAssets.length + ')');
             }, undefined, (err) => { console.warn('[Avatar] load failed:', av.path, err); });
         });
 
@@ -3502,12 +3547,31 @@ bloomPass.radius = 0.6;
             const yaw = playerYaw;
             scene.remove(playerNPC);
             
-            // Use GLB avatar if available, otherwise fall back to procedural
+            // Use GLB avatar if available, otherwise fall back to procedural + auto-swap when ready
             if (glbAvatars[kind]) {
                 playerNPC = glbAvatars[kind].clone();
                 playerNPC.userData = { name: 'You (' + kind + ')', isPlayerNPC: true };
             } else {
                 playerNPC = buildSubagentAvatar(kind);
+                // Mark button as loading and auto-swap when GLB arrives
+                const btn = document.querySelector(`.avatar-btn[data-kind="${kind}"]`);
+                if (btn) btn.classList.add('loading');
+                const checkReady = setInterval(() => {
+                    if (glbAvatars[kind]) {
+                        clearInterval(checkReady);
+                        const p = playerNPC.position.clone();
+                        const y = playerYaw;
+                        scene.remove(playerNPC);
+                        playerNPC = glbAvatars[kind].clone();
+                        playerNPC.userData = { name: 'You (' + kind + ')', isPlayerNPC: true };
+                        playerNPC.position.copy(p);
+                        playerNPC.rotation.y = y;
+                        scene.add(playerNPC);
+                        window.__playerNPC = playerNPC;
+                        if (btn) btn.classList.remove('loading');
+                        console.log('[Avatar] auto-swapped to GLB:', kind);
+                    }
+                }, 500);
             }
             
             playerNPC.position.copy(pos);
@@ -5836,12 +5900,12 @@ bloomPass.radius = 0.6;
         // Maps GSK mood/phase/PLT onto scene elements in real time
 
         const GSK_MOOD_MAP = {
-        neutral:       { sky:0x010008, fog:0x010008, fogDensity:0.003, bloomStr:0.42, hemi:[0x445577,0x222244] },
-        ascendant:     { sky:0x12002a, fog:0x0a0018, fogDensity:0.0025,bloomStr:0.5,  hemi:[0x6644aa,0x332255] },
-        creative:      { sky:0x00181a, fog:0x000810, fogDensity:0.002, bloomStr:0.46, hemi:[0x55aa77,0x225533] },
-        anxious:       { sky:0x1a0008, fog:0x100008, fogDensity:0.0035,bloomStr:0.36, hemi:[0x553344,0x332233] },
-        void:          { sky:0x010008, fog:0x010008, fogDensity:0.003, bloomStr:0.38, hemi:[0x333355,0x222244] },
-        focused:       { sky:0x08001a, fog:0x040010, fogDensity:0.0028,bloomStr:0.44, hemi:[0x5544aa,0x222255] },
+        neutral:       { sky:0x010008, fog:0x010008, fogDensity:0.0015, bloomStr:0.6, hemi:[0x556688,0x334455] },
+        ascendant:     { sky:0x12002a, fog:0x0a0018, fogDensity:0.0012, bloomStr:0.7, hemi:[0x7755bb,0x443366] },
+        creative:      { sky:0x00181a, fog:0x000810, fogDensity:0.001,  bloomStr:0.65, hemi:[0x66bb88,0x336644] },
+        anxious:       { sky:0x1a0008, fog:0x100008, fogDensity:0.0018, bloomStr:0.5, hemi:[0x664455,0x443344] },
+        void:          { sky:0x010008, fog:0x010008, fogDensity:0.0015, bloomStr:0.55, hemi:[0x444466,0x333355] },
+        focused:       { sky:0x08001a, fog:0x040010, fogDensity:0.0013, bloomStr:0.62, hemi:[0x6655bb,0x333366] },
         };
 
         const GSK_PHASE_MAP = {
@@ -8186,6 +8250,16 @@ bloomPass.radius = 0.6;
             }
             stars.rotation.y += 0.0003;
             stars.rotation.x += 0.0002;
+            // Floating dust drift
+            if (typeof floatingDust !== 'undefined') {
+                floatingDust.rotation.y += 0.0008;
+                const fp = floatingDust.geometry.attributes.position.array;
+                for (let i = 0; i < fp.length; i += 3) {
+                    fp[i + 1] += Math.sin(time * 0.3 + i) * 0.002;
+                    if (fp[i + 1] > 32) fp[i + 1] = 0.5;
+                }
+                floatingDust.geometry.attributes.position.needsUpdate = true;
+            }
             wisps.rotation.y += 0.0015;
             dust.rotation.y += 0.004;
             
