@@ -837,8 +837,8 @@
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
             }
         }
     </script>
@@ -1154,6 +1154,9 @@
         const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
+        // Gun F: keep r128-era look on the modern engine
+        renderer.useLegacyLights = true; // preserve legacy point/ambient light intensities
+        renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // manual GammaCorrectionShader does sRGB; avoid double-correct
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.75;
         renderer.shadowMap.enabled = true;
@@ -2802,7 +2805,7 @@ bloomPass.radius = 0.7;
 
             const billboardTextureUrl = `${imageUrl}?v=${BILLBOARD_ASSET_VERSION}`;
             new THREE.TextureLoader(criticalManager).load(billboardTextureUrl, (tex) => {
-                tex.encoding = THREE.sRGBEncoding;
+                tex.colorSpace = THREE.SRGBColorSpace;
                 tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
                 imageMat.map = tex;
                 imageMat.emissiveMap = tex;
