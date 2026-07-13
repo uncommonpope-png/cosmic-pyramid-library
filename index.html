@@ -571,11 +571,11 @@
         <button class="camera-mode-btn" id="orbit-mode-btn">ORBIT</button>
         <button class="camera-mode-btn active" id="npc-mode-btn">PLAY</button>
         <span class="avatar-sep">BE:</span>
-        <button class="avatar-btn active" data-kind="scribe">SCRIBE</button>
+        <button class="avatar-btn" data-kind="scribe">SCRIBE</button>
         <button class="avatar-btn" data-kind="merchant">MERCHANT</button>
         <button class="avatar-btn" data-kind="builder">BUILDER</button>
         <button class="avatar-btn" data-kind="prophet">PROPHET</button>
-        <button class="avatar-btn" data-kind="gsk">GSK</button>
+        <button class="avatar-btn active" data-kind="gsk">GSK</button>
         <span class="avatar-sep">|</span>
         <button class="avatar-btn" data-kind="catgirl">CAT GIRL</button>
         <button class="avatar-btn" data-kind="lola">LOLA</button>
@@ -3343,7 +3343,7 @@ bloomPass.radius = 0.6;
             prophet:  { body: 0x140a28, glow: 0x9a6cff, accent: 0xc9b3ff },
             gsk:      { body: 0x0a1430, glow: 0x66ffff, accent: 0x9effc4 }
         };
-        let playerKind = 'scribe';
+        let playerKind = 'gsk';
 
         // Phase 2: denizen identity + realm quest loops
         const realmDenizenIds = {};
@@ -6028,7 +6028,7 @@ bloomPass.radius = 0.6;
         class GSKAvatar {
             constructor() {
                 this.group = new THREE.Group();
-                this.group.position.set(0, 1.8, 0); // wanders the hub at walking height
+                this.group.position.set(0, 8.5, 0); // hovers above the pyramid — GSK presiding over his world
                 this.coreMat = new THREE.MeshStandardMaterial({ color: 0x88ffff, emissive: 0x66ffff, emissiveIntensity: 1.2, roughness: 0.3, metalness: 0.1 });
                 this.core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.9, 1), this.coreMat);
                 this.ringMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x88ddff, emissiveIntensity: 0.9, transparent: true, opacity: 0.8 });
@@ -6043,8 +6043,8 @@ bloomPass.radius = 0.6;
                 scene.add(this.group);
                 this.baseY = this.group.position.y;
                 this.targetColor = new THREE.Color(0x88ffff);
-                this.wanderTarget = new THREE.Vector3((Math.random() - 0.5) * 44, 1.8, (Math.random() - 0.5) * 44);
-                this.wanderTimer = 0;
+                this.orbitAngle = 0;
+                this.home = new THREE.Vector3(0, 8.5, 0);
             }
             _feedMood() {
                 if (!gskBridge) return;
@@ -6053,20 +6053,11 @@ bloomPass.radius = 0.6;
                 this.light.color.copy(this.targetColor);
             }
             _wander(dt) {
-                this.wanderTimer -= dt;
-                if (this.wanderTimer <= 0) {
-                    this.wanderTimer = 4 + Math.random() * 5;
-                    this.wanderTarget.set((Math.random() - 0.5) * 46, 1.8, (Math.random() - 0.5) * 46);
-                }
-                const dx = this.wanderTarget.x - this.group.position.x;
-                const dz = this.wanderTarget.z - this.group.position.z;
-                const d = Math.hypot(dx, dz);
-                if (d > 0.3) {
-                    const sp = Math.min(2.4 * dt, d);
-                    this.group.position.x += (dx / d) * sp;
-                    this.group.position.z += (dz / d) * sp;
-                    this.group.rotation.y = Math.atan2(dx, dz);
-                }
+                // Orbit slowly above the pyramid — GSK's mind presiding over his world,
+                // not a lost orb roaming the hub.
+                this.orbitAngle += dt * 0.12;
+                this.group.position.x = this.home.x + Math.cos(this.orbitAngle) * 3.5;
+                this.group.position.z = this.home.z + Math.sin(this.orbitAngle) * 3.5;
             }
             update(dt, time) {
                 this._wander(dt);
@@ -6545,6 +6536,157 @@ bloomPass.radius = 0.6;
             thoughtStream._connect();
         } catch (e) {
             console.warn('[Thoughts] init failed:', e);
+        }
+
+        // ========== WORLD SYNC ENGINE (Sanctum -> CPL renderer) ==========
+        // Dumb renderer: receives ECS state from Sanctum and maps it to meshes in cityGroup.
+        class WorldSyncEngine {
+            constructor(group) {
+                this.group = group || (typeof cityGroup !== 'undefined' ? cityGroup : new THREE.Group());
+                this.entities = new Map(); // id -> { obj, target }
+            }
+            _themeColor(theme) {
+                const c = { pyramid: 0xffcc66, crystal: 0x66ffff, factory: 0xff8866, scribe: 0x88ffcc, default: 0xaa99ff };
+                return (c[(theme || 'default')] !== undefined) ? c[theme] : c.default;
+            }
+            _makeMesh(entity) {
+                const t = (entity.visual && entity.visual.theme) || (entity.type === 'soul' ? 'scribe' : 'default');
+                let geo;
+                if (entity.type === 'building') geo = new THREE.BoxGeometry(3, 6, 3);
+                else geo = new THREE.SphereGeometry(1.2, 16, 12);
+                const mat = new THREE.MeshStandardMaterial({ color: this._themeColor(t), emissive: this._themeColor(t), emissiveIntensity: 0.4, roughness: 0.5 });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.castShadow = true;
+                return mesh;
+            }
+            applyState(data) {
+                if (!data || !data.entities) return;
+                const incoming = new Set();
+                for (const e of data.entities) {
+                    if (!e || !e.id) continue;
+                    incoming.add(e.id);
+                    const pos = (e.state && e.state.pos) || [0, 0, 0];
+                    let rec = this.entities.get(e.id);
+                    if (!rec) {
+                        const obj = this._makeMesh(e);
+                        obj.position.set(pos[0], pos[1] + (e.type === 'building' ? 3 : 1.2), pos[2]);
+                        this.group.add(obj);
+                        rec = { obj, target: new THREE.Vector3(pos[0], obj.position.y, pos[2]) };
+                        this.entities.set(e.id, rec);
+                        console.log('[WorldSync] spawned', e.id, e.type);
+                    } else {
+                        rec.target.set(pos[0], rec.obj.position.y, pos[2]);
+                    }
+                }
+                for (const [id, rec] of this.entities) {
+                    if (!incoming.has(id)) {
+                        this.group.remove(rec.obj);
+                        if (rec.obj.geometry) rec.obj.geometry.dispose();
+                        if (rec.obj.material) rec.obj.material.dispose();
+                        this.entities.delete(id);
+                        console.log('[WorldSync] removed', id);
+                    }
+                }
+            }
+            update(dt) {
+                for (const rec of this.entities.values()) {
+                    rec.obj.position.lerp(rec.target, Math.min(1, dt * 2));
+                }
+            }
+        }
+
+        // ========== SANCTUM CLIENT (CPL World Sim Connector) ==========
+        // Connects to Sanctum WebSocket (port 9001) and feeds WorldSyncEngine.
+        class SanctumClient {
+            constructor(port = 9001, world) {
+                this.port = port;
+                this.ws = null;
+                this.reconnectDelay = 1000;
+                this.maxDelay = 60000;
+                this.reconnectTimer = null;
+                this.world = world; // Reference to the CPL world instance
+                this.worldState = null; // Store the latest world state
+                this._connect();
+            }
+
+            _wsUrl() {
+                // For Sanctum, always connect to 9001
+                return window.SANCTUM_WS_ENDPOINT || `ws://localhost:${this.port}`;
+            }
+
+            _connect() {
+                if (typeof WebSocket === 'undefined') return;
+                let url;
+                try { url = this._wsUrl(); } catch (e) { return; }
+                try {
+                    this.ws = new WebSocket(url);
+                } catch (e) {
+                    this._scheduleReconnect();
+                    return;
+                }
+                this.ws.onopen = () => {
+                    this.reconnectDelay = 1000;
+                    console.log('[SanctumClient] WS open', url);
+                    // On connect, request the current state
+                    this.ws.send(JSON.stringify({ type: 'GetState' }));
+                };
+                this.ws.onmessage = (ev) => {
+                    this._parse(ev.data);
+                };
+                this.ws.onclose = () => { this._scheduleReconnect(); };
+                this.ws.onerror = () => { try { this.ws.close(); } catch (e) {} };
+            }
+
+            _scheduleReconnect() {
+                if (this.reconnectTimer) return;
+                this.reconnectTimer = setTimeout(() => {
+                    this.reconnectTimer = null;
+                    this.reconnectDelay = Math.min(this.maxDelay, this.reconnectDelay * 1.6);
+                    this._connect();
+                }, this.reconnectDelay);
+            }
+
+            _parse(raw) {
+                let o = raw;
+                if (typeof raw === 'string') {
+                    try { o = JSON.parse(raw); } catch (e) { return; }
+                }
+                if (o && typeof o === 'object' && o.type) {
+                    if (o.type === 'WorldStateMessage' && o.data) {
+                        this.worldState = o.data;
+                        this._apply(o.data);
+                        // console.log('[SanctumClient] World state received:', o.data);
+                    } else if (o.type === 'Ack') {
+                        // console.log('[SanctumClient] Ack:', o.data);
+                    } else if (o.type === 'CommandResponse') {
+                        // Handle command responses if needed
+                    }
+                }
+            }
+
+            sendCommand(commandType, data) {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    const msg = JSON.stringify({ type: 'Command', data: { [commandType]: data } });
+                    this.ws.send(msg);
+                }
+            }
+
+            // Push received world state straight into the renderer
+            _apply(data) {
+                if (this.world && typeof this.world.applyState === 'function') {
+                        this.world.applyState(data);
+                }
+            }
+        }
+
+        // Sanctum -> CPL world sync (instantiate after classes are defined)
+        try {
+            const worldSync = new WorldSyncEngine(typeof cityGroup !== 'undefined' ? cityGroup : null);
+            window.__worldSync = worldSync;
+            const sanctum = new SanctumClient(9001, worldSync);
+            window.__sanctum = sanctum;
+        } catch (e) {
+            console.warn('[Sanctum] init failed:', e);
         }
 
         // Wire task dispatch through GSK
@@ -8077,6 +8219,7 @@ bloomPass.radius = 0.6;
 
             // --- Thought stream (GSK inner life) ---
             if (window.__thoughtStream) window.__thoughtStream.update(dt);
+                if (window.__worldSync) window.__worldSync.update(dt);
             
             // --- rune pulse animation ---
             runes.forEach(rune => {
