@@ -1295,6 +1295,7 @@ bloomPass.radius = 0.7;
         const floatingDustGeo = new THREE.BufferGeometry();
         const floatingDustPos = new Float32Array(dustCount * 3);
         const floatingDustCols = new Float32Array(dustCount * 3);
+        const floatingDustSeed = new Float32Array(dustCount);
         for (let i = 0; i < dustCount; i++) {
             floatingDustPos[i*3] = (Math.random() - 0.5) * 120;
             floatingDustPos[i*3+1] = Math.random() * 30 + 0.5;
@@ -1302,12 +1303,37 @@ bloomPass.radius = 0.7;
             const hue = 0.5 + Math.random() * 0.15;
             const c = new THREE.Color().setHSL(hue, 0.5, 0.4 + Math.random() * 0.3);
             floatingDustCols[i*3] = c.r; floatingDustCols[i*3+1] = c.g; floatingDustCols[i*3+2] = c.b;
+            floatingDustSeed[i] = Math.random() * 6.28318;
         }
         floatingDustGeo.setAttribute('position', new THREE.BufferAttribute(floatingDustPos, 3));
-        floatingDustGeo.setAttribute('color', new THREE.BufferAttribute(floatingDustCols, 3));
-        const floatingDust = new THREE.Points(floatingDustGeo, new THREE.PointsMaterial({
-            size: 0.12, vertexColors: true, transparent: true, opacity: 0.35,
-            blending: THREE.AdditiveBlending, depthWrite: false
+        floatingDustGeo.setAttribute('aColor', new THREE.BufferAttribute(floatingDustCols, 3));
+        floatingDustGeo.setAttribute('aSeed', new THREE.BufferAttribute(floatingDustSeed, 1));
+        const floatDustUniforms = { uTime: { value: 0 }, uSize: { value: 0.5 } };
+        const floatingDust = new THREE.Points(floatingDustGeo, new THREE.ShaderMaterial({
+            uniforms: floatDustUniforms,
+            transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+            vertexShader: `
+                uniform float uTime; uniform float uSize;
+                attribute vec3 aColor; attribute float aSeed;
+                varying vec3 vColor;
+                void main() {
+                    vColor = aColor;
+                    vec3 p = position;
+                    p.y += sin(uTime * 0.3 + aSeed) * 0.007;
+                    p.x += sin(uTime * 0.2 + aSeed * 1.7) * 0.01;
+                    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+                    gl_PointSize = uSize * (300.0 / -mv.z);
+                    gl_Position = projectionMatrix * mv;
+                }`,
+            fragmentShader: `
+                varying vec3 vColor;
+                void main() {
+                    vec2 c = gl_PointCoord - 0.5;
+                    float d = length(c);
+                    if (d > 0.5) discard;
+                    float a = smoothstep(0.5, 0.0, d);
+                    gl_FragColor = vec4(vColor, a * 0.35);
+                }`
         }));
         scene.add(floatingDust);
 
@@ -2338,7 +2364,7 @@ bloomPass.radius = 0.7;
             wispPos[i*3+2] = (Math.random() - 0.5) * 14 - 2;
         }
         wispGeo.setAttribute('position', new THREE.BufferAttribute(wispPos, 3));
-        const wisps = new THREE.Points(wispGeo, new THREE.PointsMaterial({ color: 0x88ccff, size: 0.05, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending }));
+        const wisps = new THREE.Points(wispGeo, new THREE.PointsMaterial({ color: 0x88ccff, size: 0.05, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false }));
         scene.add(wisps);
         
         const dustGeo = new THREE.BufferGeometry();
@@ -2349,36 +2375,58 @@ bloomPass.radius = 0.7;
             dustPos[i*3+2] = (Math.random() - 0.5) * 6;
         }
         dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-        const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffaa66, size: 0.035, transparent: true, blending: THREE.AdditiveBlending }));
+        const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xffaa66, size: 0.035, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
         dust.position.set(0, 1.2, 0); scene.add(dust);
         
-        // ========== FALLING EMBERS ==========
+        // ========== FALLING EMBERS (GPU-animated, no per-frame CPU upload) ==========
         const emberCount = 400;
         const emberGeo = new THREE.BufferGeometry();
-        const emberPos = new Float32Array(emberCount * 3);
-        const emberData = [];
+        const emberOrig = new Float32Array(emberCount * 3);
+        const emberSpeed = new Float32Array(emberCount);
+        const emberPhase = new Float32Array(emberCount);
+        const emberDrift = new Float32Array(emberCount * 2);
         for (let i = 0; i < emberCount; i++) {
-            emberPos[i*3] = (Math.random() - 0.5) * 20;
-            emberPos[i*3+1] = Math.random() * 8 - 2;
-            emberPos[i*3+2] = (Math.random() - 0.5) * 20 - 2;
-            emberData.push({
-                speed: 0.3 + Math.random() * 0.8,
-                phase: Math.random() * Math.PI * 2,
-                driftX: (Math.random() - 0.5) * 0.3,
-                driftZ: (Math.random() - 0.5) * 0.3,
-                origY: emberPos[i*3+1],
-                origX: emberPos[i*3],
-                origZ: emberPos[i*3+2]
-            });
+            const ox = (Math.random() - 0.5) * 20;
+            const oy = Math.random() * 8 - 2;
+            const oz = (Math.random() - 0.5) * 20 - 2;
+            emberOrig[i*3] = ox; emberOrig[i*3+1] = oy; emberOrig[i*3+2] = oz;
+            emberSpeed[i] = 0.3 + Math.random() * 0.8;
+            emberPhase[i] = Math.random() * Math.PI * 2;
+            emberDrift[i*2] = (Math.random() - 0.5) * 0.3;
+            emberDrift[i*2+1] = (Math.random() - 0.5) * 0.3;
         }
-        emberGeo.setAttribute('position', new THREE.BufferAttribute(emberPos, 3));
-        const emberMat = new THREE.PointsMaterial({
-            color: 0xff6633, size: 0.06,
-            transparent: true, opacity: 0.6,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
-        });
-        const embers = new THREE.Points(emberGeo, emberMat);
+        emberGeo.setAttribute('aOrig', new THREE.BufferAttribute(emberOrig, 3));
+        emberGeo.setAttribute('aSpeed', new THREE.BufferAttribute(emberSpeed, 1));
+        emberGeo.setAttribute('aPhase', new THREE.BufferAttribute(emberPhase, 1));
+        emberGeo.setAttribute('aDrift', new THREE.BufferAttribute(emberDrift, 2));
+        const emberUniforms = { uTime: { value: 0 }, uSize: { value: 0.5 }, uColor: { value: new THREE.Color(0xff6633) } };
+        const embers = new THREE.Points(emberGeo, new THREE.ShaderMaterial({
+            uniforms: emberUniforms,
+            transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+            vertexShader: `
+                uniform float uTime; uniform float uSize; uniform vec3 uColor;
+                attribute vec3 aOrig; attribute float aSpeed; attribute float aPhase; attribute vec2 aDrift;
+                varying vec3 vColor;
+                void main() {
+                    vColor = uColor;
+                    vec3 p = aOrig;
+                    p.x += sin(uTime * (0.2 + aDrift.x) + aPhase) * 4.0;
+                    p.y += sin(uTime * aSpeed + aPhase) * 3.0;
+                    p.z += cos(uTime * (0.2 + aDrift.y) + aPhase * 1.7) * 4.0;
+                    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+                    gl_PointSize = uSize * (300.0 / -mv.z);
+                    gl_Position = projectionMatrix * mv;
+                }`,
+            fragmentShader: `
+                varying vec3 vColor;
+                void main() {
+                    vec2 c = gl_PointCoord - 0.5;
+                    float d = length(c);
+                    if (d > 0.5) discard;
+                    float a = smoothstep(0.5, 0.0, d);
+                    gl_FragColor = vec4(vColor, a * 0.6);
+                }`
+        }));
         scene.add(embers);
         
         // ========== FLOATING ORBS ==========
@@ -8298,15 +8346,9 @@ bloomPass.radius = 0.7;
             }
             stars.rotation.y += 0.0003;
             stars.rotation.x += 0.0002;
-            // Floating dust drift
+            // Floating dust drift (rotation only; per-particle motion is GPU-driven via uTime)
             if (typeof floatingDust !== 'undefined' && floatingDust.visible) {
                 floatingDust.rotation.y += 0.0008;
-                const fp = floatingDust.geometry.attributes.position.array;
-                for (let i = 0; i < fp.length; i += 3) {
-                    fp[i + 1] += Math.sin(time * 0.3 + i) * 0.002;
-                    if (fp[i + 1] > 32) fp[i + 1] = 0.5;
-                }
-                floatingDust.geometry.attributes.position.needsUpdate = true;
             }
             wisps.rotation.y += 0.0015;
             dust.rotation.y += 0.004;
@@ -8350,24 +8392,7 @@ bloomPass.radius = 0.7;
                 n.sprite.material.rotation += n.rotSpeed;
             });
             
-            // --- animate embers ---
-            if (typeof embers !== 'undefined' && embers.visible) {
-            const emberPosAttr = embers.geometry.attributes.position;
-            const epos = emberPosAttr.array;
-            for (let i = 0; i < emberCount; i++) {
-                const d = emberData[i];
-                epos[i*3+1] += Math.sin(time * d.speed + d.phase) * 0.004;
-                epos[i*3] += d.driftX * 0.002;
-                epos[i*3+2] += d.driftZ * 0.002;
-                // wrap all axes to keep embers in bounds
-                if (Math.abs(epos[i*3+1] - d.origY) > 3 || Math.abs(epos[i*3] - d.origX) > 4 || Math.abs(epos[i*3+2] - d.origZ) > 4) {
-                    epos[i*3] = d.origX + (Math.random() - 0.5) * 2;
-                    epos[i*3+1] = d.origY;
-                    epos[i*3+2] = d.origZ + (Math.random() - 0.5) * 2;
-                }
-            }
-            emberPosAttr.needsUpdate = true;
-            }
+            // --- embers are GPU-animated via emberUniforms.uTime (no per-frame CPU work) ---
             
             // --- floating pages ---
             pages.forEach(p => {
@@ -8517,6 +8542,8 @@ bloomPass.radius = 0.7;
             
             // --- portal ripple animation ---
             if (portalUniforms) portalUniforms.uTime.value = time;
+            if (floatDustUniforms) floatDustUniforms.uTime.value = time;
+            if (emberUniforms) emberUniforms.uTime.value = time;
             updateHubExtensions(time);
             updateScribeRealm(time);
             updateMerchantRealm(time);
@@ -8537,6 +8564,10 @@ bloomPass.radius = 0.7;
             if (cameraMode === 'orbit') controls.update();
             effectComposer.render();
         }
+
+        // ========== GUN D: precompile all visible shaders once so the first frames don't hitch ==========
+        try { renderer.compile(scene, camera); } catch (e) { console.warn('[PERF] precompile skipped', e); }
+
         animate();
 
         // Hide the loader the moment the world has rendered its first frame.
