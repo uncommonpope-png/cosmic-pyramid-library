@@ -2914,9 +2914,9 @@ bloomPass.radius = 0.7;
             { kind: 'skull', path: 'assets/recent/menagerie/das_kat.glb' }
         ];
         let avatarsLoaded = 0;
-        const avatarLoader = makeGLTF(); // critical — loads before overlay hides
+        const avatarSwitcherLoader = makeGLTF();
         avatarAssets.forEach((av) => {
-            avatarLoader.load(av.path, (gltf) => {
+            avatarSwitcherLoader.load(av.path, (gltf) => {
                 const model = gltf.scene;
                 const box = new THREE.Box3().setFromObject(model);
                 const size = box.getSize(new THREE.Vector3());
