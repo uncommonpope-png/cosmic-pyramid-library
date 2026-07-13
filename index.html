@@ -361,19 +361,18 @@
         }
         /* --- GSK soul panel --- */
         #gsk-panel {
-            position: absolute; top: 60px; right: 20px; z-index: 15;
-            background: rgba(10,5,20,0.88); border: 1px solid rgba(255,170,102,0.4);
-            border-radius: 12px; padding: 12px 16px; min-width: 200px;
-            backdrop-filter: blur(6px); box-shadow: 0 0 30px rgba(255,100,50,0.15);
+            position: fixed; top: 12px; right: 14px; z-index: 15;
+            background: rgba(6,10,18,0.72); border: 1px solid rgba(102,255,255,0.25);
+            border-radius: 999px; padding: 6px 10px; min-width: 0;
+            backdrop-filter: blur(6px); box-shadow: 0 0 18px rgba(80,200,255,0.12);
             font-family: monospace; font-size: 12px; color: #ffddcc;
-            pointer-events: auto; transition: opacity 0.3s;
+            pointer-events: none; transition: opacity 0.3s;
         }
         #gsk-panel .gsk-header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 8px; padding-bottom: 4px;
-            border-bottom: 1px solid rgba(255,170,102,0.2);
+            display: flex; justify-content: space-between; align-items: center; gap: 8px;
+            margin: 0; padding: 0; border-bottom: none;
         }
-        #gsk-panel .gsk-title { color: #ffcc77; font-weight: bold; font-size: 13px; letter-spacing: 1px; }
+        #gsk-panel .gsk-title { color: #66ffff; font-weight: bold; font-size: 10px; letter-spacing: 1px; }
         #gsk-panel .gsk-status {
             font-size: 10px; padding: 2px 8px; border-radius: 10px;
         }
@@ -384,6 +383,11 @@
             display: flex; justify-content: space-between; margin: 3px 0;
             color: #bbaadd; font-size: 11px;
         }
+        #gsk-panel .gsk-row,
+        #gsk-panel .gsk-thought-btn,
+        #gsk-panel .gsk-api-key,
+        #gsk-panel .gsk-response,
+        #gsk-panel .gsk-feed { display: none !important; }
         #gsk-panel .gsk-row .gsk-label { color: #8877aa; }
         #gsk-panel .gsk-row .gsk-value { color: #ffddcc; }
         #gsk-panel .gsk-thought-btn {
@@ -412,45 +416,45 @@
         #gsk-panel .gsk-response::-webkit-scrollbar-thumb { background: #ff8844; border-radius: 3px; }
         /* --- GSK thought overlay --- */
         #gsk-thought-overlay {
-            position: absolute; inset: 0; display: none; z-index: 55; pointer-events: none;
+            position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+            display: none; z-index: 75; width: min(520px, calc(100vw - 28px)); pointer-events: none;
         }
         #gsk-thought-overlay.active { display: block; pointer-events: auto; }
         #gsk-thought-bg {
-            position: absolute; inset: 0;
-            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+            display: none;
         }
         #gsk-thought-card {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-            background: rgba(15,8,25,0.95); border: 1px solid #ffaa66;
-            border-radius: 20px; padding: 36px 44px;
-            max-width: 520px; width: 90%;
-            box-shadow: 0 0 80px rgba(255,100,50,0.25);
+            position: relative; top: auto; left: auto; transform: none;
+            background: rgba(4,8,16,0.94); border: 1px solid rgba(102,255,255,0.55);
+            border-radius: 14px; padding: 14px 16px;
+            max-width: none; width: 100%; box-sizing: border-box;
+            box-shadow: 0 0 38px rgba(80,200,255,0.22), inset 0 0 24px rgba(20,80,120,0.25);
             pointer-events: auto;
         }
         #gsk-thought-card h2 {
-            color: #ffcc77; font-size: 22px; margin-bottom: 16px;
+            color: #66ffff; font-size: 13px; margin: 0 0 8px;
             letter-spacing: 1px; text-align: center;
         }
         #gsk-thought-card label {
-            color: #bbaadd; font-size: 13px; display: block;
-            margin-bottom: 4px; margin-top: 14px;
+            color: #9fd0ff; font-size: 11px; display: block;
+            margin-bottom: 4px; margin-top: 6px;
         }
         #gsk-thought-card textarea {
             width: 100%; padding: 10px 14px; border-radius: 10px;
-            border: 1px solid rgba(255,170,102,0.3);
-            background: rgba(255,255,255,0.05); color: #ffddcc;
-            font-family: monospace; font-size: 14px; outline: none;
-            resize: vertical; min-height: 60px; box-sizing: border-box;
+            border: 1px solid rgba(102,255,255,0.32);
+            background: rgba(0,0,0,0.36); color: #dffaff;
+            font-family: monospace; font-size: 13px; outline: none;
+            resize: vertical; min-height: 54px; box-sizing: border-box;
         }
-        #gsk-thought-card textarea:focus { border-color: #ff8844; }
+        #gsk-thought-card textarea:focus { border-color: #66ffff; }
         .gsk-send-btn {
-            display: block; margin: 20px auto 0;
-            background: linear-gradient(135deg, #ffd700, #ff8c00);
-            color: #000; border: none; padding: 12px 36px; border-radius: 30px;
-            font-size: 15px; font-weight: bold; cursor: pointer;
+            display: inline-block; margin: 10px 8px 0 0;
+            background: rgba(30,90,130,0.86);
+            color: #dffaff; border: 1px solid rgba(102,255,255,0.55); padding: 8px 22px; border-radius: 20px;
+            font-size: 12px; font-weight: bold; cursor: pointer;
             letter-spacing: 1px; transition: all 0.2s;
         }
-        .gsk-send-btn:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,215,0,0.5); }
+        .gsk-send-btn:hover { transform: scale(1.03); box-shadow: 0 0 18px rgba(102,255,255,0.35); }
 
         /* --- memory building overlay --- */
         #memory-overlay { position: absolute; inset: 0; display: none; z-index: 56; pointer-events: none; }
@@ -507,12 +511,12 @@
         }
         .gsk-send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
         .close-gsk-thought {
-            display: block; margin: 10px auto 0;
-            background: rgba(255,255,255,0.08); color: #ccbbdd;
-            border: 1px solid rgba(255,170,102,0.3); padding: 8px 24px; border-radius: 30px;
-            font-size: 13px; cursor: pointer; font-family: inherit; transition: all 0.2s;
+            display: inline-block; margin: 10px 0 0;
+            background: rgba(255,255,255,0.06); color: #bfe6ff;
+            border: 1px solid rgba(102,255,255,0.25); padding: 8px 18px; border-radius: 20px;
+            font-size: 12px; cursor: pointer; font-family: inherit; transition: all 0.2s;
         }
-        .close-gsk-thought:hover { background: rgba(255,255,255,0.15); border-color: #ffaa66; }
+        .close-gsk-thought:hover { background: rgba(255,255,255,0.12); border-color: #66ffff; }
         @media (max-width: 600px) {
             #info { font-size: 10px; top: 10px; left: 10px; }
             #controls-hint { font-size: 9px; }
@@ -573,13 +577,13 @@
         /* --- GSK COMMAND CONSOLE (in-world, bidirectional) --- */
         #gsk-command-console {
             position: fixed; left: 14px; bottom: 14px; z-index: 70; width: 280px;
-            display: none; flex-direction: column; gap: 8px;
+            display: none !important; flex-direction: column; gap: 8px;
             font-family: Georgia, serif; color: #dcefff;
             background: rgba(8,16,32,0.86); border: 1px solid rgba(102,255,255,0.35);
             border-radius: 14px; padding: 12px 14px;
             box-shadow: 0 0 28px rgba(40,120,200,0.3);
         }
-        #gsk-command-console.active { display: flex; }
+        #gsk-command-console.active { display: none !important; }
         #gsk-command-console h3 { margin: 0; font-size: 13px; letter-spacing: 2px; color: #66ffff; }
         #gsk-command-console .cc-sub { font-size: 10px; color: #8fb6d8; letter-spacing: 1px; margin-top: -4px; }
         #gsk-command-console .cc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
@@ -864,6 +868,7 @@
         import { GammaCorrectionShader } from 'three/addons/shaders/GammaCorrectionShader.js';
         import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
         import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
         // ========== SOUL GUN E: decode the ~800MB of GLBs OFF the main thread ==========
@@ -2345,7 +2350,7 @@ bloomPass.radius = 0.7;
             if (line) ctx.fillText(line, x, yy);
             return yy + lh;
         }
-        function makeCmdScreen(w, h) {
+        function makeCmdScreen(w, h, action, label) {
             const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 384;
             const tex = new THREE.CanvasTexture(canvas); tex.minFilter = THREE.LinearFilter;
             const mat = new THREE.MeshBasicMaterial({ map: tex });
@@ -2353,18 +2358,27 @@ bloomPass.radius = 0.7;
             const frame = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.14, h + 0.14), new THREE.MeshBasicMaterial({ color: 0x05080f }));
             frame.position.z = -0.03;
             const grp = new THREE.Group(); grp.add(frame); grp.add(mesh);
+            grp.userData.commandConsole = action || true;
+            grp.userData.commandAction = action || null;
+            grp.userData.commandLabel = label || 'GSK SCREEN';
+            mesh.userData.commandConsole = action || true;
+            mesh.userData.commandAction = action || null;
+            frame.userData.commandConsole = action || true;
+            frame.userData.commandAction = action || null;
             return { canvas, ctx: canvas.getContext('2d'), tex, mesh, grp, dirty: true };
         }
         function drawOffline(screen) {
             const ctx = screen.ctx; ctx.fillStyle = '#04070d'; ctx.fillRect(0, 0, 512, 384);
             ctx.fillStyle = '#33424f'; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText('GSK OFFLINE', 256, 168); ctx.fillText('command center idle', 256, 204); ctx.textAlign = 'left';
+            ctx.fillText('GSK OFFLINE', 256, 154); ctx.fillText('command center idle', 256, 190);
+            ctx.font = '14px monospace'; ctx.fillStyle = '#6f8da8'; ctx.fillText('click console buttons below', 256, 238); ctx.textAlign = 'left';
             screen.tex.needsUpdate = true;
         }
         function drawThoughts(screen, thoughts) {
             const ctx = screen.ctx; cmdClear(ctx, '#66ffff'); cmdTitle(ctx, 'GSK · THOUGHT-STREAM', '#66ffff');
             const list = thoughts.slice(-7); let y = 46;
             for (const t of list) y = cmdWrap(ctx, '› ' + t, 12, y, 488, 22, '#bfefff', 14) + 4;
+            cmdText(ctx, 'CLICK SCREEN: ASK GSK', 12, 354, '#66ffff', 14);
             screen.tex.needsUpdate = true;
         }
         function drawMood(screen) {
@@ -2384,6 +2398,7 @@ bloomPass.radius = 0.7;
             bar('love', plt.love, '#ff8fc4', 132);
             bar('tax', plt.tax, '#ffd27a', 160);
             cmdText(ctx, 'PLT = ' + (Math.round((((plt.profit || 0) + (plt.love || 0) - (plt.tax || 0)) * 100)) / 100), 12, 196, '#cfe6ff', 14);
+            cmdText(ctx, 'CLICK SCREEN: SURGE WORLD', 12, 354, '#ffcc77', 14);
             screen.tex.needsUpdate = true;
         }
         function drawMemories(screen, data) {
@@ -2392,6 +2407,7 @@ bloomPass.radius = 0.7;
             cmdText(ctx, 'count: ' + (data && data.count != null ? data.count : mems.length), 12, 46, '#9fe6c4', 15);
             let y = 74, n = 0;
             for (const m of mems) { if (n >= 5) break; const w = (m.weight != null ? 'w' + Math.round(m.weight * 100) + ' ' : ''); const tg = Array.isArray(m.tags) ? m.tags.slice(0, 3).join(',') : ''; const ty = m.type || 'memory'; y = cmdWrap(ctx, '• [' + ty + '] ' + w + tg, 12, y, 488, 20, '#cfffe6', 13) + 2; n++; }
+            cmdText(ctx, 'CLICK SCREEN: REFRESH MEMORY', 12, 354, '#8affc4', 14);
             screen.tex.needsUpdate = true;
         }
         function drawAgents(screen, data) {
@@ -2400,19 +2416,97 @@ bloomPass.radius = 0.7;
             cmdText(ctx, 'active: ' + arr.length, 12, 46, '#cdbcff', 15);
             let y = 74, n = 0;
             for (const s of arr) { if (n >= 5) break; const nm = s.name || 'soul'; const ar = s.archetype || ''; const tk = (s.task || '').slice(0, 30); y = cmdWrap(ctx, '• ' + nm + (ar ? ' (' + ar + ')' : '') + (tk ? ' — ' + tk : ''), 12, y, 488, 20, '#e6dcff', 13) + 2; n++; }
+            cmdText(ctx, 'CLICK SCREEN: SPAWN SOUL', 12, 354, '#b9a6ff', 14);
             screen.tex.needsUpdate = true;
         }
         async function refreshMemories(cc) { try { const m = await gsk.memories(); cc.memoriesData = m; drawMemories(cc.screens.memories, m); } catch (e) { } }
         async function refreshAgents(cc) { try { const s = await gsk.spawned(); cc.agentsData = s; drawAgents(cc.screens.agents, s); } catch (e) { } }
+        function makeCmdButton(label, accent, action) {
+            const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 96;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#06101d'; ctx.fillRect(0, 0, 256, 96);
+            ctx.strokeStyle = accent; ctx.lineWidth = 4; ctx.strokeRect(5, 5, 246, 86);
+            ctx.fillStyle = accent; ctx.font = 'bold 24px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(label, 128, 49);
+            const tex = new THREE.CanvasTexture(canvas);
+            const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.3), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+            mesh.userData.commandConsole = action;
+            mesh.userData.commandAction = action;
+            mesh.userData.commandLabel = label;
+            return mesh;
+        }
+        function handleCommandCenterClick(target) {
+            if (!target || !target.userData) return false;
+            const action = target.userData.commandAction || target.userData.commandConsole;
+            if (!action) return false;
+            const cc = commandCenter;
+            const say = (text) => {
+                const p = (typeof playerNPC !== 'undefined' && playerNPC) ? playerNPC.position.clone().add(new THREE.Vector3(0, 1.3, 0)) : new THREE.Vector3(0, 1.5, 0);
+                spawnWhisper(p, text);
+            };
+            if (action === 'ask' || action === 'thoughts') {
+                showGskThoughtModal();
+                say('GSK terminal opened. Speak into the pyramid.');
+                return true;
+            }
+            if (action === 'agents' || action === 'spawnSoul') {
+                issueWorldCommand('spawn', { entity: 'soul', archetype: 'visitor', theme: 'creative' });
+                if (cc) refreshAgents(cc);
+                say('Soul spawn command sent.');
+                return true;
+            }
+            if (action === 'spawnTower') {
+                issueWorldCommand('spawn', { entity: 'building', archetype: 'tower', theme: 'ascendant' });
+                say('Tower spawn command sent.');
+                return true;
+            }
+            if (action === 'mood' || action === 'surge') {
+                issueWorldCommand('tune', { mood: 'ascendant', phase: 'TRANSCENDENCE' });
+                say('World surge command sent.');
+                return true;
+            }
+            if (action === 'calm') {
+                issueWorldCommand('tune', { mood: 'void', phase: 'VOID' });
+                say('Calm command sent.');
+                return true;
+            }
+            if (action === 'memories' || action === 'refreshMemory') {
+                if (cc) refreshMemories(cc);
+                say('Memory screen refreshing.');
+                return true;
+            }
+            if (action === 'recall') {
+                issueWorldCommand('recall', {});
+                say('Recall command sent.');
+                return true;
+            }
+            if (action === 'clear') {
+                issueWorldCommand('clear', {});
+                say('Clear-world command sent.');
+                return true;
+            }
+            return false;
+        }
         function buildCommandCenter() {
             const screens = {};
-            const sT = makeCmdScreen(2.2, 1.7); sT.grp.position.set(-1.25, 1.75, -2.66); interiorGroup.add(sT.grp); screens.thoughts = sT;
-            const sA = makeCmdScreen(2.2, 1.7); sA.grp.position.set(1.25, 1.75, -2.66); interiorGroup.add(sA.grp); screens.agents = sA;
-            const sM = makeCmdScreen(2.2, 1.7); sM.grp.position.set(-2.66, 1.75, 0); sM.grp.rotation.y = Math.PI / 2; interiorGroup.add(sM.grp); screens.mood = sM;
-            const sMe = makeCmdScreen(2.2, 1.7); sMe.grp.position.set(2.66, 1.75, 0); sMe.grp.rotation.y = -Math.PI / 2; interiorGroup.add(sMe.grp); screens.memories = sMe;
+            const sT = makeCmdScreen(2.2, 1.7, 'thoughts', 'ASK GSK'); sT.grp.position.set(-1.25, 1.75, -2.66); interiorGroup.add(sT.grp); screens.thoughts = sT;
+            const sA = makeCmdScreen(2.2, 1.7, 'agents', 'SPAWN SOUL'); sA.grp.position.set(1.25, 1.75, -2.66); interiorGroup.add(sA.grp); screens.agents = sA;
+            const sM = makeCmdScreen(2.2, 1.7, 'mood', 'SURGE'); sM.grp.position.set(-2.66, 1.75, 0); sM.grp.rotation.y = Math.PI / 2; interiorGroup.add(sM.grp); screens.mood = sM;
+            const sMe = makeCmdScreen(2.2, 1.7, 'memories', 'REFRESH MEMORY'); sMe.grp.position.set(2.66, 1.75, 0); sMe.grp.rotation.y = -Math.PI / 2; interiorGroup.add(sMe.grp); screens.memories = sMe;
+            const buttonDefs = [
+                ['ASK GSK', '#66ffff', 'ask'], ['SPAWN SOUL', '#b9a6ff', 'spawnSoul'], ['SPAWN TOWER', '#8affc4', 'spawnTower'],
+                ['SURGE', '#ffcc77', 'surge'], ['CALM', '#6688ff', 'calm'], ['RECALL', '#ffaa66', 'recall']
+            ];
+            const buttons = [];
+            buttonDefs.forEach((def, i) => {
+                const b = makeCmdButton(def[0], def[1], def[2]);
+                b.position.set((i % 3 - 1) * 0.92, 0.72 - Math.floor(i / 3) * 0.34, -0.78);
+                interiorGroup.add(b);
+                buttons.push(b);
+            });
             pedestal.userData.commandConsole = true;
             bookGroupInt.children.forEach(c => c.userData.commandConsole = true);
-            commandCenter = { screens, thoughts: [], memoriesData: null, agentsData: null, lastMem: 0, lastAgents: 0, lastThoughtDraw: 0, lastMoodDraw: 0, ws: null, offlineShown: false };
+            commandCenter = { screens, buttons, thoughts: [], memoriesData: null, agentsData: null, lastMem: 0, lastAgents: 0, lastThoughtDraw: 0, lastMoodDraw: 0, ws: null, offlineShown: false };
             const signCanvas = document.createElement('canvas'); signCanvas.width = 512; signCanvas.height = 128;
             const sx = signCanvas.getContext('2d');
             sx.fillStyle = 'rgba(4,8,16,0.85)'; sx.fillRect(0, 0, 512, 128);
@@ -2585,7 +2679,7 @@ bloomPass.radius = 0.7;
             const key = `${type}-${variant}`;
             if (facadeTextureCache[key]) return facadeTextureCache[key];
             const canvas = document.createElement('canvas');
-            canvas.width = 256; canvas.height = 512;
+            canvas.width = 512; canvas.height = 1024;
             const ctx = canvas.getContext('2d');
             const r = Math.floor(c[0] * 255), g = Math.floor(c[1] * 255), b = Math.floor(c[2] * 255);
             const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -2594,35 +2688,67 @@ bloomPass.radius = 0.7;
             bg.addColorStop(1, `rgb(${Math.max(0, r - 40)},${Math.max(0, g - 40)},${Math.max(0, b - 45)})`);
             ctx.fillStyle = bg;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.globalAlpha = 0.28;
-            for (let y = 24; y < canvas.height; y += 34 + variant * 2) {
-                ctx.fillStyle = 'rgba(255,255,255,0.08)';
-                ctx.fillRect(0, y, canvas.width, 1);
-                ctx.fillStyle = 'rgba(0,0,0,0.18)';
-                ctx.fillRect(0, y + 2, canvas.width, 3);
+
+            // masonry / panel seams so the towers read as built objects, not flat boxes
+            ctx.globalAlpha = 0.36;
+            const seamH = type === 'House' ? 52 : type === 'Shop' ? 64 : 78;
+            for (let y = 18; y < canvas.height; y += seamH + variant * 3) {
+                ctx.fillStyle = 'rgba(255,255,255,0.09)';
+                ctx.fillRect(0, y, canvas.width, 2);
+                ctx.fillStyle = 'rgba(0,0,0,0.22)';
+                ctx.fillRect(0, y + 3, canvas.width, 4);
             }
-            for (let x = 18; x < canvas.width; x += 36 - variant * 2) {
-                ctx.fillStyle = 'rgba(255,255,255,0.06)';
-                ctx.fillRect(x, 0, 1, canvas.height);
+            for (let x = 16; x < canvas.width; x += type === 'Tower' ? 54 : 68) {
+                ctx.fillStyle = 'rgba(255,255,255,0.045)';
+                ctx.fillRect(x, 0, 2, canvas.height);
+                ctx.fillStyle = 'rgba(0,0,0,0.12)';
+                ctx.fillRect(x + 3, 0, 2, canvas.height);
             }
             ctx.globalAlpha = 1;
             const win = type === 'Shop' ? '255,145,210' : type === 'House' ? '255,190,95' : type === 'Tower' ? '120,210,255' : '80,220,255';
-            for (let y = 38; y < canvas.height - 30; y += 42) {
-                for (let x = 20; x < canvas.width - 18; x += 34) {
+            const rowStep = type === 'House' ? 98 : type === 'Shop' ? 112 : 86;
+            const colStep = type === 'Tower' ? 58 : 72;
+            for (let y = 72; y < canvas.height - 80; y += rowStep) {
+                for (let x = 38; x < canvas.width - 38; x += colStep) {
                     const lit = Math.random() > (type === 'House' ? 0.74 : 0.48);
-                    ctx.fillStyle = lit ? `rgba(${win},0.42)` : 'rgba(0,0,0,0.22)';
-                    ctx.fillRect(x, y, 12, 8);
-                    ctx.fillStyle = lit ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.035)';
-                    ctx.fillRect(x + 1, y + 1, 10, 1);
+                    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+                    ctx.fillRect(x - 4, y - 5, 34, 34);
+                    ctx.fillStyle = lit ? `rgba(${win},0.58)` : 'rgba(4,8,18,0.65)';
+                    ctx.fillRect(x, y, 26, 23);
+                    ctx.fillStyle = 'rgba(255,255,255,0.20)';
+                    ctx.fillRect(x + 3, y + 3, 20, 2);
+                    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+                    ctx.fillRect(x + 12, y, 2, 23);
                 }
             }
-            for (let i = 0; i < 420; i++) {
+            if (type === 'Shop' || type === 'Office') {
+                const label = type === 'Shop' ? ['BUYASOUL', 'SOUL MART', 'LOVE TAX', 'OPEN'][variant % 4] : ['GSK NODE', 'SANCTUM', 'SCRIBE', 'PLT'][variant % 4];
+                ctx.fillStyle = 'rgba(0,0,0,0.62)';
+                ctx.fillRect(54, canvas.height - 176, canvas.width - 108, 58);
+                ctx.strokeStyle = type === 'Shop' ? '#ff8fc4' : '#66ffff';
+                ctx.lineWidth = 3; ctx.strokeRect(58, canvas.height - 172, canvas.width - 116, 50);
+                ctx.fillStyle = type === 'Shop' ? '#ffd6ea' : '#dffaff';
+                ctx.font = 'bold 28px monospace'; ctx.textAlign = 'center';
+                ctx.fillText(label, canvas.width / 2, canvas.height - 137);
+                ctx.textAlign = 'left';
+            }
+            ctx.fillStyle = 'rgba(4,8,14,0.75)';
+            ctx.fillRect(canvas.width * 0.39, canvas.height - 84, canvas.width * 0.22, 74);
+            ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.strokeRect(canvas.width * 0.39, canvas.height - 84, canvas.width * 0.22, 74);
+            for (let i = 0; i < 1400; i++) {
                 const n = Math.random() > 0.5 ? 255 : 0;
-                ctx.fillStyle = `rgba(${n},${n},${n},0.025)`;
-                ctx.fillRect(Math.random() * 256, Math.random() * 512, 1 + Math.random() * 2, 1);
+                ctx.fillStyle = `rgba(${n},${n},${n},0.02)`;
+                ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 1 + Math.random() * 2, 1);
+            }
+            for (let i = 0; i < 34; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height * 0.9;
+                ctx.fillStyle = 'rgba(0,0,0,0.08)';
+                ctx.fillRect(x, y, 2 + Math.random() * 6, 30 + Math.random() * 110);
             }
             const tex = new THREE.CanvasTexture(canvas);
-            tex.anisotropy = 4;
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.anisotropy = 8;
             facadeTextureCache[key] = tex;
             return tex;
         }
@@ -3092,34 +3218,120 @@ bloomPass.radius = 0.7;
         // ========== GLB AVATARS (load only when selected) ==========
         const glbAvatars = {};
         const avatarAssets = [
+            { kind: 'gsk', path: 'assets/recent/arena/grand_supreme_kai_-_dragon_ball_z.glb', target: 2.2 },
+            { kind: 'scribe', path: 'assets/ifa/-_genshin_impact_-_anemo_-_ifa.opt.glb', target: 2.0 },
+            { kind: 'merchant', path: 'assets/recent/avatars/lola_bunny__free.glb', target: 1.9 },
+            { kind: 'builder', path: 'assets/recent/cosmos/franz_viehbocks_sokol_space_suit.glb', target: 2.0 },
+            { kind: 'prophet', path: 'assets/recent/arena/amemiya_nazuna_vshojo_-_low_poly_pixel.glb', target: 1.9 },
             { kind: 'catgirl', path: 'assets/recent/menagerie/cat_girl_-_rigged.glb' },
             { kind: 'lola', path: 'assets/recent/menagerie/cat_witch.glb' },
             { kind: 'goku', path: 'assets/recent/avatars/dragon_ball_z_baby_goku.glb' },
             { kind: 'skull', path: 'assets/recent/menagerie/das_kat.glb' }
         ];
         const avatarLoadsPending = new Set();
-        function requestAvatarAsset(kind) {
-            if (glbAvatars[kind] || avatarLoadsPending.has(kind) || kind === 'gsk') return;
-            const av = avatarAssets.find((item) => item.kind === kind);
-            if (!av) return;
-            avatarLoadsPending.add(kind);
-            makeOnDemandGLTF().load(av.path, (gltf) => {
+        const avatarLoadQueue = [];
+        let avatarLoadActive = false;
+        const avatarReadyWaiters = {};
+        function cloneAvatarModel(kind) {
+            const src = glbAvatars[kind];
+            if (!src) return null;
+            const clone = cloneSkeleton(src);
+            clone.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+            return clone;
+        }
+        function onAvatarReady(kind, fn, priority = false) {
+            if (glbAvatars[kind]) { fn(glbAvatars[kind]); return; }
+            (avatarReadyWaiters[kind] = avatarReadyWaiters[kind] || []).push(fn);
+            requestAvatarAsset(kind, priority);
+        }
+        function pumpAvatarLoadQueue() {
+            if (avatarLoadActive || !avatarLoadQueue.length) return;
+            const job = avatarLoadQueue.shift();
+            if (!job || glbAvatars[job.kind]) { pumpAvatarLoadQueue(); return; }
+            avatarLoadActive = true;
+            makeOnDemandGLTF().load(job.av.path, (gltf) => {
                 const model = gltf.scene;
                 const box = new THREE.Box3().setFromObject(model);
                 const size = box.getSize(new THREE.Vector3());
                 const center = box.getCenter(new THREE.Vector3());
-                const maxDim = Math.max(size.x, size.y, size.z) || 1;
-                const s = 1.8 / maxDim;
-                model.position.set(-center.x, -box.min.y, -box.min.z);
+                const height = size.y || Math.max(size.x, size.z) || 1;
+                const s = (job.av.target || 1.85) / height;
+                model.position.set(-center.x, -box.min.y, -center.z);
                 const wrap = new THREE.Group();
                 wrap.add(model);
                 wrap.scale.setScalar(s);
                 model.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-                glbAvatars[kind] = wrap;
-                avatarLoadsPending.delete(kind);
-                console.log('[Avatar] loaded on demand:', kind);
-            }, undefined, (err) => { avatarLoadsPending.delete(kind); console.warn('[Avatar] load failed:', av.path, err); });
+                glbAvatars[job.kind] = wrap;
+                avatarLoadsPending.delete(job.kind);
+                avatarLoadActive = false;
+                (avatarReadyWaiters[job.kind] || []).splice(0).forEach((fn) => { try { fn(wrap); } catch (e) { console.warn('[Avatar] waiter failed:', job.kind, e); } });
+                console.log('[Avatar] loaded on demand:', job.kind);
+                setTimeout(pumpAvatarLoadQueue, 700);
+            }, undefined, (err) => {
+                avatarLoadsPending.delete(job.kind);
+                avatarLoadActive = false;
+                console.warn('[Avatar] load failed:', job.av.path, err);
+                setTimeout(pumpAvatarLoadQueue, 700);
+            });
         }
+        function requestAvatarAsset(kind, priority = false) {
+            if (glbAvatars[kind]) return;
+            if (avatarLoadsPending.has(kind)) {
+                if (priority) {
+                    const idx = avatarLoadQueue.findIndex((job) => job.kind === kind);
+                    if (idx > 0) avatarLoadQueue.unshift(avatarLoadQueue.splice(idx, 1)[0]);
+                }
+                return;
+            }
+            const av = avatarAssets.find((item) => item.kind === kind);
+            if (!av) return;
+            avatarLoadsPending.add(kind);
+            const job = { kind, av };
+            if (priority) avatarLoadQueue.unshift(job);
+            else avatarLoadQueue.push(job);
+            pumpAvatarLoadQueue();
+        }
+
+        const NPC_WALKER_KINDS = ['scribe', 'merchant', 'builder', 'prophet', 'catgirl', 'lola', 'skull', 'goku'];
+        const pendingNpcBodySwaps = [];
+        let npcGlbPrimeStarted = false;
+        function stampNpcTalk(root, talkData) {
+            if (!talkData || !root) return;
+            root.userData.npcTalk = talkData;
+            root.traverse((c) => { if (c.isMesh) c.userData.npcTalk = talkData; });
+        }
+        function scheduleGlbNpcBody(group, kind, talkData, primitiveParts = []) {
+            pendingNpcBodySwaps.push({ group, kind, talkData, primitiveParts });
+            if (npcGlbPrimeStarted) processNpcBodySwaps();
+        }
+        function processNpcBodySwaps() {
+            npcGlbPrimeStarted = true;
+            pendingNpcBodySwaps.splice(0).forEach((entry) => {
+                if (!entry || !entry.group || !entry.kind) return;
+                onAvatarReady(entry.kind, () => {
+                    if (!entry.group.parent) return;
+                    const body = cloneAvatarModel(entry.kind);
+                    if (!body) return;
+                    entry.primitiveParts.forEach((part) => { if (part && part.parent === entry.group) entry.group.remove(part); });
+                    body.name = 'GLB NPC BODY';
+                    body.userData.isGlbNpcBody = true;
+                    stampNpcTalk(body, entry.talkData);
+                    body.traverse((c) => {
+                        if (!c.userData) c.userData = {};
+                        if (entry.group.userData && entry.group.userData.denizen) {
+                            c.userData.denizen = true;
+                            c.userData.denizenId = entry.group.userData.denizenId;
+                        }
+                        if (entry.group.userData && entry.group.userData.isAvatar) c.userData.isAvatar = true;
+                    });
+                    entry.group.add(body);
+                });
+            });
+        }
+        const primeNpcBodies = () => processNpcBodySwaps();
+        ['pointerdown', 'keydown', 'touchstart'].forEach((evt) => window.addEventListener(evt, primeNpcBodies, { once: true, passive: true }));
+        if ('requestIdleCallback' in window) requestIdleCallback(primeNpcBodies, { timeout: 12000 });
+        else setTimeout(primeNpcBodies, 12000);
 
         // Legacy hub GLB placements are disabled. These assets now belong to deeper realms.
         const LOAD_LEGACY_HUB_GLBS = false;
@@ -3584,6 +3796,7 @@ bloomPass.radius = 0.7;
         const citizens = [];
         for (let i = 0; i < 25; i++) {
             const cGroup = new THREE.Group();
+            const talkData = { label: `Citizen ${i + 1}`, kind: 'citizen' };
             const cMat = new THREE.MeshStandardMaterial({
                 color: new THREE.Color(Math.random(), Math.random(), Math.random()),
                 emissive: new THREE.Color(Math.random() * 0.3, Math.random() * 0.3, Math.random() * 0.3),
@@ -3591,13 +3804,15 @@ bloomPass.radius = 0.7;
             });
             const body = new THREE.Mesh(new THREE.SphereGeometry(0.2, 6, 6), cMat);
             body.position.y = 0.2;
-            body.userData.npcTalk = { label: `Citizen ${i + 1}`, kind: 'citizen' };
+            body.userData.npcTalk = talkData;
+            cGroup.userData.npcTalk = talkData;
             cGroup.add(body);
             const a = Math.random() * Math.PI * 2;
             const r = 5 + Math.random() * 25;
             cGroup.position.set(Math.cos(a) * r, 0.2, Math.sin(a) * r);
             cityGroup.add(cGroup);
-            npcTalkTargets.push(body);
+            npcTalkTargets.push(cGroup);
+            scheduleGlbNpcBody(cGroup, NPC_WALKER_KINDS[i % NPC_WALKER_KINDS.length], talkData, [body]);
             citizens.push({ group: cGroup, target: null, timer: 0, next: 2 + Math.random() * 4, speed: 1 + Math.random() * 2 });
         }
 
@@ -3724,7 +3939,9 @@ bloomPass.radius = 0.7;
             g.add(body, head);
             g.traverse(c => { if (c.isMesh) c.castShadow = true; });
             const denId = key + ':' + idx;
-            g.userData = { npcTalk: { label: name, name: name, title: idn.title, lines: idn.lines }, denizen: true, denizenId: denId, phase: Math.random() * Math.PI * 2 };
+            const talkData = { label: name, name: name, title: idn.title, lines: idn.lines };
+            g.userData = { npcTalk: talkData, denizen: true, denizenId: denId, phase: Math.random() * Math.PI * 2 };
+            scheduleGlbNpcBody(g, key, talkData, [body, head]);
             (realmDenizenIds[key] = realmDenizenIds[key] || []).push(denId);
             return g;
         }
@@ -3775,29 +3992,50 @@ bloomPass.radius = 0.7;
         scene.add(playerNPC);
         window.__playerNPC = playerNPC;
 
+        function swapPlayerToGlb(kind) {
+            const next = cloneAvatarModel(kind);
+            if (!next) return false;
+            const pos = playerNPC.position.clone();
+            const yaw = playerYaw;
+            scene.remove(playerNPC);
+            playerNPC = next;
+            playerNPC.userData = { name: 'You (' + kind + ')', isPlayerNPC: true, glbKind: kind };
+            playerNPC.position.copy(pos);
+            playerNPC.rotation.y = yaw;
+            scene.add(playerNPC);
+            window.__playerNPC = playerNPC;
+            return true;
+        }
+
+        const primeDefaultPlayerBody = () => onAvatarReady('gsk', () => { if (playerKind === 'gsk' && (!playerNPC.userData || playerNPC.userData.glbKind !== 'gsk')) swapPlayerToGlb('gsk'); }, true);
+        if ('requestIdleCallback' in window) requestIdleCallback(primeDefaultPlayerBody, { timeout: 3500 });
+        else setTimeout(primeDefaultPlayerBody, 3500);
+
         function setPlayerAvatar(kind) {
+            playerKind = kind;
             const pos = playerNPC.position.clone();
             const yaw = playerYaw;
             scene.remove(playerNPC);
             
             // Use GLB avatar if available, otherwise fall back to procedural + auto-swap when ready
             if (glbAvatars[kind]) {
-                playerNPC = glbAvatars[kind].clone();
-                playerNPC.userData = { name: 'You (' + kind + ')', isPlayerNPC: true };
+                playerNPC = cloneAvatarModel(kind) || buildSubagentAvatar(kind);
+                playerNPC.userData = { name: 'You (' + kind + ')', isPlayerNPC: true, glbKind: glbAvatars[kind] ? kind : null };
             } else {
                 playerNPC = buildSubagentAvatar(kind);
                 // Mark button as loading and fetch only this chosen avatar.
                 const btn = document.querySelector(`.avatar-btn[data-kind="${kind}"]`);
                 if (btn) btn.classList.add('loading');
-                requestAvatarAsset(kind);
+                requestAvatarAsset(kind, true);
                 const checkReady = setInterval(() => {
+                    if (playerKind !== kind) { clearInterval(checkReady); if (btn) btn.classList.remove('loading'); return; }
                     if (glbAvatars[kind]) {
                         clearInterval(checkReady);
                         const p = playerNPC.position.clone();
                         const y = playerYaw;
                         scene.remove(playerNPC);
-                        playerNPC = glbAvatars[kind].clone();
-                        playerNPC.userData = { name: 'You (' + kind + ')', isPlayerNPC: true };
+                        playerNPC = cloneAvatarModel(kind) || buildSubagentAvatar(kind);
+                        playerNPC.userData = { name: 'You (' + kind + ')', isPlayerNPC: true, glbKind: glbAvatars[kind] ? kind : null };
                         playerNPC.position.copy(p);
                         playerNPC.rotation.y = y;
                         scene.add(playerNPC);
@@ -4246,6 +4484,86 @@ bloomPass.radius = 0.7;
             skyLayer.add(cg);
             skyCities.push({ obj: cg, baseY: y, phase: Math.random() * Math.PI * 2, spin: 0.05 + Math.random() * 0.08 });
         }
+
+        // --- SKY BACKDROP: cheap depth layer, not GLBs. Makes the first frame feel inhabited. ---
+        const skyBackdrop = new THREE.Group();
+        skyBackdrop.name = 'Procedural Sky Backdrop';
+        skyLayer.add(skyBackdrop);
+        const skyNebulae = [];
+        const skyAnchors = [];
+        const skyConstellations = [];
+        function buildSkyBackdrop() {
+            const starCount = 2600;
+            const starGeo = new THREE.BufferGeometry();
+            const starPos = new Float32Array(starCount * 3);
+            const starCol = new Float32Array(starCount * 3);
+            const palette = [new THREE.Color(0x9fd0ff), new THREE.Color(0xffdca8), new THREE.Color(0xd2b3ff), new THREE.Color(0x9effc4)];
+            for (let i = 0; i < starCount; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const h = Math.random() * Math.PI * 0.68 + 0.18;
+                const r = 180 + Math.random() * 360;
+                starPos[i * 3] = Math.cos(a) * Math.sin(h) * r;
+                starPos[i * 3 + 1] = 34 + Math.cos(h) * r * 0.45 + Math.random() * 90;
+                starPos[i * 3 + 2] = -110 + Math.sin(a) * Math.sin(h) * r;
+                const c = palette[i % palette.length].clone().multiplyScalar(0.55 + Math.random() * 0.7);
+                starCol[i * 3] = c.r; starCol[i * 3 + 1] = c.g; starCol[i * 3 + 2] = c.b;
+            }
+            starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+            starGeo.setAttribute('color', new THREE.BufferAttribute(starCol, 3));
+            const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 0.55, vertexColors: true, transparent: true, opacity: 0.82, depthWrite: false, fog: false }));
+            stars.name = 'cheap parallax starfield';
+            skyBackdrop.add(stars);
+            skyAnchors.push({ obj: stars, spin: 0.000025, bob: 0, baseY: 0, phase: 0 });
+
+            const nebulaDefs = [
+                { x: -120, y: 98, z: -260, s: 150, core: '120,80,255', outer: '20,180,255', opacity: 0.28 },
+                { x: 132, y: 112, z: -285, s: 170, core: '255,90,170', outer: '255,190,80', opacity: 0.22 },
+                { x: 12, y: 152, z: -330, s: 210, core: '80,255,190', outer: '70,80,255', opacity: 0.20 }
+            ];
+            nebulaDefs.forEach((n, i) => {
+                const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+                    map: createNebulaTexture({ core: n.core, outer: n.outer }),
+                    transparent: true, opacity: n.opacity, blending: THREE.AdditiveBlending, depthWrite: false, fog: false
+                }));
+                sprite.position.set(n.x, n.y, n.z);
+                sprite.scale.set(n.s, n.s, 1);
+                skyBackdrop.add(sprite);
+                skyNebulae.push({ obj: sprite, phase: i * 1.7, spin: 0.0009 + i * 0.0002, baseY: n.y, bob: 4 + i * 1.5 });
+            });
+
+            const anchorDefs = [
+                { pos: [-155, 86, -250], r: 24, c: 0x315cff, e: 0x0b1b58, ring: 44, rc: 0x9fd0ff },
+                { pos: [172, 72, -240], r: 17, c: 0xff7a4a, e: 0x551805, ring: 0, rc: 0 },
+                { pos: [0, 118, -360], r: 31, c: 0x7b4dff, e: 0x210a5a, ring: 64, rc: 0xffb3ff }
+            ];
+            anchorDefs.forEach((d, i) => {
+                const m = new THREE.MeshStandardMaterial({ color: d.c, emissive: d.e, emissiveIntensity: 0.9, roughness: 0.5, metalness: 0.08 });
+                const p = new THREE.Mesh(new THREE.SphereGeometry(d.r, 48, 32), m);
+                p.position.set(d.pos[0], d.pos[1], d.pos[2]);
+                skyBackdrop.add(p);
+                skyAnchors.push({ obj: p, spin: 0.00055 + i * 0.0002, bob: 2 + i, baseY: d.pos[1], phase: i * 2.1 });
+                if (d.ring) {
+                    const ring = new THREE.Mesh(new THREE.TorusGeometry(d.ring, 0.72, 16, 160), new THREE.MeshBasicMaterial({ color: d.rc, transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+                    ring.position.copy(p.position);
+                    ring.rotation.set(Math.PI / 2.5, 0.18, 0.35);
+                    skyBackdrop.add(ring);
+                    skyAnchors.push({ obj: ring, spin: 0.00075 + i * 0.00018, bob: 2 + i, baseY: d.pos[1], phase: i * 2.1, follow: p });
+                }
+            });
+
+            for (let i = 0; i < 8; i++) {
+                const pts = [];
+                const baseX = -170 + i * 48;
+                const baseY = 62 + (i % 3) * 24;
+                const baseZ = -185 - (i % 2) * 50;
+                for (let j = 0; j < 5; j++) pts.push(new THREE.Vector3(baseX + j * (8 + Math.random() * 7), baseY + (Math.random() - 0.5) * 26, baseZ + (Math.random() - 0.5) * 34));
+                const geo = new THREE.BufferGeometry().setFromPoints(pts);
+                const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: i % 2 ? 0xffdca8 : 0x9fd0ff, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+                skyBackdrop.add(line);
+                skyConstellations.push({ obj: line, phase: i * 0.5, baseY: 0 });
+            }
+        }
+        buildSkyBackdrop();
         window.__skyLayer = skyLayer;
 
         // ========== RECENT DOWNLOADS -> EXTENDED SPACE + HEAVEN CITIES ==========
@@ -4337,6 +4655,7 @@ bloomPass.radius = 0.7;
                     const assets = data.assets || [];
                     // Hub diet: keep only the three functional portal ships plus two hero anchors.
                     const hubSpace = new Set([
+                        'space_station_4.glb',
                         'helveta_space_battle_ship.glb',
                         'stranded_cargo_ship_giant_vessel_rusty_ship.glb',
                         'sci-fi_personal_space_pod_shipweekly_challenge.glb'
@@ -4806,6 +5125,8 @@ bloomPass.radius = 0.7;
                 targetZone: null,
                 completionTimeout: null
             };
+            const taskBodyKind = model === 'builder' ? 'builder' : (model === 'researcher' ? 'scribe' : 'merchant');
+            scheduleGlbNpcBody(avatarGroup, taskBodyKind, null, avatarGroup.children.slice());
 
             scene.add(avatarGroup);
             avatars.push(avatarGroup);
@@ -5176,11 +5497,23 @@ bloomPass.radius = 0.7;
         const originalCameraPos = camera.position.clone();
         const interiorCamPos = new THREE.Vector3(0, 1.2, 2.3);
         const interiorTarget = new THREE.Vector3(0, 1, 0);
+        function setPyramidExteriorVisible(visible) {
+            [cityGroup, skyLayer, platform, capstone, edges, legacyGroup].forEach((obj) => { if (obj) obj.visible = visible; });
+            if (window.__gskAvatar && window.__gskAvatar.group) window.__gskAvatar.group.visible = visible;
+            if (window.__memoryBuildings && window.__memoryBuildings.group) window.__memoryBuildings.group.visible = visible;
+            if (window.__subagentNPCs && window.__subagentNPCs.group) window.__subagentNPCs.group.visible = visible;
+            if (window.__realmPortalGroups) window.__realmPortalGroups.forEach((obj) => { if (obj) obj.visible = visible; });
+            if (typeof chamberSockets !== 'undefined' && chamberSockets.length && chamberSockets[0].mesh.parent) chamberSockets[0].mesh.parent.visible = visible;
+            if (typeof godWorlds !== 'undefined') godWorlds.forEach((g) => { if (g.grp) g.grp.visible = visible; });
+            if (typeof dockingPads !== 'undefined') dockingPads.forEach((obj) => { if (obj) obj.visible = visible; });
+            if (typeof portalCaretaker !== 'undefined' && portalCaretaker && portalCaretaker.grp) portalCaretaker.grp.visible = visible;
+        }
         
         function enterPyramid() {
             if (isInside || readingState !== 'idle') return;
             isInside = true;
             interiorGroup.visible = true;
+            setPyramidExteriorVisible(false);
             pyramid.visible = false;
             doorGroup.visible = false;
             souls.forEach(s => s.obj.visible = false);
@@ -5215,6 +5548,7 @@ bloomPass.radius = 0.7;
             if (!isInside) return;
             isInside = false;
             interiorGroup.visible = false;
+            setPyramidExteriorVisible(true);
             pyramid.visible = true;
             doorGroup.visible = true;
             souls.forEach(s => s.obj.visible = true);
@@ -5498,7 +5832,7 @@ bloomPass.radius = 0.7;
         function resolveInteractionTarget(obj) {
             const keys = ['npcTalk', 'realmAsset', 'book', 'scribe', 'stall', 'merchant', 'commission', 'schematic', 'builder',
                 'prophetOracle', 'future', 'prophet', 'chamberFeature', 'gskMemory', 'gskSoul', 'isBook', 'shipPortal',
-                'realmPortal', 'chamberIndex', 'godWorld', 'caretaker', 'gskAvatar', 'heavenGate', 'commandConsole'];
+                'realmPortal', 'chamberIndex', 'godWorld', 'caretaker', 'gskAvatar', 'heavenGate', 'commandConsole', 'commandAction', 'agentPlug'];
             let node = obj;
             while (node && node !== scene) {
                 if (node.userData && keys.some((key) => node.userData[key] !== undefined)) return node;
@@ -5562,9 +5896,8 @@ bloomPass.radius = 0.7;
         
         const allInteriorHits = () => {
             const list = [];
-            interiorGroup.children.forEach(c => {
-                if (c.children) c.children.forEach(gc => list.push(gc));
-                list.push(c);
+            interiorGroup.traverse(c => {
+                if (c.isMesh) list.push(c);
             });
             return list;
         };
@@ -5595,14 +5928,7 @@ bloomPass.radius = 0.7;
             
             // pyramid enter/exit
             if (isInside) {
-                if (mouseDownTarget && mouseDownTarget.userData && mouseDownTarget.userData.commandConsole) {
-                    if (typeof gskPanel !== 'undefined' && gskPanel) {
-                        gskPanel.style.transition = 'none';
-                        gskPanel.style.boxShadow = '0 0 60px rgba(102,255,255,0.95)';
-                        setTimeout(() => { gskPanel.style.transition = 'box-shadow 0.6s'; gskPanel.style.boxShadow = ''; }, 800);
-                    }
-                    const p = (typeof playerNPC !== 'undefined' && playerNPC) ? playerNPC.position.clone().add(new THREE.Vector3(0, 1.5, 0)) : new THREE.Vector3(0, 1.5, 0);
-                    spawnWhisper(p, 'GSK terminal — use the panel (top-right) to converse.');
+                if (handleCommandCenterClick(mouseDownTarget)) {
                     return;
                 }
                 let hitBook = false;
@@ -5722,7 +6048,7 @@ bloomPass.radius = 0.7;
             raycaster.setFromCamera(pointer, camera);
             const bookHits = raycaster.intersectObjects(books, false);
             const soulHits = raycaster.intersectObjects(_soulMeshes, false);
-            const npcHits = raycaster.intersectObjects(npcTalkTargets, false);
+            const npcHits = raycaster.intersectObjects(npcTalkTargets, true);
             const heavenHits = raycaster.intersectObjects(heavenGateTargets, false);
             let avatarHits = { length: 0 };
             if (avatar) avatarHits = raycaster.intersectObject(avatar, true);
@@ -6154,6 +6480,36 @@ bloomPass.radius = 0.7;
             if (e.key === 'Escape' && agentOverlay.classList.contains('active')) hideAgentModal();
         });
 
+        const AGENT_ROUTES = {
+            GSK: 'core consciousness kernel',
+            SCRIBE: 'memory witness and archive voice',
+            MERCHANT: 'contract, value, exchange, pricing',
+            BUILDER: 'world-maker, blueprint, implementation',
+            PROPHET: 'future simulation and goal forecast'
+        };
+        let activeAgentRoute = (worldState && worldState.agentRoute) || 'GSK';
+        const agentRouteScreens = [];
+        function drawAgentRouteScreen(screen) {
+            if (!screen || !screen.ctx) return;
+            const ctx = screen.ctx;
+            cmdClear(ctx, '#66ffff');
+            cmdTitle(ctx, 'AGENT ROUTER · TERMINAL WORLD', '#66ffff');
+            cmdText(ctx, 'active route:', 18, 58, '#9fd0ff', 16);
+            cmdText(ctx, activeAgentRoute, 168, 56, '#ffe0a8', 22);
+            cmdWrap(ctx, AGENT_ROUTES[activeAgentRoute] || 'custom route', 18, 94, 470, 22, '#dffaff', 16);
+            cmdText(ctx, 'click dock sockets to plug in a role', 18, 288, '#9fd0ff', 14);
+            cmdText(ctx, 'ASK GSK uses this route as context', 18, 318, '#8affc4', 14);
+            screen.tex.needsUpdate = true;
+        }
+        function updateAgentRouteScreens() { agentRouteScreens.forEach(drawAgentRouteScreen); }
+        function setAgentRoute(route) {
+            activeAgentRoute = route || 'GSK';
+            worldState.agentRoute = activeAgentRoute;
+            saveWorldState();
+            updateAgentRouteScreens();
+            showScribeReadout('AGENT ROUTER — ' + activeAgentRoute + ' plugged into GSK command context.');
+        }
+
         async function handleGskThought() {
             const msg = gskThoughtInput.value.trim();
             if (!msg) return;
@@ -6162,7 +6518,8 @@ bloomPass.radius = 0.7;
             gskThoughtResult.style.display = 'block';
             gskThoughtResult.textContent = '> Connecting to GSK...';
             try {
-                const result = await gsk.chat(msg);
+                const context = 'CPL in-world Agent Router active route: ' + activeAgentRoute + ' — ' + (AGENT_ROUTES[activeAgentRoute] || 'custom role') + '. Respond through this role when useful, and treat the 3D world as GSK\'s command interface.';
+                const result = await gsk.chat(msg, context);
                 const response = result?.response || JSON.stringify(result);
                 gskThoughtResult.textContent = response;
             } catch (e) {
@@ -7404,18 +7761,74 @@ bloomPass.radius = 0.7;
 
         // hub portal markers to sub-agent realms (BUILDER now; PROPHET added with its realm)
         function buildRealmPortals() {
-            const make = (x, z, color, dest, label) => {
+            const realmPortalGroups = [];
+            window.__realmPortalGroups = realmPortalGroups;
+            const makePortTexture = (title, color) => {
+                const c = document.createElement('canvas'); c.width = 512; c.height = 160;
+                const ctx = c.getContext('2d');
+                ctx.fillStyle = 'rgba(3,8,18,0.92)'; ctx.fillRect(0, 0, 512, 160);
+                ctx.strokeStyle = '#' + color.toString(16).padStart(6, '0'); ctx.lineWidth = 5; ctx.strokeRect(8, 8, 496, 144);
+                ctx.fillStyle = '#dffaff'; ctx.font = 'bold 30px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(title, 256, 62);
+                ctx.fillStyle = '#9fd0ff'; ctx.font = '18px monospace'; ctx.fillText('DOCKED EXTENDED REALM CRAFT', 256, 108);
+                return new THREE.CanvasTexture(c);
+            };
+            const addPortModel = (parent, url, targetSize, pos, rotY, dest, label) => {
+                makeGLTF({ lazy: true }).load(url, (gltf) => {
+                    const model = gltf.scene;
+                    model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+                    const box = new THREE.Box3().setFromObject(model);
+                    const size = box.getSize(new THREE.Vector3());
+                    const center = box.getCenter(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+                    model.position.set(-center.x, -box.min.y, -center.z);
+                    const wrap = new THREE.Group();
+                    wrap.add(model);
+                    wrap.scale.setScalar(targetSize / maxDim);
+                    wrap.position.copy(pos);
+                    wrap.rotation.y = rotY || 0;
+                    if (dest) {
+                        wrap.traverse(o => { if (o.isMesh) { o.userData.realmPortal = dest; o.userData.realmPortalLabel = label; realmPortalTargets.push(o); } });
+                    }
+                    parent.add(wrap);
+                }, undefined, (err) => console.warn('[RealmPort] load failed:', url, err));
+            };
+            const make = (x, z, color, dest, label, opts = {}) => {
                 const g = new THREE.Group();
                 g.position.set(x, 0, z);
                 const ped = new THREE.Mesh(new THREE.CylinderGeometry(2, 2.4, 1, 16), new THREE.MeshStandardMaterial({ color: 0x101826, emissive: color, emissiveIntensity: 0.4, roughness: 0.6, metalness: 0.3 }));
                 ped.position.y = 0.5; g.add(ped);
                 const ring = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.18, 12, 48), new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
                 ring.position.y = 3; g.add(ring);
+                const dock = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.22, 1.1), new THREE.MeshStandardMaterial({ color: 0x07111f, emissive: color, emissiveIntensity: 0.24, roughness: 0.62, metalness: 0.35 }));
+                dock.position.set(0, 0.95, -3.1); g.add(dock);
+                const gantry = new THREE.Mesh(new THREE.TorusGeometry(2.9, 0.06, 8, 48), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending }));
+                gantry.position.set(0, 3.2, -3.4); gantry.rotation.x = Math.PI / 2; g.add(gantry);
+                const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.0), new THREE.MeshBasicMaterial({ map: makePortTexture(label, color), transparent: true, side: THREE.DoubleSide }));
+                sign.position.set(0, 2.1, 3.0); sign.rotation.y = Math.PI; g.add(sign);
                 g.traverse(o => { if (o.isMesh) { o.userData.realmPortal = dest; o.userData.realmPortalLabel = label; realmPortalTargets.push(o); } });
+                if (opts.shipUrl) addPortModel(g, opts.shipUrl, opts.shipSize || 7, opts.shipPos || new THREE.Vector3(0, 3.3, -3.6), opts.shipRot || 0, dest, label);
                 scene.add(g);
+                realmPortalGroups.push(g);
             };
-            make(14, 10, 0x3aa0ff, 'builder', "BUILDER'S WORKSHOP");
-            make(-14, 10, 0x9a6cff, 'prophet', "PROPHET'S TOWER");
+            make(14, 10, 0x3aa0ff, 'builder', "BUILDER'S WORKSHOP", {
+                shipUrl: 'assets/recent/cosmos/space_exploration_wlp_series_8.glb', shipSize: 8,
+                shipPos: new THREE.Vector3(0, 3.2, -4.2), shipRot: -0.35
+            });
+            make(-14, 10, 0x9a6cff, 'prophet', "PROPHET'S TOWER", {
+                shipUrl: 'assets/recent/cosmos/sentinel.glb', shipSize: 9,
+                shipPos: new THREE.Vector3(0, 3.5, -4.0), shipRot: 0.4
+            });
+            const station = new THREE.Group();
+            station.position.set(0, 6.5, 20);
+            const stationBeacon = new THREE.Mesh(new THREE.TorusGeometry(5.5, 0.15, 10, 80), new THREE.MeshBasicMaterial({ color: 0x66ffff, transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending }));
+            stationBeacon.rotation.x = Math.PI / 2;
+            station.add(stationBeacon);
+            const stationDock = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 4.2, 0.5, 32), new THREE.MeshStandardMaterial({ color: 0x081426, emissive: 0x225a88, emissiveIntensity: 0.4, roughness: 0.5, metalness: 0.5 }));
+            station.add(stationDock);
+            addPortModel(station, 'assets/recent/cosmos/space_station_4.glb', 18, new THREE.Vector3(0, 0.4, 0), 0.2, null, 'SPACEPORT');
+            scene.add(station);
+            realmPortalGroups.push(station);
         }
         buildRealmPortals();
 
@@ -7460,6 +7873,28 @@ bloomPass.radius = 0.7;
                 { url: 'assets/world/world.opt.glb', label: 'Recovered World Plate', detail: 'A whole terrain fragment preserved as chamber evidence.', size: 34, position: [25, 0, -20], rotation: [0, -0.55, 0] }
             ]
         };
+
+        function makeRealmPlaque(title, subtitle, color, w = 38, h = 8) {
+            const c = document.createElement('canvas'); c.width = 1024; c.height = 256;
+            const ctx = c.getContext('2d');
+            const hex = '#' + color.toString(16).padStart(6, '0');
+            ctx.fillStyle = 'rgba(4,8,18,0.92)'; ctx.fillRect(0, 0, c.width, c.height);
+            ctx.strokeStyle = hex; ctx.lineWidth = 8; ctx.strokeRect(12, 12, c.width - 24, c.height - 24);
+            ctx.fillStyle = hex; ctx.font = 'bold 54px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(title, c.width / 2, 88);
+            ctx.fillStyle = '#dffaff'; ctx.font = '28px Georgia, serif';
+            const words = subtitle.split(' '); let line = '', y = 154;
+            for (const word of words) {
+                const next = line ? line + ' ' + word : word;
+                if (ctx.measureText(next).width > 900 && line) { ctx.fillText(line, c.width / 2, y); line = word; y += 34; }
+                else line = next;
+            }
+            if (line) ctx.fillText(line, c.width / 2, y);
+            const tex = new THREE.CanvasTexture(c);
+            const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, fog: false }));
+            mesh.userData.realmAsset = { label: title, detail: subtitle };
+            return mesh;
+        }
 
         // ========== DOUR-005 PRIORITY 2: SCRIBE'S LIBRARY REALM ==========
         // A distant region of the SAME scene (camera teleports in via the Helveta portal).
@@ -7521,6 +7956,75 @@ bloomPass.radius = 0.7;
             return g;
         }
 
+        function makeAgentPlug(name, color) {
+            const c = document.createElement('canvas'); c.width = 384; c.height = 128;
+            const ctx = c.getContext('2d');
+            const hex = '#' + color.toString(16).padStart(6, '0');
+            ctx.fillStyle = 'rgba(2,8,18,0.94)'; ctx.fillRect(0, 0, c.width, c.height);
+            ctx.strokeStyle = hex; ctx.lineWidth = 5; ctx.strokeRect(8, 8, c.width - 16, c.height - 16);
+            ctx.fillStyle = hex; ctx.font = 'bold 38px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(name, c.width / 2, 56);
+            ctx.fillStyle = '#bfe6ff'; ctx.font = '16px monospace'; ctx.fillText('PLUG INTO GSK', c.width / 2, 96);
+            const mesh = new THREE.Mesh(new THREE.PlaneGeometry(9, 3), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, side: THREE.DoubleSide, fog: false }));
+            mesh.userData.agentPlug = name;
+            return mesh;
+        }
+
+        function buildScribeTerminalWorld() {
+            const terminal = new THREE.Group();
+            terminal.position.set(0, 0, -76);
+            terminal.name = 'Agent Terminal World';
+            const deckMat = new THREE.MeshStandardMaterial({ color: 0x06111f, emissive: 0x093a5a, emissiveIntensity: 0.45, roughness: 0.48, metalness: 0.4 });
+            const deck = new THREE.Mesh(new THREE.CylinderGeometry(42, 48, 1.2, 48), deckMat);
+            deck.position.y = 0.6;
+            terminal.add(deck);
+            const title = makeRealmPlaque('AGENT TERMINAL WORLD', 'Plug any role into the command route. GSK can ask through that agent, and that agent can steer GSK context back into the world.', 0x66ffff, 42, 8);
+            title.position.set(0, 18, -22);
+            terminal.add(title); scribeClickTargets.push(title);
+            const routeScreen = makeCmdScreen(30, 13, 'ask', 'AGENT ROUTER');
+            routeScreen.grp.position.set(0, 12, -12);
+            terminal.add(routeScreen.grp);
+            agentRouteScreens.push(routeScreen);
+            drawAgentRouteScreen(routeScreen);
+            scribeClickTargets.push(routeScreen.grp);
+
+            const actions = [
+                ['ASK GSK', '#66ffff', 'ask', -16, 4, 4],
+                ['SPAWN SOUL', '#b9a6ff', 'spawnSoul', -5.5, 4, 4],
+                ['SPAWN TOWER', '#8affc4', 'spawnTower', 5.5, 4, 4],
+                ['SURGE', '#ffcc77', 'surge', 16, 4, 4],
+                ['CALM', '#6688ff', 'calm', -6, 0, 8],
+                ['RECALL', '#ffaa66', 'recall', 6, 0, 8]
+            ];
+            actions.forEach((a) => {
+                const b = makeCmdButton(a[0], a[1], a[2]);
+                b.scale.setScalar(2.4);
+                b.position.set(a[3], a[4], a[5]);
+                b.rotation.x = -0.35;
+                terminal.add(b);
+                scribeClickTargets.push(b);
+            });
+
+            const routes = [
+                ['GSK', 0x66ffff], ['SCRIBE', 0xffd27a], ['MERCHANT', 0xff8ccf], ['BUILDER', 0x66aaff], ['PROPHET', 0xb793ff]
+            ];
+            routes.forEach((r, i) => {
+                const a = (i / routes.length) * Math.PI * 2 + Math.PI / 2;
+                const plug = makeAgentPlug(r[0], r[1]);
+                plug.position.set(Math.cos(a) * 28, 6, Math.sin(a) * 28);
+                plug.rotation.y = -a + Math.PI;
+                terminal.add(plug);
+                scribeClickTargets.push(plug);
+                const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 10, 8), new THREE.MeshBasicMaterial({ color: r[1], transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+                beam.position.set(Math.cos(a) * 19, 5, Math.sin(a) * 19);
+                beam.rotation.z = Math.PI / 2;
+                beam.rotation.y = -a;
+                terminal.add(beam);
+            });
+            scribeRealm.add(terminal);
+            scribeRealm._terminalWorld = terminal;
+        }
+
         function buildScribeRealm() {
             const floor = new THREE.Mesh(
                 new THREE.CircleGeometry(220, 64),
@@ -7561,6 +8065,7 @@ bloomPass.radius = 0.7;
             scribeRealm._fbook = fbook;
             scribeRealm._memBooks = [];
             buildScribeMemoryShelf();
+            buildScribeTerminalWorld();
             populateDenizens(scribeRealm, scribeClickTargets, 0xffd27a, 5, 'Scribe Acolyte', 60);
         }
         function buildScribeMemoryShelf() {
@@ -7643,6 +8148,8 @@ bloomPass.radius = 0.7;
         }
         function handleScribeClick(target) {
             if (!target) return;
+            if (target.userData && target.userData.agentPlug) { setAgentRoute(target.userData.agentPlug); return; }
+            if (handleCommandCenterClick(target)) return;
             if (handleRealmPersonOrAsset(target)) return;
             if (target.userData && target.userData.gskMemory && target.userData.memoryObj) {
                 handleScribeMemoryClick(target.userData.memoryObj);
@@ -7705,6 +8212,26 @@ bloomPass.radius = 0.7;
         function buildMerchantRealm() {
             merchantRealm.add(new THREE.AmbientLight(0x0a0a18, 0.35));
             merchantRealm._stalls = [];
+            const mission = makeRealmPlaque('MERCHANT MARKET NEBULA', 'Purpose: claim discoveries, price contracts by live PLT, and turn value into persistent world state.', 0xff8ccf, 46, 8);
+            mission.position.set(0, 28, -58);
+            merchantRealm.add(mission);
+            merchantClickTargets.push(mission);
+            const ledger = new THREE.Group();
+            ledger.position.set(0, -6, -22);
+            const vault = new THREE.Mesh(new THREE.TorusGeometry(10, 0.65, 16, 96), new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+            vault.rotation.x = Math.PI / 2;
+            ledger.add(vault);
+            for (let i = 0; i < 8; i++) {
+                const bar = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.3, 7), new THREE.MeshStandardMaterial({ color: 0xffd27a, emissive: 0xff8ccf, emissiveIntensity: 0.45, roughness: 0.45, metalness: 0.7 }));
+                const a = (i / 8) * Math.PI * 2;
+                bar.position.set(Math.cos(a) * 10, 0, Math.sin(a) * 10);
+                bar.rotation.y = -a;
+                ledger.add(bar);
+            }
+            ledger.userData.realmAsset = { label: 'Contract Vault', detail: 'Persistent discoveries claimed in this market become saved world contracts.' };
+            ledger.traverse(o => { if (o.isMesh) { o.userData.realmAsset = ledger.userData.realmAsset; merchantClickTargets.push(o); } });
+            merchantRealm.add(ledger);
+            merchantRealm._contractVault = ledger;
             const cloudDefs = [
                 { c: '255,90,200', x: -60, y: 20, z: -40, s: 120 },
                 { c: '90,200,255', x: 70, y: -10, z: 30, s: 140 },
@@ -7832,6 +8359,7 @@ bloomPass.radius = 0.7;
                 merchantRealm._merchant.rotation.y = time * 1.2;
                 merchantRealm._merchant.position.x = Math.sin(time * 0.8) * 6;
             }
+            if (merchantRealm._contractVault) merchantRealm._contractVault.rotation.y = time * 0.18;
             if (merchantRealm._stalls) {
                 const online = gskBridge && gskBridge.gskOnline;
                 const profit = online ? gskBridge.plt.profit : 0.5;
@@ -7910,6 +8438,22 @@ bloomPass.radius = 0.7;
             const key = new THREE.PointLight(BLU, 2.4, 320, 2);
             key.position.set(0, 50, 0);
             builderRealm.add(key);
+            const mission = makeRealmPlaque('BUILDER WORKSHOP PLANET', 'Purpose: commission GSK to produce blueprints, then materialize those specs as floating schematics in the world.', BLU, 48, 8);
+            mission.position.set(0, 26, -92);
+            builderRealm.add(mission);
+            builderClickTargets.push(mission);
+            const assemblyLine = new THREE.Group();
+            assemblyLine.position.set(0, 1, 72);
+            for (let i = -3; i <= 3; i++) {
+                const module = new THREE.Mesh(new THREE.BoxGeometry(8, 3 + Math.abs(i), 8), new THREE.MeshStandardMaterial({ color: 0x183858, emissive: BLU, emissiveIntensity: 0.25 + Math.abs(i) * 0.08, roughness: 0.55, metalness: 0.25 }));
+                module.position.set(i * 12, (3 + Math.abs(i)) / 2, Math.sin(i) * 4);
+                module.userData.schematic = true;
+                module.userData.blueprint = 'ASSEMBLY MODULE ' + (i + 4) + ' — click commission orb to create more.';
+                assemblyLine.add(module);
+                builderClickTargets.push(module);
+            }
+            builderRealm.add(assemblyLine);
+            builderRealm._assemblyLine = assemblyLine;
 
             const gridMat = new THREE.MeshBasicMaterial({ color: BLU, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
             for (let i = -5; i <= 5; i++) {
@@ -8107,6 +8651,9 @@ bloomPass.radius = 0.7;
                 builderRealm._commissionOrb.rotation.y = time * 0.8;
                 builderRealm._commissionOrb.position.y = 3 + Math.sin(time * 1.4) * 0.3;
             }
+            if (builderRealm._assemblyLine) {
+                builderRealm._assemblyLine.children.forEach((m, i) => { m.position.y = (m.geometry ? 2 : 0) + Math.sin(time * 0.8 + i) * 0.45; });
+            }
         }
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && inBuilder) exitBuilderRealmFade();
@@ -8140,6 +8687,25 @@ bloomPass.radius = 0.7;
             const key = new THREE.PointLight(PRO, 2.0, 400, 2);
             key.position.set(0, 60, 0);
             prophetRealm.add(key);
+            const mission = makeRealmPlaque('PROPHET TOWER', 'Purpose: query GSK goal-state, archive prophecies, and convert futures into visible decision crystals.', PRO, 44, 8);
+            mission.position.set(0, 28, -48);
+            prophetRealm.add(mission);
+            prophetClickTargets.push(mission);
+            const loom = new THREE.Group();
+            loom.position.set(0, 6, 32);
+            for (let i = 0; i < 9; i++) {
+                const a = (i / 9) * Math.PI * 2;
+                const thread = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 42, 8), new THREE.MeshBasicMaterial({ color: 0xc9b3ff, transparent: true, opacity: 0.38, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+                thread.position.set(Math.cos(a) * 14, 16, Math.sin(a) * 14);
+                thread.rotation.z = 0.55 + Math.sin(i) * 0.2;
+                loom.add(thread);
+            }
+            const lens = new THREE.Mesh(new THREE.IcosahedronGeometry(4.4, 1), new THREE.MeshStandardMaterial({ color: 0xc9b3ff, emissive: PRO, emissiveIntensity: 1.1, transparent: true, opacity: 0.75, roughness: 0.2, metalness: 0.25 }));
+            lens.userData.prophetOracle = true;
+            loom.add(lens);
+            prophetClickTargets.push(lens);
+            prophetRealm.add(loom);
+            prophetRealm._futureLoom = loom;
 
             const FLOORS = 12;
             for (let i = 0; i < FLOORS; i++) {
@@ -8285,6 +8851,7 @@ bloomPass.radius = 0.7;
             if (prophetRealm._floors) prophetRealm._floors.forEach((fl, i) => { fl.rotation.y = time * 0.05 * (i % 2 ? 1 : -1); });
             if (prophetRealm._symbols) prophetRealm._symbols.forEach((s, i) => { s.rotation.y = time * 0.6 + i; s.position.y += Math.sin(time * 1.5 + i) * 0.004; });
             if (prophetRealm._oracle) { prophetRealm._oracle.rotation.y = time * 0.5; prophetRealm._oracle.rotation.x = time * 0.2; prophetRealm._oracle.position.y = 4 + Math.sin(time * 1.1) * 0.4; }
+            if (prophetRealm._futureLoom) { prophetRealm._futureLoom.rotation.y = time * 0.16; prophetRealm._futureLoom.rotation.x = Math.sin(time * 0.2) * 0.08; }
             if (prophetRealm._prophet) {
                 prophetRealm._prophet.rotation.y = time * 0.15;
                 prophetRealm._prophet.position.y = Math.sin(time * 0.7) * 0.8;
@@ -8664,6 +9231,20 @@ bloomPass.radius = 0.7;
             for (const c of skyCities) {
                 c.obj.position.y = c.baseY + Math.sin(time * 0.25 + c.phase) * 1.5;
                 c.obj.rotation.y += c.spin * 0.016;
+            }
+            if (skyBackdrop) skyBackdrop.rotation.y += 0.00005;
+            for (const n of skyNebulae) {
+                n.obj.position.y = n.baseY + Math.sin(time * 0.12 + n.phase) * n.bob;
+                n.obj.material.rotation += n.spin;
+            }
+            for (const a of skyAnchors) {
+                if (a.follow) a.obj.position.copy(a.follow.position);
+                a.obj.position.y = a.baseY + Math.sin(time * 0.16 + a.phase) * a.bob;
+                a.obj.rotation.y += a.spin;
+                a.obj.rotation.z += a.spin * 0.35;
+            }
+            for (const c of skyConstellations) {
+                c.obj.material.opacity = 0.2 + Math.sin(time * 0.35 + c.phase) * 0.08;
             }
             if (window.__recentCityExtensions) window.__recentCityExtensions.update(dt, time);
             
