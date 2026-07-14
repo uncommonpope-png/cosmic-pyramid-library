@@ -937,7 +937,10 @@
                 });
                 if (gltf.animations && gltf.animations.length) {
                     const mixer = new THREE.AnimationMixer(model);
-                    gltf.animations.forEach((clip) => mixer.clipAction(clip).play());
+                    // Play a single idle loop (prefer a clip named *idle*) so multi-clip
+                    // figures don't freeze from all clips blending at once.
+                    const idle = gltf.animations.find((c) => /idle/i.test(c.name)) || gltf.animations[0];
+                    mixer.clipAction(idle).play();
                     (realm._assetMixers = realm._assetMixers || []).push(mixer);
                 }
                 layer.add(wrap);
@@ -3081,7 +3084,39 @@ bloomPass.radius = 0.7;
                 makeBuilding(x, z, type);
             }
         }
-        
+
+        // ========== CITY PACK 3 — skin the CPL buildings with real city facade textures ==========
+        // Craig: wrap the buildings in the downloaded city texture pack. We extract the pack's
+        // diffuse (baseColor) maps and clone one per building so each tower gets its own facade,
+        // tiled to read as windows/facade. The procedural neon + window-glow strips stay on top.
+        (function applyCityPack() {
+            const loader = new GLTFLoader(criticalManager);
+            loader.setMeshoptDecoder(MeshoptDecoder);
+            loader.load('assets/city/city_pack_3.glb', (gltf) => {
+                const pool = [];
+                gltf.scene.traverse((o) => {
+                    if (o.isMesh && o.material && o.material.map && o.material.map.isTexture) {
+                        if (pool.indexOf(o.material.map) === -1) pool.push(o.material.map);
+                    }
+                });
+                if (!pool.length) { console.warn('[CityPack] no facade textures found'); return; }
+                buildings.forEach((b, i) => {
+                    const facadeMat = b.parts && b.parts[0] && b.parts[0].material;
+                    if (!facadeMat) return;
+                    const src = pool[i % pool.length];
+                    const t = src.clone();
+                    t.needsUpdate = true;
+                    t.wrapS = THREE.RepeatWrapping;
+                    t.wrapT = THREE.RepeatWrapping;
+                    t.repeat.set(Math.max(1, Math.round((b.w || 3) / 2.2)), Math.max(1, Math.round((b.h || 6) / 3)));
+                    facadeMat.map = t;
+                    facadeMat.color.set(0xffffff);
+                    facadeMat.needsUpdate = true;
+                });
+                console.log('[CityPack] skinned ' + buildings.length + ' buildings with ' + pool.length + ' city textures');
+            }, undefined, (e) => console.warn('[CityPack] load failed', e));
+        })();
+
         // Satellite districts
         function makeDistrict(cx, cz, name, accent, shapeBias) {
             const plazaMat = new THREE.MeshStandardMaterial({
@@ -8031,26 +8066,40 @@ bloomPass.radius = 0.7;
         const REALM_ASSET_SPECS = {
             scribe: [
                 { url: 'assets/computers/simple_computer_placeholder.opt.glb', label: 'SCRIBE Index Terminal', detail: 'A physical terminal for searching GSK memory.', size: 4, position: [-12, 0, 14], rotation: [0, 0.55, 0] },
-                { url: 'assets/recent/arena/deep_impact_tv_from_the_matrix.glb', label: 'Deep Memory Screen', detail: 'An archive display recovered from the Matrix timeline.', size: 8, position: [13, 0, 11], rotation: [0, -0.45, 0] }
+                { url: 'assets/recent/arena/deep_impact_tv_from_the_matrix.glb', label: 'Deep Memory Screen', detail: 'An archive display recovered from the Matrix timeline.', size: 8, position: [13, 0, 11], rotation: [0, -0.45, 0] },
+                // GSK's "thinking hardware" clustered at the base of the LIVE MIND screen
+                { url: 'assets/computers/quantum_computer.opt.glb', label: 'Quantum Core', detail: 'GSK thinking hardware — a quantum-class compute core.', size: 11, position: [-7, 0, -8], rotation: [0, 0.35, 0] },
+                { url: 'assets/computers/computer_desk.opt.glb', label: 'Scribe Workstation', detail: 'A working terminal where acolytes transcribe GSK memory.', size: 6, position: [7, 0, -8], rotation: [0, -0.35, 0] },
+                { url: 'assets/computers/pc_build.opt.glb', label: 'Build Rig', detail: 'GSK runtime build rig — where souls are compiled.', size: 6, position: [-7, 0, -15], rotation: [0, 0.6, 0] },
+                { url: 'assets/computers/retro_gaming.opt.glb', label: 'Archive Console', detail: 'A retro archive console replaying recovered timelines.', size: 3.5, position: [7, 0, -15], rotation: [0, -0.6, 0] },
+                // Living figures — rigged GLBs that animate on their own (AnimationMixer, index.html:938)
+                { url: 'assets/figures/acolyte_chibi.opt.glb', label: 'Scribe Acolyte', detail: 'An acolyte who tends GSK memory at the terminals.', size: 3, position: [0, 0, -4], rotation: [0, Math.PI, 0] },
+                { url: 'assets/figures/memory_wraith.opt.glb', label: 'Memory Wraith', detail: 'A drifting memory-shape that paces the library floor.', size: 2.5, position: [-3, 0, -18], rotation: [0, 0.6, 0] }
             ],
             merchant: [
                 { url: 'assets/car-showroom/car_showroom.opt.glb', label: 'Merchant Contract Hall', detail: 'The market hall where discoveries become contracts.', size: 24, position: [0, 0, 10], rotation: [0, Math.PI, 0] },
-                { url: 'assets/porsche-gt3-rs/2017_porsche_911_991_gt3_rs.opt.glb', label: 'Profit Trophy', detail: 'A high-value machine displayed as proof of completed exchange.', size: 6, position: [-12, 0, 22], rotation: [0, Math.PI / 2, 0] }
+                { url: 'assets/porsche-gt3-rs/2017_porsche_911_991_gt3_rs.opt.glb', label: 'Profit Trophy', detail: 'A high-value machine displayed as proof of completed exchange.', size: 6, position: [-12, 0, 22], rotation: [0, Math.PI / 2, 0] },
+                { url: 'assets/figures/market_crier.opt.glb', label: 'Market Crier', detail: 'A frog-crier that bellows the day\'s trades.', size: 2, position: [10, 0, 14], rotation: [0, -0.5, 0] },
+                { url: 'assets/figures/provisioner.opt.glb', label: 'Provisioner', detail: 'A chef-bot that plates the merchant\'s contracts.', size: 2, position: [-8, 0, 16], rotation: [0, 0.5, 0] }
             ],
             builder: [
                 { url: 'assets/recent/cosmos/bionic_architecture.glb', label: 'Bionic Prototype', detail: 'A real architectural prototype under active construction.', size: 30, position: [0, 0, -12], rotation: [0, 0.2, 0] },
                 { url: 'assets/retro-urban-kit/Models/GLB%20format/wall-a-roof.opt.glb', label: 'CC0 Structure Module', detail: 'A reusable construction module from the Builder kit.', size: 10, position: [18, 0, 10], rotation: [0, -0.35, 0] },
                 { url: 'assets/retro-urban-kit/Models/GLB%20format/detail-bench.opt.glb', label: 'Builder Bench', detail: 'A working bench, not a placeholder.', size: 5, position: [-15, 0, 9], rotation: [0, 0.5, 0] },
-                { url: 'assets/retro-urban-kit/Models/GLB%20format/detail-light-double.opt.glb', label: 'Workshop Practical', detail: 'A real practical light anchoring the workshop floor.', size: 6, position: [11, 0, 7], rotation: [0, 0, 0] }
+                { url: 'assets/retro-urban-kit/Models/GLB%20format/detail-light-double.opt.glb', label: 'Workshop Practical', detail: 'A real practical light anchoring the workshop floor.', size: 6, position: [11, 0, 7], rotation: [0, 0, 0] },
+                { url: 'assets/figures/master_builder.opt.glb', label: 'Master Builder', detail: 'A living builder who raises the prototypes.', size: 5, position: [6, 0, 2], rotation: [0, -0.3, 0] },
+                { url: 'assets/figures/artisan.opt.glb', label: 'Artisan', detail: 'An artisan soul that forges discoveries into form.', size: 3, position: [-6, 0, -2], rotation: [0, 0.4, 0] }
             ],
             prophet: [
                 { url: 'assets/recent/arena/sentinelle_-_matrix.glb', label: 'Matrix Sentinel', detail: 'A watcher stationed outside the ordinary flow of time.', size: 18, position: [0, 0, -17], rotation: [0, Math.PI, 0] },
                 { url: 'assets/recent/arena/cheese_moon.glb', label: 'Impossible Moon', detail: 'A future-symbol made physical in the Prophet sky.', size: 14, position: [20, 30, -12], rotation: [0.2, 0, 0.15] },
-                { url: 'assets/paimon/genshin_impact_paimon.opt.glb', label: 'Prophet Guide', detail: 'A living guide who waits beside the oracle.', size: 3, position: [9, 0, 8], rotation: [0, -0.5, 0], npcTalk: { label: 'Prophet Guide', lines: ['The oracle remembers every future you ask it to name.'] } }
+                { url: 'assets/paimon/genshin_impact_paimon.opt.glb', label: 'Prophet Guide', detail: 'A living guide who waits beside the oracle.', size: 3, position: [9, 0, 8], rotation: [0, -0.5, 0], npcTalk: { label: 'Prophet Guide', lines: ['The oracle remembers every future you ask it to name.'] } },
+                { url: 'assets/figures/oracle_mech.opt.glb', label: 'Oracle Mech', detail: 'A restless mech that patrols the oracle precinct.', size: 3, position: [-8, 0, 6], rotation: [0, 0.5, 0] }
             ],
             chamber: [
                 { url: 'assets/recent/arena/fountain_with_three_putts_brno_luzanky.glb', label: 'Memory Fountain', detail: 'A real-world memory reconstructed inside the chamber.', size: 18, position: [0, 0, 0], rotation: [0, 0, 0] },
-                { url: 'assets/world/world.opt.glb', label: 'Recovered World Plate', detail: 'A whole terrain fragment preserved as chamber evidence.', size: 34, position: [25, 0, -20], rotation: [0, -0.55, 0] }
+                { url: 'assets/world/world.opt.glb', label: 'Recovered World Plate', detail: 'A whole terrain fragment preserved as chamber evidence.', size: 34, position: [25, 0, -20], rotation: [0, -0.55, 0] },
+                { url: 'assets/figures/memory_keeper.opt.glb', label: 'Memory Keeper', detail: 'A small TV-robot that guards the chamber\'s recollections.', size: 1.5, position: [6, 0, -4], rotation: [0, -0.4, 0] }
             ]
         };
 
