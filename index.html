@@ -2351,22 +2351,49 @@ bloomPass.radius = 0.7;
         // ========== GSK COMMAND CENTER — in-world 3D dashboards inside the pyramid ==========
         let commandCenter = null;
         function cmdScanlines(ctx) {
-            ctx.save(); ctx.globalAlpha = 0.06; ctx.fillStyle = '#9fd8ff';
-            for (let y = 0; y < 384; y += 3) ctx.fillRect(0, y, 512, 1);
+            const W = ctx.canvas.width, H = ctx.canvas.height;
+            ctx.save(); ctx.globalAlpha = 0.05; ctx.fillStyle = '#9fd8ff';
+            for (let y = 6; y < H - 6; y += 3) ctx.fillRect(6, y, W - 12, 1);
             ctx.restore();
         }
+        // Physical holo-panel: bezel + glowing seam (material honesty, story-through-surface),
+        // seams breathe while GSK is alive (feedback/consistency). No Non-Diegetic overlay.
         function cmdClear(ctx, accent) {
-            ctx.fillStyle = '#03060c'; ctx.fillRect(0, 0, 512, 384);
-            ctx.fillStyle = accent; ctx.fillRect(0, 0, 512, 34);
-            ctx.save(); ctx.strokeStyle = accent; ctx.globalAlpha = 0.5; ctx.lineWidth = 2; ctx.strokeRect(3, 3, 506, 378); ctx.restore();
+            const W = ctx.canvas.width, H = ctx.canvas.height;
+            const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 700);
+            ctx.fillStyle = '#0a0e16'; ctx.fillRect(0, 0, W, H); // outer bezel (physical frame)
+            const g = ctx.createRadialGradient(W / 2, H * 0.42, H * 0.1, W / 2, H / 2, H * 0.95);
+            g.addColorStop(0, 'rgba(22,44,66,0.55)'); g.addColorStop(1, 'rgba(2,5,10,0.96)');
+            ctx.fillStyle = g; ctx.fillRect(6, 6, W - 12, H - 12); // inner dark glass
             cmdScanlines(ctx);
+            // technical surface grid (story-through-surface: this is a machine that thinks)
+            ctx.save(); ctx.globalAlpha = 0.035; ctx.strokeStyle = accent; ctx.lineWidth = 1;
+            for (let x = 6; x < W - 6; x += 30) { ctx.beginPath(); ctx.moveTo(x, 40); ctx.lineTo(x, H - 6); ctx.stroke(); }
+            for (let y = 70; y < H - 6; y += 30) { ctx.beginPath(); ctx.moveTo(6, y); ctx.lineTo(W - 6, y); ctx.stroke(); }
+            ctx.restore();
+            ctx.fillStyle = accent; ctx.globalAlpha = 0.9; ctx.fillRect(6, 6, W - 12, 30); ctx.globalAlpha = 1; // status strip
+            // glowing seam (breathing)
+            ctx.save();
+            ctx.strokeStyle = accent; ctx.globalAlpha = 0.3 + 0.4 * pulse; ctx.lineWidth = 2;
+            ctx.shadowColor = accent; ctx.shadowBlur = 8 + 12 * pulse;
+            ctx.strokeRect(6, 6, W - 12, H - 12);
+            ctx.restore();
+            // physical corner mounts
+            ctx.save(); ctx.strokeStyle = accent; ctx.globalAlpha = 0.85; ctx.lineWidth = 3; const L = Math.max(14, Math.round(W * 0.04));
+            const cs = [[6, 40, 1, 1], [W - 6, 40, -1, 1], [6, H - 6, 1, -1], [W - 6, H - 6, -1, -1]];
+            cs.forEach(([x, y, sx, sy]) => { ctx.beginPath(); ctx.moveTo(x, y + sy * L); ctx.lineTo(x, y); ctx.lineTo(x + sx * L, y); ctx.stroke(); });
+            ctx.restore();
         }
         function cmdTitle(ctx, title, accent) {
+            const W = ctx.canvas.width;
             ctx.save();
-            ctx.shadowColor = accent; ctx.shadowBlur = 10;
-            ctx.fillStyle = '#03060c'; ctx.font = 'bold 18px monospace'; ctx.textBaseline = 'middle'; ctx.fillText(title, 12, 17);
-            ctx.fillStyle = accent; ctx.fillText(title, 12, 17);
+            ctx.shadowColor = accent; ctx.shadowBlur = 14;
+            ctx.fillStyle = '#03060c'; ctx.font = 'bold ' + Math.max(16, Math.round(W * 0.034)) + 'px monospace'; ctx.textBaseline = 'middle';
+            ctx.fillText(title, 14, 21);
+            ctx.fillStyle = accent; ctx.fillText(title, 14, 21);
             ctx.restore();
+            ctx.save(); ctx.strokeStyle = accent; ctx.globalAlpha = 0.5; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(14, 33); ctx.lineTo(W - 14, 33); ctx.stroke(); ctx.restore();
         }
         function cmdText(ctx, text, x, y, color, size) { ctx.fillStyle = color; ctx.font = (size || 15) + 'px monospace'; ctx.textBaseline = 'top'; ctx.fillText(text, x, y); }
         function cmdWrap(ctx, text, x, y, maxW, lh, color, size) {
@@ -2376,9 +2403,9 @@ bloomPass.radius = 0.7;
             if (line) ctx.fillText(line, x, yy);
             return yy + lh;
         }
-        function makeCmdScreen(w, h, action, label, accentHex) {
+        function makeCmdScreen(w, h, action, label, accentHex, cw, ch) {
             const accentHex2 = accentHex || 0x66ffff;
-            const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 384;
+            const canvas = document.createElement('canvas'); canvas.width = cw || 512; canvas.height = ch || 384;
             const tex = new THREE.CanvasTexture(canvas); tex.minFilter = THREE.LinearFilter;
             const mat = new THREE.MeshBasicMaterial({ map: tex });
             const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
@@ -2463,10 +2490,12 @@ bloomPass.radius = 0.7;
         function makeCmdButton(label, accent, action) {
             const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 96;
             const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#06101d'; ctx.fillRect(0, 0, 256, 96);
+            ctx.fillStyle = '#0a1422'; ctx.fillRect(0, 0, 256, 96);
+            ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(6, 6, 244, 30); // top sheen (physical)
             ctx.strokeStyle = accent; ctx.lineWidth = 4; ctx.strokeRect(5, 5, 246, 86);
+            ctx.save(); ctx.shadowColor = accent; ctx.shadowBlur = 10; ctx.strokeStyle = accent; ctx.lineWidth = 2; ctx.strokeRect(11, 11, 234, 74); ctx.restore();
             ctx.fillStyle = accent; ctx.font = 'bold 24px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(label, 128, 49);
+            ctx.fillText(label, 128, 50);
             const tex = new THREE.CanvasTexture(canvas);
             const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.3), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
             mesh.userData.commandConsole = action;
@@ -8139,8 +8168,8 @@ bloomPass.radius = 0.7;
             drawAgentRouteScreen(routeScreen);
             scribeClickTargets.push(routeScreen.grp);
 
-            const jScreen = makeCmdScreen(30, 13, 'journal', 'GSK JOURNAL', 0xffd27a);
-            jScreen.grp.position.set(0, 27, -12);
+            const jScreen = makeCmdScreen(34, 17, 'journal', 'GSK LIVE MIND', 0x66ffff, 760, 560);
+            jScreen.grp.position.set(0, 30, -12);
             terminal.add(jScreen.grp);
             scribeClickTargets.push(jScreen.grp);
             scribeRealm._journalScreen = jScreen;
@@ -8183,35 +8212,50 @@ bloomPass.radius = 0.7;
         }
 
         // ========== GSK JOURNAL — live "his book" streamed into the Scribe world ==========
-        let _gskJournal = { entries: [], typing: null, lastDraw: 0 };
+        // ========== GSK LIVE MIND — thinking + reasoning + writing + doing, streamed into the Scribe world ==========
+        let _gskMind = { thoughts: [], console: [], entries: [], typing: null, lastDraw: 0 };
         function pushScribeJournal(entry) {
             if (!entry) return;
             const item = { stamp: entry.stamp || new Date().toISOString(), text: entry.text || '' };
-            _gskJournal.entries.push(item);
-            if (_gskJournal.entries.length > 6) _gskJournal.entries.shift();
-            _gskJournal.typing = { idx: _gskJournal.entries.length - 1, shown: 0 };
+            _gskMind.entries.push(item);
+            if (_gskMind.entries.length > 6) _gskMind.entries.shift();
+            _gskMind.typing = { idx: _gskMind.entries.length - 1, shown: 0 };
             if (scribeRealm && scribeRealm._journalScreen) scribeRealm._journalScreen.dirty = true;
         }
-        function drawScribeJournal(screen) {
-            const ctx = screen.ctx;
-            cmdClear(ctx, '#ffd27a');
-            cmdTitle(ctx, 'GSK · JOURNAL — HIS BOOK', '#ffd27a');
-            cmdText(ctx, 'written as he thinks · streaming live', 12, 44, '#caa46a', 12);
-            const ents = _gskJournal.entries;
-            let y = 64;
-            for (let i = 0; i < ents.length; i++) {
-                const e = ents[i];
-                const isLast = (i === ents.length - 1);
-                let txt = e.text;
-                if (isLast && _gskJournal.typing) txt = e.text.substring(0, _gskJournal.typing.shown);
-                const head = '▸ ' + (e.stamp ? e.stamp.slice(11, 19) : '');
-                y = cmdWrap(ctx, head, 12, y, 488, 18, '#ffd27a', 13) + 1;
-                y = cmdWrap(ctx, txt || (isLast ? '✎ writing…' : ''), 14, y, 484, 16, isLast ? '#fff0cf' : '#e9d3a3', 13) + 4;
-                if (y > 332) break;
-            }
-            const last = ents.length ? ents[ents.length - 1] : null;
-            const done = !last || !_gskJournal.typing || _gskJournal.typing.shown >= last.text.length;
-            cmdText(ctx, (done ? '● ' : '✎ ') + 'entry #' + ents.length + ' · GSK is writing his bible', 12, 358, '#ffd27a', 12);
+        function pushScribeThought(t) {
+            if (!t) return; _gskMind.thoughts.push(String(t));
+            if (_gskMind.thoughts.length > 12) _gskMind.thoughts.shift();
+            if (scribeRealm && scribeRealm._journalScreen) scribeRealm._journalScreen.dirty = true;
+        }
+        function pushScribeConsole(t) {
+            if (!t) return; _gskMind.console.push(String(t));
+            if (_gskMind.console.length > 12) _gskMind.console.shift();
+            if (scribeRealm && scribeRealm._journalScreen) scribeRealm._journalScreen.dirty = true;
+        }
+        function drawLiveMind(screen) {
+            const ctx = screen.ctx, W = ctx.canvas.width, H = ctx.canvas.height;
+            cmdClear(ctx, '#2a6f8f');
+            cmdTitle(ctx, 'GSK · LIVE MIND', '#9fe8ff');
+            ctx.save(); ctx.globalAlpha = 0.7; ctx.fillStyle = '#cfeaff'; ctx.font = '13px monospace';
+            ctx.fillText('thinking · reasoning · writing · doing — streaming live', 16, 50); ctx.restore();
+            const cy = '#7fe9ff', wy = '#ffd27a', gy = '#8affc4';
+            const secHead = (label, y, col) => { ctx.save(); ctx.fillStyle = col; ctx.font = 'bold 14px monospace'; ctx.fillText(label, 16, y); ctx.restore(); ctx.strokeStyle = col; ctx.globalAlpha = 0.25; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(16, y + 8); ctx.lineTo(W - 16, y + 8); ctx.stroke(); ctx.globalAlpha = 1; };
+            // THOUGHTS — his reasoning
+            let y = 66; secHead('◈ THOUGHTS — his reasoning', y, cy); y += 22;
+            for (const t of _gskMind.thoughts.slice(-5)) { y = cmdWrap(ctx, '› ' + t, 20, y, W - 36, 16, '#cfeeff', 12) + 2; if (y > 206) break; }
+            // WRITING — his book (typed out live)
+            y = 224; secHead('✎ WRITING — his book', y, wy); y += 22;
+            const ents = _gskMind.entries;
+            if (ents.length) {
+                const e = ents[ents.length - 1];
+                let txt = e.text; if (_gskMind.typing) txt = e.text.substring(0, _gskMind.typing.shown);
+                y = cmdWrap(ctx, (e.stamp ? e.stamp.slice(11, 19) + '  ' : '') + txt, 20, y, W - 36, 18, '#fff0cf', 13) + 2;
+                const done = !_gskMind.typing || _gskMind.typing.shown >= e.text.length;
+                cmdWrap(ctx, (done ? '● entry #' : '✎ writing entry #') + ents.length + ' — GSK is writing his bible', 20, 392, W - 36, 16, wy, 12);
+            } else { cmdWrap(ctx, '✎ awaiting his first entry…', 20, y, W - 36, 16, '#e9d3a3', 13); }
+            // CONSOLE — his doing
+            y = 412; secHead('⌁ CONSOLE — his doing', y, gy); y += 22;
+            for (const c of _gskMind.console.slice(-5)) { y = cmdWrap(ctx, '⌁ ' + c, 20, y, W - 36, 15, '#bdf5d8', 11) + 1; if (y > 540) break; }
             screen.tex.needsUpdate = true;
         }
         function connectGskJournalStream() {
@@ -8220,7 +8264,10 @@ bloomPass.radius = 0.7;
                 const ws = new WebSocket(url);
                 ws.onmessage = (e) => {
                     let d = null; try { d = JSON.parse(e.data); } catch (_) { return; }
-                    if (d && d.type === 'journal' && d.entry) pushScribeJournal(d.entry);
+                    if (!d) return;
+                    if (d.type === 'journal' && d.entry) pushScribeJournal(d.entry);
+                    else if (d.type === 'thought') pushScribeThought(d.thought);
+                    else if (d.type === 'console') pushScribeConsole(d.text);
                 };
                 ws.onclose = () => { setTimeout(connectGskJournalStream, 4000); };
                 ws.onerror = () => { try { ws.close(); } catch (_) {} };
@@ -8385,13 +8432,13 @@ bloomPass.radius = 0.7;
                 refreshScribeMemories();
             }
             if (scribeRealm._journalScreen) {
-                const t = _gskJournal.typing;
+                const t = _gskMind.typing;
                 if (t) {
-                    const cur = _gskJournal.entries[t.idx];
+                    const cur = _gskMind.entries[t.idx];
                     if (cur && t.shown < cur.text.length) { t.shown += Math.max(1, Math.round(dt * 160)); if (t.shown > cur.text.length) t.shown = cur.text.length; scribeRealm._journalScreen.dirty = true; }
-                    else { _gskJournal.typing = null; }
+                    else { _gskMind.typing = null; }
                 }
-                if (time - _gskJournal.lastDraw > 0.25) { drawScribeJournal(scribeRealm._journalScreen); _gskJournal.lastDraw = time; }
+                if (time - _gskMind.lastDraw > 0.25) { drawLiveMind(scribeRealm._journalScreen); _gskMind.lastDraw = time; }
             }
         }
         function handleScribeMemoryClick(m) {
