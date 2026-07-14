@@ -9397,25 +9397,100 @@ bloomPass.radius = 0.7;
             const s = new THREE.Sprite(mat); s.scale.set(4, 4, 4); s.position.set(lx, ly, lz); s.renderOrder = 999;
             parent.add(s); allPOIs.push(s); return s;
         }
+        const _realmAtmosFx = [];
+        function makeRealmParticles(color, count, radius, height, size) {
+            const pos = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+                const r = Math.random() * radius;
+                const a = Math.random() * Math.PI * 2;
+                pos[i * 3] = Math.cos(a) * r;
+                pos[i * 3 + 1] = (Math.random() - 0.5) * height;
+                pos[i * 3 + 2] = Math.sin(a) * r;
+            }
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            const m = new THREE.PointsMaterial({ color: color, size: size || 0.7, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+            const p = new THREE.Points(g, m);
+            p.userData.spin = 0.02 + Math.random() * 0.04;
+            _realmAtmosFx.push(p);
+            return p;
+        }
+        function addRealmRimLights(group, color, radius) {
+            const pts = [[radius, 42, 0], [-radius, 42, 0], [0, 42, radius]];
+            for (const [x, y, z] of pts) {
+                const l = new THREE.PointLight(color, 0.9, radius * 2.4, 2);
+                l.position.set(x, y, z);
+                group.add(l);
+            }
+        }
+        function addRealmGroundGlow(group, color, radius) {
+            const ring = new THREE.Mesh(
+                new THREE.RingGeometry(radius * 0.55, radius * 0.62, 96),
+                new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })
+            );
+            ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05;
+            group.add(ring);
+            const disc = new THREE.Mesh(
+                new THREE.CircleGeometry(radius * 0.6, 64),
+                new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })
+            );
+            disc.rotation.x = -Math.PI / 2; disc.position.y = 0.04;
+            group.add(disc);
+        }
         function buildRealmAtmospheres() {
             const defs = [
-                { g: scribeRealm,   c: 0x2aa0c0, lx: 0, ly: 35, lz: 0 },
-                { g: merchantRealm, c: 0xd8a23a, lx: 0, ly: 18, lz: 0 },
-                { g: builderRealm,  c: 0xc8702a, lx: 0, ly: 22, lz: 0 },
-                { g: prophetRealm,  c: 0x8a5ad8, lx: 0, ly: 60, lz: 0 },
-                { g: chamberRoot,   c: 0xb0507a, lx: 0, ly: 30, lz: 0 }
+                { g: scribeRealm,   c: 0x2aa0c0, lx: 0, ly: 35, lz: 0, r: 200 },
+                { g: merchantRealm, c: 0xd8a23a, lx: 0, ly: 18, lz: 0, r: 200 },
+                { g: builderRealm,  c: 0xc8702a, lx: 0, ly: 22, lz: 0, r: 200 },
+                { g: prophetRealm,  c: 0x8a5ad8, lx: 0, ly: 60, lz: 0, r: 200 },
+                { g: chamberRoot,   c: 0xb0507a, lx: 0, ly: 30, lz: 0, r: 200 }
             ];
             for (const d of defs) {
-                const dome = new THREE.Mesh(new THREE.SphereGeometry(180, 24, 16),
-                    new THREE.MeshBasicMaterial({ color: d.c, side: THREE.BackSide, transparent: true, opacity: 0.10, depthWrite: false, fog: false }));
-                dome.position.set(0, 80, 0); d.g.add(dome);
+                const dome = new THREE.Mesh(new THREE.SphereGeometry(180, 28, 18),
+                    new THREE.MeshBasicMaterial({ color: d.c, side: THREE.BackSide, transparent: true, opacity: 0.12, depthWrite: false, fog: false }));
+                dome.position.set(0, 80, 0); dome.userData.baseOpacity = 0.12; d.g.add(dome); _realmAtmosFx.push(dome);
                 const light = new THREE.PointLight(d.c, 1.4, 520, 2); light.position.set(0, 70, 0); d.g.add(light);
                 addPOI(d.g, d.c, d.lx, d.ly, d.lz);
+                d.g.add(makeRealmParticles(d.c, 220, 150, 120, 0.8));
+                addRealmRimLights(d.g, d.c, 150);
+                if (d.g !== merchantRealm) addRealmGroundGlow(d.g, d.c, 200);
             }
             const hubDome = new THREE.Mesh(new THREE.SphereGeometry(260, 24, 16),
                 new THREE.MeshBasicMaterial({ color: 0x3a6ea5, side: THREE.BackSide, transparent: true, opacity: 0.06, depthWrite: false, fog: false }));
             hubDome.position.set(0, 60, 0); scene.add(hubDome);
             if (typeof gskAvatar !== 'undefined' && gskAvatar) addPOI(gskAvatar.group, 0x66ffff, 0, 3.2, 0);
+        }
+        function buildCityAtmosphere() {
+            if (typeof cityGroup === 'undefined' || !cityGroup) return;
+            if (typeof cityGroundMat !== 'undefined' && cityGroundMat) {
+                cityGroundMat.emissive.setHex(0x081830); cityGroundMat.emissiveIntensity = 0.25;
+                cityGroundMat.metalness = 0.45; cityGroundMat.roughness = 0.55;
+            }
+            const gridLights = [[-56, -56], [56, -56], [-56, 56], [56, 56], [0, 0], [-56, 0], [56, 0], [0, -56], [0, 56]];
+            for (const [x, z] of gridLights) {
+                const l = new THREE.PointLight(0x66ccff, 0.6, 40, 2); l.position.set(x, 7, z); cityGroup.add(l);
+                const post = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 7, 6),
+                    new THREE.MeshStandardMaterial({ color: 0x223344, emissive: 0x66ccff, emissiveIntensity: 0.8, roughness: 0.5 }));
+                post.position.set(x, 3.5, z); cityGroup.add(post);
+                const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.6, 10, 10),
+                    new THREE.MeshBasicMaterial({ color: 0x9fe0ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+                bulb.position.set(x, 7.2, z); cityGroup.add(bulb);
+            }
+            cityGroup.add(makeRealmParticles(0x66aaff, 380, 110, 70, 0.6));
+            const ringGlow = new THREE.Mesh(new THREE.RingGeometry(95, 100, 96),
+                new THREE.MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+            ringGlow.rotation.x = -Math.PI / 2; ringGlow.position.y = 0.06; cityGroup.add(ringGlow);
+            const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 160, 10),
+                new THREE.MeshBasicMaterial({ color: 0x66ffff, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+            beacon.position.y = 80; cityGroup.add(beacon);
+        }
+        function updateRealmAtmospheres(time) {
+            for (const o of _realmAtmosFx) {
+                if (o.isPoints) { o.rotation.y += (o.userData.spin || 0.03) * 0.016; }
+                else if (o.userData && o.userData.baseOpacity != null) {
+                    o.material.opacity = o.userData.baseOpacity * (0.7 + Math.sin(time * 0.5 + o.position.x) * 0.3);
+                }
+            }
         }
         function currentRealm() {
             if (inScribe) return 'scribe';
@@ -9469,7 +9544,7 @@ bloomPass.radius = 0.7;
                 allPOIs.forEach(s => s.visible = on);
             });
         })();
-        try { buildRealmAtmospheres(); } catch (e) { console.warn('[Phase1] atmospheres failed', e); }
+        try { buildRealmAtmospheres(); buildCityAtmosphere(); } catch (e) { console.warn('[Phase1] atmospheres failed', e); }
 
         // ========== ANIMATION ==========
         let time = 0, lastTime = 0, _frameCount = 0, _uiTick = 0, _hintCache = '';
@@ -9481,6 +9556,7 @@ bloomPass.radius = 0.7;
             const dt = Math.min(0.033, (now - lastTime) / 1000);
             lastTime = now;
             time += dt;
+            updateRealmAtmospheres(time);
             const _slow = (_frameCount++ & 1) === 0; // half-rate for cosmetic-only systems (Gun H)
             const hubActive = !isInside && !inScribe && !inMerchant && !inBuilder && !inProphet && !inChamber;
             perf.sample(dt);
