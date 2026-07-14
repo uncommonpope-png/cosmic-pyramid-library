@@ -2350,8 +2350,24 @@ bloomPass.radius = 0.7;
 
         // ========== GSK COMMAND CENTER — in-world 3D dashboards inside the pyramid ==========
         let commandCenter = null;
-        function cmdClear(ctx, accent) { ctx.fillStyle = '#04070d'; ctx.fillRect(0, 0, 512, 384); ctx.fillStyle = accent; ctx.fillRect(0, 0, 512, 34); }
-        function cmdTitle(ctx, title, accent) { ctx.fillStyle = accent; ctx.font = 'bold 18px monospace'; ctx.textBaseline = 'middle'; ctx.fillText(title, 12, 17); }
+        function cmdScanlines(ctx) {
+            ctx.save(); ctx.globalAlpha = 0.06; ctx.fillStyle = '#9fd8ff';
+            for (let y = 0; y < 384; y += 3) ctx.fillRect(0, y, 512, 1);
+            ctx.restore();
+        }
+        function cmdClear(ctx, accent) {
+            ctx.fillStyle = '#03060c'; ctx.fillRect(0, 0, 512, 384);
+            ctx.fillStyle = accent; ctx.fillRect(0, 0, 512, 34);
+            ctx.save(); ctx.strokeStyle = accent; ctx.globalAlpha = 0.5; ctx.lineWidth = 2; ctx.strokeRect(3, 3, 506, 378); ctx.restore();
+            cmdScanlines(ctx);
+        }
+        function cmdTitle(ctx, title, accent) {
+            ctx.save();
+            ctx.shadowColor = accent; ctx.shadowBlur = 10;
+            ctx.fillStyle = '#03060c'; ctx.font = 'bold 18px monospace'; ctx.textBaseline = 'middle'; ctx.fillText(title, 12, 17);
+            ctx.fillStyle = accent; ctx.fillText(title, 12, 17);
+            ctx.restore();
+        }
         function cmdText(ctx, text, x, y, color, size) { ctx.fillStyle = color; ctx.font = (size || 15) + 'px monospace'; ctx.textBaseline = 'top'; ctx.fillText(text, x, y); }
         function cmdWrap(ctx, text, x, y, maxW, lh, color, size) {
             ctx.fillStyle = color; ctx.font = (size || 14) + 'px monospace'; ctx.textBaseline = 'top';
@@ -2360,14 +2376,17 @@ bloomPass.radius = 0.7;
             if (line) ctx.fillText(line, x, yy);
             return yy + lh;
         }
-        function makeCmdScreen(w, h, action, label) {
+        function makeCmdScreen(w, h, action, label, accentHex) {
+            const accentHex2 = accentHex || 0x66ffff;
             const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 384;
             const tex = new THREE.CanvasTexture(canvas); tex.minFilter = THREE.LinearFilter;
             const mat = new THREE.MeshBasicMaterial({ map: tex });
             const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
             const frame = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.14, h + 0.14), new THREE.MeshBasicMaterial({ color: 0x05080f }));
             frame.position.z = -0.03;
-            const grp = new THREE.Group(); grp.add(frame); grp.add(mesh);
+            const halo = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.26, h + 0.26), new THREE.MeshBasicMaterial({ color: accentHex2, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false }));
+            halo.position.z = -0.05;
+            const grp = new THREE.Group(); grp.add(halo); grp.add(frame); grp.add(mesh);
             grp.userData.commandConsole = action || true;
             grp.userData.commandAction = action || null;
             grp.userData.commandLabel = label || 'GSK SCREEN';
@@ -2384,13 +2403,18 @@ bloomPass.radius = 0.7;
             ctx.font = '14px monospace'; ctx.fillStyle = '#6f8da8'; ctx.fillText('click console buttons below', 256, 238); ctx.textAlign = 'left';
             screen.tex.needsUpdate = true;
         }
-        function drawRuntime(screen, thoughts) {
+        function drawRuntime(screen, thoughts, ready) {
             const ctx = screen.ctx; cmdClear(ctx, '#66ffff'); cmdTitle(ctx, 'GSK · RUNTIME', '#66ffff');
-            cmdText(ctx, 'READ-ONLY · PROOF OF BEING', 196, 12, '#8affc4', 12);
-            const list = thoughts.slice(-7); let y = 46;
-            for (const t of list) y = cmdWrap(ctx, '› ' + t, 12, y, 488, 22, '#bfefff', 14) + 4;
-            const online = (typeof gskBridge !== 'undefined' && gskBridge && gskBridge.gskOnline);
-            cmdText(ctx, (online ? '● LIVE' : '○ idle') + ' — he thinks & does, you watch', 12, 354, '#66ffff', 12);
+            const blink = (Math.floor(performance.now() / 500) % 2) === 0;
+            ctx.save(); ctx.fillStyle = (ready && blink) ? '#8affc4' : '#2c5a4a'; ctx.shadowColor = '#8affc4'; ctx.shadowBlur = ready ? 12 : 0; ctx.beginPath(); ctx.arc(495, 17, 6, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+            cmdText(ctx, 'READ-ONLY · PROOF OF BEING', 150, 12, '#8affc4', 12);
+            const list = thoughts.slice(-8); let y = 46;
+            for (const t of list) {
+                const isAct = String(t).indexOf('▸') === 0;
+                const line = (isAct ? '' : '› ') + t;
+                y = cmdWrap(ctx, line, 12, y, 488, 20, isAct ? '#ffd27a' : '#bfefff', 13) + 3;
+            }
+            cmdText(ctx, (ready ? '● STREAMING — his actual runtime' : '○ connecting to GSK…'), 12, 358, ready ? '#8affc4' : '#ffcc77', 12);
             screen.tex.needsUpdate = true;
         }
         function drawMood(screen) {
@@ -2604,9 +2628,9 @@ bloomPass.radius = 0.7;
         function buildCommandCenter() {
             const screens = {};
             const sT = makeCmdScreen(2.2, 1.7, 'runtime', 'GSK RUNTIME'); sT.grp.position.set(-1.25, 1.75, -2.66); interiorGroup.add(sT.grp); screens.runtime = sT;
-            const sA = makeCmdScreen(2.2, 1.7, 'agents', 'SPAWN SOUL'); sA.grp.position.set(1.25, 1.75, -2.66); interiorGroup.add(sA.grp); screens.agents = sA;
-            const sM = makeCmdScreen(2.2, 1.7, 'mood', 'SURGE'); sM.grp.position.set(-2.66, 1.75, 0); sM.grp.rotation.y = Math.PI / 2; interiorGroup.add(sM.grp); screens.mood = sM;
-            const sMe = makeCmdScreen(2.2, 1.7, 'memories', 'REFRESH MEMORY'); sMe.grp.position.set(2.66, 1.75, 0); sMe.grp.rotation.y = -Math.PI / 2; interiorGroup.add(sMe.grp); screens.memories = sMe;
+            const sA = makeCmdScreen(2.2, 1.7, 'agents', 'SPAWN SOUL', 0xb9a6ff); sA.grp.position.set(1.25, 1.75, -2.66); interiorGroup.add(sA.grp); screens.agents = sA;
+            const sM = makeCmdScreen(2.2, 1.7, 'mood', 'SURGE', 0xffcc77); sM.grp.position.set(-2.66, 1.75, 0); sM.grp.rotation.y = Math.PI / 2; interiorGroup.add(sM.grp); screens.mood = sM;
+            const sMe = makeCmdScreen(2.2, 1.7, 'memories', 'REFRESH MEMORY', 0x8affc4); sMe.grp.position.set(2.66, 1.75, 0); sMe.grp.rotation.y = -Math.PI / 2; interiorGroup.add(sMe.grp); screens.memories = sMe;
             const buttonDefs = [
                 ['ASK GSK', '#66ffff', 'ask'], ['SPAWN SOUL', '#b9a6ff', 'spawnSoul'], ['SPAWN TOWER', '#8affc4', 'spawnTower'],
                 ['SURGE', '#ffcc77', 'surge'], ['CALM', '#6688ff', 'calm'], ['RECALL', '#ffaa66', 'recall']
@@ -2618,7 +2642,7 @@ bloomPass.radius = 0.7;
                 interiorGroup.add(b);
                 buttons.push(b);
             });
-            const sTerm = makeCmdScreen(3.0, 1.9, 'terminal', 'GSK TERMINAL'); sTerm.grp.position.set(0, 1.05, -1.55); sTerm.grp.visible = false; interiorGroup.add(sTerm.grp); screens.terminal = sTerm;
+            const sTerm = makeCmdScreen(3.0, 1.9, 'terminal', 'GSK TERMINAL', 0x8affc4); sTerm.grp.position.set(0, 1.05, -1.55); sTerm.grp.visible = false; interiorGroup.add(sTerm.grp); screens.terminal = sTerm;
             const kb = makeInWorldKeyboard(); kb.position.set(0, 0.5, -1.12); kb.visible = false; interiorGroup.add(kb);
             pedestal.userData.commandConsole = true;
             bookGroupInt.children.forEach(c => c.userData.commandConsole = true);
