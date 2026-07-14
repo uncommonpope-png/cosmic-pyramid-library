@@ -3190,9 +3190,30 @@ bloomPass.radius = 0.7;
             'covers/brasi.png', 'covers/plt-complete-doctrine.png',
             'covers/the-build.png', 'covers/the-frequency.png', 'covers/the-soul-economy.png'
         ];
-        // slot index -> video url (optional). Craig fills this in as videos are produced.
+        // slot index -> video url. Local ffmpeg Ken-Burns clips (generated from the stills).
+        // Swap any entry for a cloud-GPU AI-generated clip later; no other code change needed.
         const BILLBOARD_VIDEOS = {
-            // 0: 'assets/billboards/billboard-01.mp4',
+            0: 'assets/billboards/billboard-01.mp4',
+            1: 'assets/billboards/billboard-02.mp4',
+            2: 'assets/billboards/billboard-03.mp4',
+            3: 'assets/billboards/billboard-04.mp4',
+            4: 'assets/billboards/billboard-05.mp4',
+            5: 'assets/billboards/billboard-06.mp4',
+            6: 'assets/billboards/billboard-07.mp4',
+            7: 'assets/billboards/billboard-08.mp4',
+            8: 'assets/billboards/billboard-09.mp4',
+            9: 'assets/billboards/billboard-10.mp4',
+            10: 'assets/billboards/billboard-11.mp4',
+            11: 'assets/billboards/billboard-12.mp4',
+            12: 'assets/billboards/billboard-13.mp4',
+            13: 'covers/brasi.mp4',
+            14: 'covers/plt-complete-doctrine.mp4',
+            15: 'covers/the-build.mp4',
+            16: 'covers/the-frequency.mp4',
+            17: 'covers/the-soul-economy.mp4',
+            18: 'assets/billboards/billboard-01.mp4',
+            19: 'assets/billboards/billboard-02.mp4',
+            20: 'assets/billboards/billboard-03.mp4'
         };
         const billboardSpots = [
             { x: -28, z: -43, rot: 0, accent: 0xff33aa },
