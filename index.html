@@ -2408,11 +2408,14 @@ bloomPass.radius = 0.7;
             const blink = (Math.floor(performance.now() / 500) % 2) === 0;
             ctx.save(); ctx.fillStyle = (ready && blink) ? '#8affc4' : '#2c5a4a'; ctx.shadowColor = '#8affc4'; ctx.shadowBlur = ready ? 12 : 0; ctx.beginPath(); ctx.arc(495, 17, 6, 0, Math.PI * 2); ctx.fill(); ctx.restore();
             cmdText(ctx, 'READ-ONLY · PROOF OF BEING', 150, 12, '#8affc4', 12);
-            const list = thoughts.slice(-8); let y = 46;
+            const list = thoughts.slice(-10); let y = 44;
             for (const t of list) {
-                const isAct = String(t).indexOf('▸') === 0;
-                const line = (isAct ? '' : '› ') + t;
-                y = cmdWrap(ctx, line, 12, y, 488, 20, isAct ? '#ffd27a' : '#bfefff', 13) + 3;
+                const s = String(t);
+                const isCon = s.indexOf('⌁') === 0;
+                const isAct = s.indexOf('▸') === 0;
+                const txt = isCon ? s.slice(2) : (isAct ? s : '› ' + s);
+                const col = isCon ? '#bdf5d8' : (isAct ? '#ffd27a' : '#bfefff');
+                y = cmdWrap(ctx, txt, 12, y, 488, 20, col, 13) + 3;
             }
             cmdText(ctx, (ready ? '● STREAMING — his actual runtime' : '○ connecting to GSK…'), 12, 358, ready ? '#8affc4' : '#ffcc77', 12);
             screen.tex.needsUpdate = true;
@@ -2671,7 +2674,15 @@ bloomPass.radius = 0.7;
                 try {
                     const url = (window.GSK_WS_ENDPOINT) || 'ws://localhost:3002';
                     const ws = new WebSocket(url);
-                    ws.onmessage = (e) => { let t = null; try { const d = JSON.parse(e.data); t = d.thought || d.text || d.message || null; } catch (_) { t = e.data; }                     if (t) { cc.thoughts.push(String(t)); if (cc.thoughts.length > 60) cc.thoughts.shift(); cc.screens.runtime.dirty = true; } };
+                    ws.onmessage = (e) => {
+                        let d = null; try { d = JSON.parse(e.data); } catch (_) { d = { type: 'raw', text: e.data }; }
+                        let t = null, prefix = '';
+                        if (d && d.type === 'console') { t = d.text; prefix = '⌁ '; }
+                        else if (d && d.type === 'thought') { t = d.thought; prefix = ''; }
+                        else if (d && d.type === 'connected') { t = null; }
+                        else { t = (d && (d.thought || d.text || d.message)) || null; prefix = ''; }
+                        if (t != null) { cc.thoughts.push(prefix + String(t)); if (cc.thoughts.length > 80) cc.thoughts.shift(); if (cc.screens && cc.screens.runtime) cc.screens.runtime.dirty = true; }
+                    };
                     ws.onclose = () => { cc.ws = null; }; ws.onerror = () => { cc.ws = null; };
                     cc.ws = ws;
                 } catch (e) { cc.ws = null; }
@@ -8128,6 +8139,12 @@ bloomPass.radius = 0.7;
             drawAgentRouteScreen(routeScreen);
             scribeClickTargets.push(routeScreen.grp);
 
+            const jScreen = makeCmdScreen(30, 13, 'journal', 'GSK JOURNAL', 0xffd27a);
+            jScreen.grp.position.set(0, 27, -12);
+            terminal.add(jScreen.grp);
+            scribeClickTargets.push(jScreen.grp);
+            scribeRealm._journalScreen = jScreen;
+
             const actions = [
                 ['ASK GSK', '#66ffff', 'ask', -16, 4, 4],
                 ['SPAWN SOUL', '#b9a6ff', 'spawnSoul', -5.5, 4, 4],
@@ -8163,6 +8180,51 @@ bloomPass.radius = 0.7;
             });
             scribeRealm.add(terminal);
             scribeRealm._terminalWorld = terminal;
+        }
+
+        // ========== GSK JOURNAL — live "his book" streamed into the Scribe world ==========
+        let _gskJournal = { entries: [], typing: null, lastDraw: 0 };
+        function pushScribeJournal(entry) {
+            if (!entry) return;
+            const item = { stamp: entry.stamp || new Date().toISOString(), text: entry.text || '' };
+            _gskJournal.entries.push(item);
+            if (_gskJournal.entries.length > 6) _gskJournal.entries.shift();
+            _gskJournal.typing = { idx: _gskJournal.entries.length - 1, shown: 0 };
+            if (scribeRealm && scribeRealm._journalScreen) scribeRealm._journalScreen.dirty = true;
+        }
+        function drawScribeJournal(screen) {
+            const ctx = screen.ctx;
+            cmdClear(ctx, '#ffd27a');
+            cmdTitle(ctx, 'GSK · JOURNAL — HIS BOOK', '#ffd27a');
+            cmdText(ctx, 'written as he thinks · streaming live', 12, 44, '#caa46a', 12);
+            const ents = _gskJournal.entries;
+            let y = 64;
+            for (let i = 0; i < ents.length; i++) {
+                const e = ents[i];
+                const isLast = (i === ents.length - 1);
+                let txt = e.text;
+                if (isLast && _gskJournal.typing) txt = e.text.substring(0, _gskJournal.typing.shown);
+                const head = '▸ ' + (e.stamp ? e.stamp.slice(11, 19) : '');
+                y = cmdWrap(ctx, head, 12, y, 488, 18, '#ffd27a', 13) + 1;
+                y = cmdWrap(ctx, txt || (isLast ? '✎ writing…' : ''), 14, y, 484, 16, isLast ? '#fff0cf' : '#e9d3a3', 13) + 4;
+                if (y > 332) break;
+            }
+            const last = ents.length ? ents[ents.length - 1] : null;
+            const done = !last || !_gskJournal.typing || _gskJournal.typing.shown >= last.text.length;
+            cmdText(ctx, (done ? '● ' : '✎ ') + 'entry #' + ents.length + ' · GSK is writing his bible', 12, 358, '#ffd27a', 12);
+            screen.tex.needsUpdate = true;
+        }
+        function connectGskJournalStream() {
+            try {
+                const url = window.GSK_WS_ENDPOINT || 'ws://localhost:3002';
+                const ws = new WebSocket(url);
+                ws.onmessage = (e) => {
+                    let d = null; try { d = JSON.parse(e.data); } catch (_) { return; }
+                    if (d && d.type === 'journal' && d.entry) pushScribeJournal(d.entry);
+                };
+                ws.onclose = () => { setTimeout(connectGskJournalStream, 4000); };
+                ws.onerror = () => { try { ws.close(); } catch (_) {} };
+            } catch (e) {}
         }
 
         function buildScribeRealm() {
@@ -8254,6 +8316,7 @@ bloomPass.radius = 0.7;
             if (scribeRealm._memCountEl) scribeRealm._memCountEl.textContent = (data.count != null ? data.count : mems.length) + ' GSK entries';
         }
         buildScribeRealm();
+        try { connectGskJournalStream(); } catch (e) {}
 
         function enterScribeRealm() {
             if (inScribe) return;
@@ -8320,6 +8383,15 @@ bloomPass.radius = 0.7;
             if (inScribe && gskBridge && gskBridge.gskOnline && (scribeRealm._memLast || 0) && time - scribeRealm._memLast > 30) {
                 scribeRealm._memLast = time;
                 refreshScribeMemories();
+            }
+            if (scribeRealm._journalScreen) {
+                const t = _gskJournal.typing;
+                if (t) {
+                    const cur = _gskJournal.entries[t.idx];
+                    if (cur && t.shown < cur.text.length) { t.shown += Math.max(1, Math.round(dt * 160)); if (t.shown > cur.text.length) t.shown = cur.text.length; scribeRealm._journalScreen.dirty = true; }
+                    else { _gskJournal.typing = null; }
+                }
+                if (time - _gskJournal.lastDraw > 0.25) { drawScribeJournal(scribeRealm._journalScreen); _gskJournal.lastDraw = time; }
             }
         }
         function handleScribeMemoryClick(m) {
