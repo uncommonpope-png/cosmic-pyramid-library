@@ -4001,6 +4001,50 @@ bloomPass.radius = 0.7;
             'Run with Shift, jump with Space, fly with F.',
             'The kits are sleeping until the city can carry them.'
         ];
+        // ========== WALKING CITIZEN RIGS (real rigged GLBs w/ walk+idle cycles) ==========
+        // Pulled from three.js' GitHub repo (Soldier / RobotExpressive / Xbot) so the city
+        // citizens are actual animated characters, not sliding placeholders. Each gets a
+        // cloned skeleton + an AnimationMixer; Walk plays while moving, Idle while waiting.
+        const walkerRigUrls = [
+            'assets/city/walkers/Soldier.glb',
+            'assets/city/walkers/RobotExpressive.glb',
+            'assets/city/walkers/Xbot.glb'
+        ];
+        const walkerRigPool = [];
+        const walkerWaiters = [];
+        function onWalkerRig(i, fn) {
+            if (walkerRigPool[i]) { fn(walkerRigPool[i]); return; }
+            walkerWaiters.push({ i, fn });
+        }
+        walkerRigUrls.forEach((url, i) => {
+            makeGLTF({ lazy: true }).load(url, (gltf) => {
+                walkerRigPool[i] = { scene: gltf.scene, anims: gltf.animations };
+                walkerWaiters.splice(0).forEach((w) => { if (w.i === i) w.fn(walkerRigPool[i]); });
+            }, undefined, (e) => console.warn('[WalkerRig] load failed', url, e));
+        });
+        function assignWalkerRig(group, rigIdx, talkData, placeholder) {
+            onWalkerRig(rigIdx, (rig) => {
+                if (!group.parent) return;
+                if (placeholder && placeholder.parent === group) group.remove(placeholder);
+                const clone = cloneSkeleton(rig.scene);
+                clone.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                const box = new THREE.Box3().setFromObject(clone);
+                const sizeV = new THREE.Vector3(); box.getSize(sizeV);
+                const s = 1.85 / (sizeV.y || 1.8);
+                clone.scale.setScalar(s);
+                const box2 = new THREE.Box3().setFromObject(clone);
+                clone.position.y -= box2.min.y; // feet on the ground
+                stampNpcTalk(clone, talkData);
+                group.add(clone);
+                const mixer = new THREE.AnimationMixer(clone);
+                const findClip = (re) => rig.anims.find((a) => re.test(a.name)) || rig.anims[0];
+                const walk = mixer.clipAction(findClip(/walk/i)); walk.loop = THREE.LoopRepeat;
+                const idle = mixer.clipAction(findClip(/idle/i)); idle.loop = THREE.LoopRepeat;
+                idle.play();
+                group.userData.walker = { mixer, walk, idle, current: idle };
+            });
+        }
+
         const citizens = [];
         for (let i = 0; i < 25; i++) {
             const cGroup = new THREE.Group();
@@ -4020,7 +4064,7 @@ bloomPass.radius = 0.7;
             cGroup.position.set(Math.cos(a) * r, 0.2, Math.sin(a) * r);
             cityGroup.add(cGroup);
             npcTalkTargets.push(cGroup);
-            scheduleGlbNpcBody(cGroup, NPC_WALKER_KINDS[i % NPC_WALKER_KINDS.length], talkData, [body]);
+            assignWalkerRig(cGroup, i % walkerRigUrls.length, talkData, body);
             const baseSpeed = 1 + Math.random() * 2;
             citizens.push({ group: cGroup, target: new THREE.Vector3(), hasTarget: false, timer: 0, next: 2 + Math.random() * 4, baseSpeed, speed: baseSpeed });
         }
@@ -9651,6 +9695,16 @@ bloomPass.radius = 0.7;
                         c.group.position.add(dir);
                         c.group.rotation.y = Math.atan2(dir.x, dir.z);
                     } else { c.hasTarget = false; }
+                }
+                const w = c.group.userData.walker;
+                if (w && w.mixer) {
+                    const want = c.hasTarget ? w.walk : w.idle;
+                    if (w.current !== want) {
+                        w.current.fadeOut(0.25);
+                        want.reset().fadeIn(0.25).play();
+                        w.current = want;
+                    }
+                    w.mixer.update(dt);
                 }
             }
             if (paimonMixer) paimonMixer.update(dt);
