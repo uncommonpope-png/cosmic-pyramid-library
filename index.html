@@ -847,6 +847,8 @@
         }, 13000);
     </script>
 
+    <script src="./cpl-config.js"></script>
+
     <script type="importmap">
         {
             "imports": {
@@ -6216,7 +6218,7 @@ bloomPass.radius = 0.7;
         
         // ========== GSK MCP CLIENT ==========
         class GSKClient {
-            constructor(baseUrl = 'http://localhost:3001', apiKey = 'gsk-mcp-key-dev') {
+            constructor(baseUrl = '', apiKey = '') {
                 this.baseUrl = baseUrl;
                 this._apiKey = apiKey;
                 this.connected = false;
@@ -6245,6 +6247,7 @@ bloomPass.radius = 0.7;
             }
 
             async _fetch(path, options = {}) {
+                if (!this.baseUrl) throw new Error('Hosted GSK endpoint is not configured');
                 const url = `${this.baseUrl}${path}`;
                 const headers = { ...(options.headers || {}) };
                 if (this._apiKey) { headers['x-api-key'] = this._apiKey; }
@@ -6341,7 +6344,7 @@ bloomPass.radius = 0.7;
         // ========== GSK PANEL CONTROLLER ==========
         // Endpoint is configurable: set window.GSK_ENDPOINT before load to point the GitHub
         // Pages build at a hosted GSK backend. Defaults to localhost:3001 (your machine).
-        const gsk = new GSKClient(window.GSK_ENDPOINT || 'http://localhost:3001');
+        const gsk = new GSKClient(window.GSK_ENDPOINT || '', window.GSK_API_KEY || '');
         const gskPanel = document.getElementById('gsk-panel');
         const gskStatusIndicator = document.getElementById('gsk-status-indicator');
         const gskMood = document.getElementById('gsk-mood');
@@ -6516,7 +6519,11 @@ bloomPass.radius = 0.7;
 
         // API key input
         gskApiKeyInput.addEventListener('change', () => {
-            gsk.setApiKey(gskApiKeyInput.value.trim());
+            const key = gskApiKeyInput.value.trim();
+            sessionStorage.setItem('cpl-soul-key', key);
+            window.GSK_API_KEY = key;
+            gsk.setApiKey(key);
+            if (window.__sanctum && typeof window.__sanctum.setToken === 'function') window.__sanctum.setToken(key);
             pollGsk();
         });
 
@@ -7197,16 +7204,14 @@ bloomPass.radius = 0.7;
 
             _wsUrl() {
                 if (window.GSK_WS_ENDPOINT) return window.GSK_WS_ENDPOINT;
-                // GSK thought stream runs on its own port (3002); REST/MCP API on 3001.
-                const base = (typeof gsk !== 'undefined' && gsk.baseUrl) ? gsk.baseUrl : 'http://localhost:3001';
-                if (base === 'http://localhost:3001') return 'ws://localhost:3002';
-                return base.replace(/^http/, 'ws');
+                return '';
             }
 
             _connect() {
                 if (typeof WebSocket === 'undefined') return;
                 let url;
                 try { url = this._wsUrl(); } catch (e) { return; }
+                if (!url) return;
                 try {
                     this.ws = new WebSocket(url);
                 } catch (e) {
@@ -7405,18 +7410,28 @@ bloomPass.radius = 0.7;
                 this.reconnectTimer = null;
                 this.world = world; // Reference to the CPL world instance
                 this.worldState = null; // Store the latest world state
+                this.token = window.GSK_API_KEY || sessionStorage.getItem('cpl-soul-key') || '';
                 this._connect();
             }
 
+            setToken(token) {
+                this.token = token || '';
+                if (this.ws) { try { this.ws.close(); } catch (e) {} }
+            }
+
             _wsUrl() {
-                // For Sanctum, always connect to 9001
-                return window.SANCTUM_WS_ENDPOINT || `ws://localhost:${this.port}`;
+                const endpoint = window.SANCTUM_WS_ENDPOINT || '';
+                if (!endpoint) return '';
+                const url = new URL(endpoint);
+                if (this.token) url.searchParams.set('token', this.token);
+                return url.toString();
             }
 
             _connect() {
                 if (typeof WebSocket === 'undefined') return;
                 let url;
                 try { url = this._wsUrl(); } catch (e) { return; }
+                if (!url) return;
                 try {
                     this.ws = new WebSocket(url);
                 } catch (e) {
