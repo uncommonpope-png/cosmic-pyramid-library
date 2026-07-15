@@ -1279,6 +1279,7 @@ bloomPass.radius = 0.7;
         const BLOOM_SCALE = 0.5; // bloom is a full-screen post pass -> half res = ~4x cheaper
         const _perfTmp = new THREE.Vector3();
         let _perfRunning = true; // pause the loop when the tab is hidden
+        let _audioSeeded = false;
         function probeInitialTier() {
             try {
                 const mem = navigator.deviceMemory || 4;
@@ -3382,6 +3383,114 @@ bloomPass.radius = 0.7;
         }
         const VIDEO_PLAY_DISTANCE = 130, MAX_ACTIVE_VIDEOS = 6;
         const NPC_SIZE_REF = 1.7; // unified human reference height (world units) for all character NPCs
+
+        // ========== POSITIONAL AUDIO (engine 1/7) ==========
+        // Three.js PositionalAudio — distance-attenuated ambient drones anchored in the world.
+        // Browsers block audio until a user gesture, so the AudioContext is created/resumed on
+        // first click/key. Gated off on the 'low' perf tier to protect weak PCs. No audio assets
+        // required: drones are synthesized procedurally into AudioBuffers.
+        const CPL_AUDIO = (() => {
+            let listener = null, enabled = true, started = false;
+            const sources = [];
+            function ensure() {
+                if (listener || !THREE.AudioListener) return;
+                listener = new THREE.AudioListener();
+                if (camera) camera.add(listener);
+            }
+            function makeDroneBuffer(ctx, baseFreq) {
+                const dur = 4, sr = ctx.sampleRate, len = Math.floor(sr * dur);
+                const buf = ctx.createBuffer(2, len, sr);
+                for (let ch = 0; ch < 2; ch++) {
+                    const d = buf.getChannelData(ch);
+                    for (let i = 0; i < len; i++) {
+                        const t = i / sr;
+                        let v = Math.sin(2 * Math.PI * baseFreq * t) * 0.5
+                              + Math.sin(2 * Math.PI * baseFreq * 1.5 * t) * 0.16
+                              + Math.sin(2 * Math.PI * baseFreq * 0.5 * t) * 0.34;
+                        v *= 0.5 + 0.5 * Math.sin(2 * Math.PI * 0.25 * t);
+                        d[i] = v * 0.16;
+                    }
+                }
+                return buf;
+            }
+            function addSource(parent, opts) {
+                if (!parent) return null;
+                if (!enabled || (perf && perf.tier === 'low') || !THREE.AudioListener) return null;
+                ensure();
+                if (!listener) return null;
+                try {
+                    const ctx = listener.context;
+                    const sound = new THREE.PositionalAudio(listener);
+                    sound.setBuffer(makeDroneBuffer(ctx, opts.freq || 110));
+                    sound.setRefDistance(opts.ref || 18);
+                    sound.setRolloffFactor(opts.rolloff || 1.2);
+                    sound.setLoop(true);
+                    sound.setVolume(opts.vol == null ? 0.45 : opts.vol);
+                    parent.add(sound);
+                    const rec = { sound, baseFreq: opts.freq || 110, vol: opts.vol == null ? 0.45 : opts.vol };
+                    sources.push(rec);
+                    return rec;
+                } catch (e) { return null; }
+            }
+            function resumeAndPlay() {
+                ensure();
+                if (!listener) return;
+                const ctx = listener.context;
+                if (ctx.state === 'suspended') ctx.resume();
+                if (enabled && !(perf && perf.tier === 'low')) {
+                    sources.forEach(s => { if (!s.sound.isPlaying) { try { s.sound.play(); } catch (e) {} } });
+                }
+                started = true;
+            }
+            let _gestureBound = false;
+            function attachGesture() {
+                if (_gestureBound) return; _gestureBound = true;
+                const h = () => resumeAndPlay();
+                window.addEventListener('pointerdown', h);
+                window.addEventListener('keydown', h);
+            }
+            function setMuted(m) {
+                enabled = !m;
+                if (!listener) return;
+                sources.forEach(s => {
+                    try { if (m) { if (s.sound.isPlaying) s.sound.pause(); } else { if (!s.sound.isPlaying) s.sound.play(); } } catch (e) {}
+                });
+            }
+            // GSK mood/phase modulates brightness (playbackRate) + presence (volume)
+            const MOOD_RATE = { ascendant: 1.12, creative: 1.06, focused: 1.0, neutral: 0.96, anxious: 0.86, void: 0.78 };
+            function update(time) {
+                if (!started || !listener || !enabled) return;
+                const mood = (typeof gskBridge !== 'undefined' && gskBridge.gskOnline) ? (gskBridge.currentMood || 'neutral') : 'neutral';
+                const rate = MOOD_RATE[mood] || 0.96;
+                for (const s of sources) {
+                    if (!s.sound.isPlaying) continue;
+                    try {
+                        s.sound.setPlaybackRate(rate);
+                        const target = s.vol * (mood === 'void' ? 0.7 : 1);
+                        s.sound.setVolume(target);
+                    } catch (e) {}
+                }
+            }
+            function seed() {
+                if (sources.length) return;
+                // hub library hum
+                addSource(scene, { freq: 70, ref: 26, rolloff: 1.0, vol: 0.4 });
+                // central core drone
+                addSource(scene, { freq: 110, ref: 22, rolloff: 1.3, vol: 0.42 });
+                // heaven shimmer (heaven group exposed at window.__heaven)
+                if (window.__heaven) addSource(window.__heaven, { freq: 220, ref: 20, rolloff: 1.4, vol: 0.3 });
+            }
+            return { init: ensure, attachGesture, seed, update, setMuted, addSource, get started() { return started; } };
+        })();
+        CPL_AUDIO.init();
+        CPL_AUDIO.attachGesture();
+        let _audioMuted = false;
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'm' || e.key === 'M') {
+                _audioMuted = !_audioMuted;
+                CPL_AUDIO.setMuted(_audioMuted);
+            }
+        });
         function updateBillboardVideoPlayback() {
             let active = 0;
             for (const fx of _billboardFx) {
@@ -9711,6 +9820,8 @@ bloomPass.radius = 0.7;
             lastTime = now;
             time += dt;
             updateRealmAtmospheres(time);
+            if (!_audioSeeded) { _audioSeeded = true; CPL_AUDIO.seed(); }
+            CPL_AUDIO.update(time);
             updateBillboards(time);
             updateBillboardVideoPlayback();
             const _slow = (_frameCount++ & 1) === 0; // half-rate for cosmetic-only systems (Gun H)
