@@ -1029,6 +1029,38 @@
             const def = { cpu: 0, gpu: 0, memory: 0, updateFreq: 0, priority: 0, sector: 'unknown', sleep: 'never' };
             obj.userData.cost = Object.assign(def, partial || {});
         };
+
+        // ========== GENESIS RESOURCE MANAGER (Phase B1 — manager #1) ==========
+        // Central ledger of every GPU resource: who owns it + what it costs (reads userData.cost).
+        // Audits against renderer.info.memory so leaks are never invisible.
+        // Flag-gated by window.__GENESIS_RESOURCE_MANAGER (default true; false => no-op).
+        window.__GENESIS_RESOURCE_MANAGER = (typeof window.__GENESIS_RESOURCE_MANAGER === 'boolean') ? window.__GENESIS_RESOURCE_MANAGER : true;
+        (function () {
+            if (window.__GENESIS_RESOURCE_MANAGER === false) { Genesis.ResourceManager = { track(){}, untrack(){}, audit(){return{healthy:true};}, dispose(){return 0;}, summary(){return{total:0};} }; return; }
+            const registry = new Set();
+            const _typeOf = (res) => !res ? 'unknown' : (res.isBufferGeometry || res.isGeometry) ? 'geometry' : res.isMaterial ? 'material' : res.isTexture ? 'texture' : res.isWebGLRenderTarget ? 'rt' : 'unknown';
+            Genesis.ResourceManager = {
+                track(res, owner, obj) {
+                    if (!res) return; const type = _typeOf(res); if (type === 'unknown') return;
+                    const cost = (obj && obj.userData && obj.userData.cost) ? obj.userData.cost : null;
+                    registry.add({ res, type, owner: owner || 'unknown', cost });
+                },
+                untrack(res) { for (const e of registry) { if (e.res === res) { registry.delete(e); break; } } },
+                audit() {
+                    const info = (renderer && renderer.info && renderer.info.memory) ? renderer.info.memory : { geometries: 0, textures: 0 };
+                    let geo = 0, tex = 0; for (const e of registry) { if (e.type === 'geometry') geo++; else if (e.type === 'texture') tex++; }
+                    return { trackedGeometries: geo, liveGeometries: info.geometries, orphansGeo: geo - info.geometries, trackedTextures: tex, liveTextures: info.textures, orphansTex: tex - info.textures, total: registry.size, healthy: (geo - info.geometries) <= 0 && (tex - info.textures) <= 0 };
+                },
+                dispose(owner) { let n = 0; for (const e of [...registry]) { if (e.owner !== owner) continue; try { if (e.type === 'geometry' && e.res.dispose) e.res.dispose(); else if (e.type === 'material') { if (e.res.map && e.res.map.dispose) e.res.map.dispose(); if (e.res.dispose) e.res.dispose(); } else if (e.type === 'texture' && e.res.dispose) e.res.dispose(); else if (e.type === 'rt' && e.res.dispose) e.res.dispose(); } catch (_) {} registry.delete(e); n++; } return n; },
+                summary() { const byOwner = {}; for (const e of registry) byOwner[e.owner] = (byOwner[e.owner] || 0) + 1; return { total: registry.size, byOwner, audit: this.audit() }; }
+            };
+            // Prove the P8 static ES-module split is viable: load the extracted module and adopt it.
+            import('./src/genesis/resource-manager.js').then((m) => {
+                const ext = m.install(window.Genesis, THREE, renderer);
+                if (ext && typeof console !== 'undefined') console.log('[Genesis] Resource Manager loaded from module (src/genesis/resource-manager.js)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Resource Manager module load skipped:', e && e.message); });
+        })();
+
         Genesis.notifyError = function (message) {
             if (!message) return;
             this.setStatus('error: ' + message, 'err');
