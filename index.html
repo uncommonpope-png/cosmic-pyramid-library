@@ -566,6 +566,30 @@
           #intro-overlay p { display: none; }
           #intro-overlay .keys { font-size: 9px; }
         }
+        /* ========== SCROLL-WORLD LOAD SCREEN ========== */
+        #scroll-loader { position: fixed; inset: 0; z-index: 300; display: flex; flex-direction: column;
+          justify-content: flex-end; align-items: center; pointer-events: none; transition: opacity 0.9s ease;
+          font-family: Georgia, serif; color: #dcefff; }
+        #scroll-loader.hidden { opacity: 0; pointer-events: none; }
+        #scroll-loader .sl-progress-track { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+          width: min(420px, 70vw); height: 4px; background: rgba(120,200,255,0.16); border-radius: 4px; overflow: hidden; }
+        #scroll-loader .sl-progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg,#66ffff,#ffd27a);
+          box-shadow: 0 0 14px rgba(102,255,255,0.6); transition: width 0.2s linear; }
+        #scroll-loader .sl-pct { position: absolute; left: 50%; top: calc(50% + 22px); transform: translateX(-50%);
+          font-size: 13px; letter-spacing: 4px; color: #9fd0ff; }
+        #scroll-loader .sl-card { pointer-events: auto; margin-bottom: 7vh; padding: 16px 22px; border-radius: 14px;
+          border: 1px solid rgba(120,200,255,0.34); background: linear-gradient(145deg, rgba(7,13,27,0.9), rgba(10,25,43,0.78));
+          box-shadow: 0 12px 40px rgba(0,0,0,0.45), 0 0 28px rgba(40,120,200,0.18); backdrop-filter: blur(12px);
+          text-align: center; max-width: min(520px, 86vw); }
+        #scroll-loader h1 { font-size: 20px; letter-spacing: 5px; margin: 0 0 4px; color: #ffe0a8; }
+        #scroll-loader .sl-sub { font-size: 10px; color: #9fd0ff; letter-spacing: 2px; margin-bottom: 10px; }
+        #scroll-loader .sl-hint { font-size: 12px; color: #cfe6ff; line-height: 1.5; }
+        #scroll-loader .sl-hint b { color: #66ffff; }
+        #scroll-loader .sl-enter { margin-top: 12px; font-family: Georgia, serif; font-size: 12px; letter-spacing: 3px;
+          padding: 9px 22px; border-radius: 22px; border: 1px solid #66ffff; background: rgba(20,60,90,0.86);
+          color: #dffaff; cursor: pointer; pointer-events: auto; display: none; }
+        #scroll-loader .sl-enter.show { display: inline-block; }
+        #scroll-loader .sl-enter:hover { background: rgba(40,100,150,0.9); }
         #objective { position: fixed; left: 14px; top: 14px; z-index: 60; max-width: 240px; padding: 10px 14px;
           font-family: Georgia, serif; font-size: 12px; line-height: 1.5; color: #dcefff; text-align: left;
           background: rgba(8,16,32,0.72); border: 1px solid rgba(102,255,255,0.3); border-radius: 12px; display: none;
@@ -3491,6 +3515,94 @@ bloomPass.radius = 0.7;
                 CPL_AUDIO.setMuted(_audioMuted);
             }
         });
+
+        // ========== SCROLL-WORLD LOAD SCREEN (graft of oso95/scroll-world) ==========
+        // The LIVE CPL world IS the loader: the camera flies a pre-baked approach path while
+        // assets stream in. Scroll wheel scrubs the flight (scroll-world); load progress auto-
+        // advances it. When the world is ready the ENTER button appears; clicking it hands
+        // control to the player at the hub spawn. No separate capture pipeline required — we
+        // render our own world in real time (the Runtime Witness Recorder upgrade follows).
+        let loaderActive = false;
+        const ScrollWorldLoader = (() => {
+            let t = 0;            // 0..1 flight progress
+            let ready = false;    // critical assets loaded
+            let el, fill, pct, enterBtn;
+            // camera flythrough keyframes: [position, lookAt]
+            const PATH = [
+                { p: new THREE.Vector3(0, 70, 140), l: new THREE.Vector3(0, 6, 0) },
+                { p: new THREE.Vector3(46, 34, 78), l: new THREE.Vector3(0, 10, 0) },
+                { p: new THREE.Vector3(22, 14, 44), l: new THREE.Vector3(0, 5, 0) },
+                { p: new THREE.Vector3(9, 6, 24),  l: new THREE.Vector3(0, 3, 0) },
+                { p: new THREE.Vector3(0, 2.4, 18), l: new THREE.Vector3(0, 2.0, 6) }
+            ];
+            const _pos = new THREE.Vector3(), _look = new THREE.Vector3();
+            function samplePath(u) {
+                u = Math.max(0, Math.min(1, u));
+                const n = PATH.length - 1;
+                const f = u * n;
+                const i = Math.min(n - 1, Math.floor(f));
+                const k = f - i;
+                _pos.lerpVectors(PATH[i].p, PATH[i + 1].p, k);
+                _look.lerpVectors(PATH[i].l, PATH[i + 1].l, k);
+            }
+            function applyCamera() {
+                samplePath(t);
+                camera.position.copy(_pos);
+                camera.lookAt(_look);
+            }
+            function setProgress() {
+                const p = Math.round(Math.min(1, t) * 100);
+                if (fill) fill.style.width = p + '%';
+                if (pct) pct.textContent = p + '%';
+            }
+            function maybeShowEnter() {
+                if (ready && enterBtn) enterBtn.classList.add('show');
+            }
+            function finish() {
+                if (!loaderActive) return;
+                loaderActive = false;
+                if (el) el.classList.add('hidden');
+                // hand control to the player at the hub spawn (matches the npc camera)
+                playerNPC.position.set(0, 0, 12);
+                playerYaw = Math.PI;
+                playerPitch = 0.25;
+                playerFlying = false; playerGrounded = true; playerFloorY = 0;
+                setCameraMode('npc');
+            }
+            function init() {
+                el = document.getElementById('scroll-loader');
+                fill = document.getElementById('sl-fill');
+                pct = document.getElementById('sl-pct');
+                enterBtn = document.getElementById('sl-enter');
+                if (!el) return;
+                const io = document.getElementById('intro-overlay');
+                if (io) io.style.display = 'none';
+                // Hide the built-in opaque loader so the LIVE world shows through the scroll loader.
+                if (typeof loaderOverlay !== 'undefined' && loaderOverlay) loaderOverlay.classList.add('hidden');
+                loaderActive = true;
+                applyCamera();
+                setProgress();
+                window.addEventListener('wheel', (e) => {
+                    if (!loaderActive) return;
+                    const step = (e.deltaY > 0 ? 0.0022 : -0.0022) * (Math.abs(e.deltaY) / 8 + 1);
+                    t = Math.max(0, Math.min(1, t + step));
+                    applyCamera(); setProgress(); maybeShowEnter();
+                }, { passive: true });
+                if (enterBtn) enterBtn.addEventListener('click', finish);
+                window.addEventListener('keydown', (e) => { if (loaderActive && (e.key === 'Enter' || e.code === 'Enter')) finish(); });
+                // Readiness comes from the built-in loader (window.__cplReady), not by overwriting
+                // criticalManager.onLoad. Backstop in case the signal is missed.
+                setTimeout(() => { if (!ready) { ready = true; maybeShowEnter(); } }, 15000);
+            }
+            function update(dt) {
+                if (!loaderActive) return;
+                if (window.__cplReady) { ready = true; maybeShowEnter(); }
+                if (t < 1) { t = Math.min(1, t + dt * 0.1); applyCamera(); setProgress(); }
+                maybeShowEnter();
+            }
+            return { init, update, get active() { return loaderActive; }, finish };
+        })();
+        ScrollWorldLoader.init();
         function updateBillboardVideoPlayback() {
             let active = 0;
             for (const fx of _billboardFx) {
@@ -4607,6 +4719,7 @@ bloomPass.radius = 0.7;
         });
 
         function updatePlayerNPC(dt) {
+            if (loaderActive) return; // scroll-world loader owns the camera during initial load
             if (cameraMode !== 'npc') return;
             const forward = new THREE.Vector3(Math.sin(playerYaw), 0, Math.cos(playerYaw));
             const right = new THREE.Vector3(Math.cos(playerYaw), 0, -Math.sin(playerYaw));
@@ -9819,6 +9932,7 @@ bloomPass.radius = 0.7;
             const dt = Math.min(0.033, (now - lastTime) / 1000);
             lastTime = now;
             time += dt;
+            if (loaderActive) ScrollWorldLoader.update(dt);
             updateRealmAtmospheres(time);
             if (!_audioSeeded) { _audioSeeded = true; CPL_AUDIO.seed(); }
             CPL_AUDIO.update(time);
@@ -10217,6 +10331,17 @@ bloomPass.radius = 0.7;
     </div>
 
     <div id="objective"></div>
+
+    <div id="scroll-loader">
+        <div class="sl-progress-track"><div class="sl-progress-fill" id="sl-fill"></div></div>
+        <div class="sl-pct" id="sl-pct">0%</div>
+        <div class="sl-card">
+            <h1>THE LIVING LIBRARY</h1>
+            <div class="sl-sub">GSK · SOUL PROTOCOL · ENTERING THE WORLD</div>
+            <div class="sl-hint">Scroll, or simply wait — your approach flight is <b>scrubbable</b>. The world streams in around you.</div>
+            <button class="sl-enter" id="sl-enter">ENTER THE LIBRARY</button>
+        </div>
+    </div>
 
 </body>
 </html>
