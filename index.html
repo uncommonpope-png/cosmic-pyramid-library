@@ -3614,6 +3614,36 @@ bloomPass.radius = 0.7;
             return { init, update, get active() { return loaderActive; }, finish };
         })();
         ScrollWorldLoader.init();
+
+        // ========== YUKA STEERING (engine 2/7) ==========
+        // Smooth autonomous steering for the hub citizens, replacing the random
+        // pick-a-target wander. Loaded via dynamic import so a CDN failure can't break
+        // the world — citizens fall back to their existing wander.
+        let YUKA = null, yukaTime = null, yukaSteering = false;
+        const yukaEntities = [];
+        async function initYuka() {
+            if (YUKA) return YUKA;
+            try {
+                YUKA = await import('https://unpkg.com/yuka@0.7.8/build/yuka.module.js');
+                yukaTime = new YUKA.Time();
+                return YUKA;
+            } catch (e) { console.warn('[Yuka] load failed — steering disabled', e); YUKA = null; return null; }
+        }
+        function attachYukaToCitizens() {
+            if (!YUKA || !citizens.length) return;
+            try {
+                for (const c of citizens) {
+                    const e = new YUKA.Entity();
+                    e.position.set(c.group.position.x, 0, c.group.position.z);
+                    e.maxSpeed = 2.2;
+                    e.steering.add(new YUKA.WanderBehavior(6));
+                    c.yuka = e;
+                    yukaEntities.push(e);
+                }
+                yukaSteering = true;
+            } catch (e) { console.warn('[Yuka] attach failed — steering disabled', e); yukaSteering = false; }
+        }
+        initYuka().then(attachYukaToCitizens);
         function updateBillboardVideoPlayback() {
             let active = 0;
             for (const fx of _billboardFx) {
@@ -10146,7 +10176,28 @@ bloomPass.radius = 0.7;
             }
             
             // --- citizens wandering ---
+            if (yukaSteering) { yukaTime.update(); for (const e of yukaEntities) e.update(yukaTime); }
             for (const c of citizens) {
+                if (yukaSteering && c.yuka) {
+                    c.group.position.x = c.yuka.position.x;
+                    c.group.position.z = c.yuka.position.z;
+                    const d = Math.hypot(c.group.position.x, c.group.position.z), maxR = 28;
+                    if (d > maxR) {
+                        const k = maxR / d;
+                        c.group.position.x *= k; c.group.position.z *= k;
+                        c.yuka.position.x = c.group.position.x; c.yuka.position.z = c.group.position.z;
+                    }
+                    const v = c.yuka.velocity;
+                    if (v.lengthSq() > 1e-4) c.group.rotation.y = Math.atan2(v.x, v.z);
+                    const w = c.group.userData.walker;
+                    if (w && w.mixer) {
+                        const moving = v.lengthSq() > 0.02;
+                        const want = moving ? w.walk : w.idle;
+                        if (w.current !== want) { w.current.fadeOut(0.25); want.reset().fadeIn(0.25).play(); w.current = want; }
+                        w.mixer.update(dt);
+                    }
+                    continue;
+                }
                 c.timer += dt;
                 if (c.timer > c.next) {
                     c.timer = 0;
