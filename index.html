@@ -1314,6 +1314,8 @@ bloomPass.radius = 0.7;
                 if (typeof floatingDust !== 'undefined') floatingDust.visible = (t !== 'low');
                 if (typeof embers !== 'undefined') embers.visible = (t !== 'low');
                 if (typeof dust !== 'undefined') dust.visible = (t !== 'low');
+                if (typeof _realmAtmosFx !== 'undefined') _realmAtmosFx.forEach(o => { o.visible = (t !== 'low'); });
+                if (typeof cityGroup !== 'undefined' && cityGroup) cityGroup.children.forEach(o => { if (o.isPointLight && o.userData.cityGrid) o.visible = (t !== 'low'); });
                 console.log('[PERF] tier=' + t + ' bloom=' + bloomPass.enabled + ' px=' + renderer.getPixelRatio().toFixed(2) + ' fillLightsOff=' + (t === 'low' ? this.lowLights.length : 0));
             },
             sample(dt) {
@@ -3388,8 +3390,9 @@ bloomPass.radius = 0.7;
                     if (fx.videoTex && fx.mat.map === fx.videoTex && fx.posterTex) { fx.mat.map = fx.posterTex; fx.mat.needsUpdate = true; }
                     continue;
                 }
+                const maxV = (perf && perf.tier === 'medium') ? 4 : MAX_ACTIVE_VIDEOS;
                 const d = camera.position.distanceTo(fx.group.position);
-                const near = d < VIDEO_PLAY_DISTANCE && active < MAX_ACTIVE_VIDEOS;
+                const near = d < VIDEO_PLAY_DISTANCE && active < maxV;
                 fx._near = near;
                 if (near) {
                     if (!fx.videoTex) { try { fx.video.load(); } catch (e) {} }
@@ -9386,10 +9389,22 @@ bloomPass.radius = 0.7;
             calm: 0x8fe6c4, awe: 0xc8a8ff, anxious: 0xd66b6b, default: 0x88aaff
         };
         const chamberWorlds = {};
+        function disposeObjectDeep(obj) {
+            obj.traverse((o) => {
+                if (o.geometry) try { o.geometry.dispose(); } catch (e) {}
+                if (o.material) {
+                    const mats = Array.isArray(o.material) ? o.material : [o.material];
+                    mats.forEach((m) => {
+                        for (const k in m) { const v = m[k]; if (v && v.isTexture) try { v.dispose(); } catch (e) {} }
+                        try { m.dispose(); } catch (e) {}
+                    });
+                }
+            });
+        }
 
         function buildChamberInto(group, index) {
             const assetLayer = group.userData.realmAssetLayer;
-            group.children.slice().forEach((child) => { if (child !== assetLayer) group.remove(child); });
+            group.children.slice().forEach((child) => { if (child !== assetLayer) { disposeObjectDeep(child); group.remove(child); } });
             chamberClickTargets.length = 0;
             if (assetLayer) assetLayer.traverse((o) => { if (o.isMesh) chamberClickTargets.push(o); });
             const biome = CHAMBER_BIOMES[index % CHAMBER_BIOMES.length];
@@ -9605,7 +9620,7 @@ bloomPass.radius = 0.7;
             }
             const gridLights = [[-56, -56], [56, -56], [-56, 56], [56, 56], [0, 0], [-56, 0], [56, 0], [0, -56], [0, 56]];
             for (const [x, z] of gridLights) {
-                const l = new THREE.PointLight(0x66ccff, 0.6, 40, 2); l.position.set(x, 7, z); cityGroup.add(l);
+                const l = new THREE.PointLight(0x66ccff, 0.6, 40, 2); l.position.set(x, 7, z); l.userData.cityGrid = true; cityGroup.add(l);
                 const post = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 7, 6),
                     new THREE.MeshStandardMaterial({ color: 0x223344, emissive: 0x66ccff, emissiveIntensity: 0.8, roughness: 0.5 }));
                 post.position.set(x, 3.5, z); cityGroup.add(post);
@@ -9622,6 +9637,7 @@ bloomPass.radius = 0.7;
             beacon.position.y = 80; cityGroup.add(beacon);
         }
         function updateRealmAtmospheres(time) {
+            if (perf && perf.tier === 'low') return;
             for (const o of _realmAtmosFx) {
                 if (o.isPoints) { o.rotation.y += (o.userData.spin || 0.03) * 0.016; }
                 else if (o.userData && o.userData.baseOpacity != null) {
