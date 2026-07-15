@@ -3543,7 +3543,7 @@ bloomPass.radius = 0.7;
         }, undefined, (err) => { console.warn('[Road] load failed:', err); });
         
         const carAssets = [
-            'assets/recent/cars/1979_bmw_m1.glb',
+            'assets/cadillac/cadillac_cts-v_coupe_race_car.opt.glb',
             'assets/recent/cars/free_cyberpunk_hovercar.glb'
         ];
         const carLoader = makeGLTF({ lazy: true });
@@ -3581,7 +3581,7 @@ bloomPass.radius = 0.7;
         const avatarAssets = [
             { kind: 'gsk', path: 'assets/recent/arena/grand_supreme_kai_-_dragon_ball_z.glb', target: 2.2 },
             { kind: 'scribe', path: 'assets/ifa/-_genshin_impact_-_anemo_-_ifa.opt.glb', target: 2.0 },
-            { kind: 'merchant', path: 'assets/recent/avatars/lola_bunny__free.glb', target: 1.9 },
+            { kind: 'merchant', path: 'assets/angel/angel.opt.glb', target: 1.9 },
             { kind: 'builder', path: 'assets/recent/cosmos/franz_viehbocks_sokol_space_suit.glb', target: 2.0 },
             { kind: 'prophet', path: 'assets/recent/arena/amemiya_nazuna_vshojo_-_low_poly_pixel.glb', target: 1.9 },
             { kind: 'catgirl', path: 'assets/recent/menagerie/cat_girl_-_rigged.glb' },
@@ -5296,8 +5296,8 @@ bloomPass.radius = 0.7;
                 // not random perimeter drops colliding with the main city.
                 this.kits = [
                     { file: 'bionic_architecture.glb', glb: 'assets/recent/cosmos/bionic_architecture.glb', target: 22, pos: [-58, 0.05, -78], rot: 0.18, pad: [30, 22], col: 0x66ddff },
-                    { file: 'futuristic_background_buildings_kit_volume_2.glb', glb: 'assets/recent/cosmos/futuristic_background_buildings_kit_volume_2.glb', target: 34, pos: [0, 0.05, -88], rot: 0, pad: [48, 28], col: 0xff77dd },
-                    { file: 'neighbourhood_city_modular_lowpoly.glb', glb: 'assets/recent/cosmos/neighbourhood_city_modular_lowpoly.glb', target: 42, pos: [58, 0.05, -78], rot: -0.18, pad: [54, 32], col: 0xffcc66 }
+                    { file: 'bionic_architecture.glb', glb: 'assets/recent/cosmos/bionic_architecture.glb', target: 34, pos: [0, 0.05, -88], rot: 0, pad: [48, 28], col: 0xff77dd },
+                    { file: 'bionic_architecture.glb', glb: 'assets/recent/cosmos/bionic_architecture.glb', target: 42, pos: [58, 0.05, -78], rot: -0.18, pad: [54, 32], col: 0xffcc66 }
                 ];
                 this._buildPads();
                 this._load();
@@ -7715,9 +7715,9 @@ bloomPass.radius = 0.7;
                     const t = (entity.visual && entity.visual.theme) || 'default';
                     const map = {
                         pyramid:  'assets/recent/cosmos/bionic_architecture.glb',
-                        crystal:  'assets/recent/cosmos/procedural_city_5.glb',
-                        factory:  'assets/recent/cosmos/futuristic_background_buildings_kit_volume_2.glb',
-                        default:  'assets/recent/cosmos/neighbourhood_city_modular_lowpoly.glb'
+                        crystal:  'assets/recent/cosmos/bionic_architecture.glb',
+                        factory:  'assets/recent/cosmos/bionic_architecture.glb',
+                        default:  'assets/recent/cosmos/bionic_architecture.glb'
                     };
                     return map[t] || map.default;
                 }
@@ -7725,9 +7725,9 @@ bloomPass.radius = 0.7;
                     const a = (entity.visual && entity.visual.archetype) || 'default';
                     const map = {
                         scribe:   'assets/recent/avatars/cat_girl_-_rigged.glb',
-                        merchant: 'assets/recent/avatars/lola_bunny__free.glb',
+                        merchant: 'assets/angel/angel.opt.glb',
                         builder:  'assets/recent/avatars/dragon_ball_z_baby_goku.glb',
-                        prophet:  'assets/recent/avatars/skull_in_astronaut_helmet.glb',
+                        prophet:  'assets/recent/celestia/guardian_angel_pet.glb',
                         default:  'assets/recent/celestia/guardian_angel_pet.glb'
                     };
                     return map[a] || map.default;
