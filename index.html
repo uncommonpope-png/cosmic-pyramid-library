@@ -3644,6 +3644,77 @@ bloomPass.radius = 0.7;
             } catch (e) { console.warn('[Yuka] attach failed — steering disabled', e); yukaSteering = false; }
         }
         initYuka().then(attachYukaToCitizens);
+
+        // ========== THREE.QUARKS GPU PARTICLES (engine 3/7) ==========
+        // A single GPU-batched particle fountain rising from the pyramid capstone —
+        // golden energy that cools to violet as it climbs (ColorOverLife). Replaces
+        // the old CPU ember effect with one draw call. Loaded via dynamic import
+        // from CDN so a network/CDN failure can't break the world; on any error
+        // the system self-disables and the rest of CPL keeps running. Off on 'low'.
+        let QK = null, _qkSys = null, _qkRenderer = null, _qkReady = false;
+        function makeSoftCircleTexture() {
+            const s = 64, c = document.createElement('canvas'); c.width = c.height = s;
+            const x = c.getContext('2d');
+            const g = x.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+            g.addColorStop(0, 'rgba(255,255,255,1)');
+            g.addColorStop(0.4, 'rgba(255,220,150,0.7)');
+            g.addColorStop(1, 'rgba(255,180,80,0)');
+            x.fillStyle = g; x.fillRect(0, 0, s, s);
+            const t = new THREE.CanvasTexture(c); t.needsUpdate = true; return t;
+        }
+        async function initQuarks() {
+            if (_qkReady || (perf && perf.tier === 'low')) return;
+            try {
+                const Q = await import('https://unpkg.com/three.quarks@0.17.1/dist/three.quarks.esm.js');
+                QK = Q;
+                const tex = makeSoftCircleTexture();
+                const material = new THREE.MeshBasicMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true });
+                const sys = new Q.ParticleSystem({
+                    autoDestroy: false, looping: true, duration: 1,
+                    shape: new Q.ConeEmitter({ radius: 0.35, height: 0.3, angle: Math.PI / 9 }),
+                    startLife: new Q.IntervalValue(1.4, 2.8),
+                    startSpeed: new Q.IntervalValue(0.7, 2.0),
+                    startSize: new Q.IntervalValue(0.12, 0.42),
+                    startColor: new Q.ConstantColor(new THREE.Vector4(1, 0.62, 0.18, 1)),
+                    emissionOverTime: new Q.ConstantValue(34),
+                    material,
+                    instancingGeometry: new THREE.PlaneGeometry(1, 1),
+                    renderMode: Q.RenderMode.BillBoard,
+                    worldSpace: false,
+                    behaviors: [
+                        new Q.ColorOverLife(new Q.Gradient(
+                            [[new THREE.Vector3(1, 0.78, 0.30), 0], [new THREE.Vector3(1, 0.35, 0.05), 0.55], [new THREE.Vector3(0.62, 0.12, 0.78), 1]],
+                            [[1, 0], [1, 0.5], [0, 1]]
+                        )),
+                        new Q.SizeOverLife(new Q.IntervalValue(0.18, 0.55)),
+                    ],
+                });
+                const emitter = new Q.ParticleEmitter(sys);
+                sys.emitter = emitter;
+                emitter.position.set(0, 2.85, 0); // pyramid capstone apex
+                scene.add(emitter);
+                const br = new Q.BatchedParticleRenderer();
+                br.addSystem(sys);
+                scene.add(br);
+                sys.play();
+                _qkSys = sys; _qkRenderer = br; _qkReady = true;
+                console.log('[CPL] three.quarks fountain active');
+            } catch (e) { console.warn('[CPL] three.quarks unavailable:', e.message); }
+        }
+        function updateQuarks(dt) {
+            if (!_qkReady) return;
+            try {
+                let energy = 0.5;
+                if (typeof gskBridge !== 'undefined' && gskBridge.currentMood) {
+                    energy = ({ ascendant: 1, creative: 0.8, focused: 0.6, neutral: 0.5, anxious: 0.3, void: 0.15 })[gskBridge.currentMood] ?? 0.5;
+                }
+                _qkSys.emissionOverTime.value = 18 + energy * 30;
+                _qkSys.update(dt);
+                _qkRenderer.update();
+            } catch (e) { _qkReady = false; } // deactivate on any GPU error, world keeps running
+        }
+        initQuarks();
+
         function updateBillboardVideoPlayback() {
             let active = 0;
             for (const fx of _billboardFx) {
@@ -9977,6 +10048,7 @@ bloomPass.radius = 0.7;
             updateRealmAtmospheres(time);
             if (!_audioSeeded) { _audioSeeded = true; CPL_AUDIO.seed(); }
             CPL_AUDIO.update(time);
+            updateQuarks(dt);
             updateBillboards(time);
             updateBillboardVideoPlayback();
             const _slow = (_frameCount++ & 1) === 0; // half-rate for cosmetic-only systems (Gun H)
