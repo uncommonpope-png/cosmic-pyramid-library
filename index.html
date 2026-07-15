@@ -845,6 +845,21 @@
         #loader-bar-wrap { width: 100%; height: 4px; background: rgba(255,255,255,.12); border-radius: 4px; overflow: hidden; }
         #loader-bar { width: 0%; height: 100%; background: linear-gradient(90deg,#ff66cc,#66ffff); transition: width .25s ease; box-shadow: 0 0 12px #66ffff; }
         #loader-pct { margin-top: 7px; font-size: 10px; opacity: .78; }
+        /* ========== GENESIS TIER 0: subtle diagnostics pill ========== */
+        #genesis-pill {
+            position: fixed; left: 16px; top: 74px; z-index: 9998; min-width: 170px; max-width: min(420px, calc(100vw - 32px));
+            padding: 8px 10px; border-radius: 999px; border: 1px solid rgba(120,200,255,0.22);
+            background: rgba(3,10,22,0.72); color: #bfe6ff; backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25); font: 11px/1.35 'Segoe UI', system-ui, sans-serif;
+            letter-spacing: 0.3px; pointer-events: none; opacity: 0; transition: opacity .25s ease, border-color .25s ease;
+        }
+        #genesis-pill.show { opacity: 1; }
+        #genesis-pill.warn { border-color: rgba(255,210,122,0.5); color: #ffe0a8; }
+        #genesis-pill.err { border-color: rgba(255,102,153,0.6); color: #ffd2e1; }
+        #genesis-pill .g-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+        #genesis-pill .g-row + .g-row { margin-top: 3px; }
+        #genesis-pill .g-label { font-size: 10px; letter-spacing: 1.2px; opacity: 0.74; text-transform: uppercase; }
+        #genesis-pill .g-value { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     </style>
     <div id="loader-overlay">
         <div id="loader-title">COSMIC PYRAMID LIBRARY</div>
@@ -857,18 +872,66 @@
     <script>
         window.__cplReady = false;
         window.__cplErr = null;
+        window.__genesisErrors = [];
+        window.__genesisBackstopReleased = false;
+        window.__genesisFirstFrameSeen = false;
+        window.__genesisPendingLoaderReleaseReason = null;
+        function __genesisSetLoaderText(message, title) {
+            var p = document.getElementById('loader-pct');
+            if (p && message) p.textContent = message;
+            var t = document.getElementById('loader-title');
+            if (t && title) t.textContent = title;
+            var cap = document.getElementById('sl-caption');
+            if (cap && message) cap.textContent = message;
+        }
+        function __genesisReleaseLoader(reason, options) {
+            options = options || {};
+            if (window.__genesisBackstopReleased) return true;
+            if (!options.force && !window.__genesisFirstFrameSeen) {
+                if (reason) __genesisSetLoaderText(reason, 'CPL — WAITING FOR FIRST FRAME');
+                window.__genesisPendingLoaderReleaseReason = reason || window.__genesisPendingLoaderReleaseReason;
+                return false;
+            }
+            window.__genesisBackstopReleased = true;
+            var overlay = document.getElementById('loader-overlay');
+            if (overlay) overlay.classList.add('hidden');
+            var enterBtn = document.getElementById('sl-enter');
+            if (enterBtn) enterBtn.classList.add('show');
+            if (reason) __genesisSetLoaderText(reason, 'CPL — SURVIVAL MODE');
+            return true;
+        }
+        function __genesisMarkFirstFrame() {
+            if (window.__genesisFirstFrameSeen) return;
+            window.__genesisFirstFrameSeen = true;
+            if (!window.__cplReady && window.__genesisPendingLoaderReleaseReason && !window.__genesisBackstopReleased) {
+                __genesisReleaseLoader(window.__genesisPendingLoaderReleaseReason);
+            }
+        }
+        function __genesisPushError(message) {
+            window.__cplErr = message || 'script error';
+            window.__genesisErrors.push({ at: Date.now(), message: window.__cplErr });
+            if (window.__genesisErrors.length > 10) window.__genesisErrors.shift();
+            if (window.Genesis && typeof window.Genesis.notifyError === 'function') window.Genesis.notifyError(window.__cplErr);
+        }
         window.addEventListener('error', function (e) {
-            window.__cplErr = (e.message || 'script error') + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + (e.lineno || '') : '');
+            __genesisPushError((e.message || 'script error') + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + (e.lineno || '') : ''));
         });
         window.addEventListener('unhandledrejection', function (e) {
-            window.__cplErr = 'promise: ' + (e.reason && e.reason.message ? e.reason.message : e.reason);
+            __genesisPushError('promise: ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
         });
         setTimeout(function () {
             if (!window.__cplReady) {
-                var p = document.getElementById('loader-pct');
-                if (p) p.textContent = 'startup issue: ' + (window.__cplErr || 'module did not start (open console)');
-                var t = document.getElementById('loader-title');
-                if (t) t.textContent = 'CPL — NEEDS ATTENTION';
+                __genesisReleaseLoader('Genesis backstop: critical load is slow — waiting for first frame before safe entry.');
+            }
+        }, 8000);
+        setTimeout(function () {
+            if (!window.__cplReady) {
+                if (window.__genesisFirstFrameSeen) {
+                    __genesisSetLoaderText('startup issue: ' + (window.__cplErr || 'critical load incomplete — survival mode active'), 'CPL — NEEDS ATTENTION');
+                    __genesisReleaseLoader(window.__cplErr || 'Startup degraded after first frame — survival mode active.');
+                } else {
+                    __genesisSetLoaderText('startup issue: ' + (window.__cplErr || 'module did not reach a first frame (open console / refresh)'), 'CPL — NEEDS ATTENTION');
+                }
             }
         }, 13000);
     </script>
@@ -899,6 +962,235 @@
         import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
         import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
+        // ========== GENESIS TIER 0: telemetry + survival + registry ==========
+        const Genesis = window.Genesis || (window.Genesis = {});
+        Genesis.version = 'tier0-foundation';
+        Genesis.errors = window.__genesisErrors || (window.__genesisErrors = []);
+        Genesis.boot = Genesis.boot || {
+            startedAt: performance.now(),
+            firstFrameAt: 0,
+            criticalLoadedAt: 0,
+            backstopReleased: !!window.__genesisBackstopReleased,
+            contextLost: false,
+            contextLosses: 0,
+            recoveryActive: false,
+            recoveryAttempt: 0,
+            recoveryStage: 'idle',
+            recoveryReadyForStableFrames: false,
+            recoveryFrames: 0,
+            lastContextLostAt: 0,
+            lastContextRestoredAt: 0,
+            fallbackVisible: false,
+            lastStatus: 'booting'
+        };
+        Genesis.ui = Genesis.ui || (() => {
+            const root = document.getElementById('genesis-pill');
+            const statusEl = document.getElementById('genesis-status');
+            const metricsEl = document.getElementById('genesis-metrics');
+            const detailEl = document.getElementById('genesis-detail');
+            const debugPinned = /[?&](?:genesisDebug|debugGenesis)=1(?:&|$)/.test(location.search);
+            return {
+                root, statusEl, metricsEl, detailEl,
+                setTone(tone) {
+                    if (!root) return;
+                    const boot = (window.Genesis && window.Genesis.boot) ? window.Genesis.boot : null;
+                    const visible = debugPinned || tone === 'warn' || tone === 'err' || !window.__cplReady || !!(boot && boot.recoveryActive);
+                    root.classList.toggle('show', visible);
+                    root.classList.toggle('warn', tone === 'warn');
+                    root.classList.toggle('err', tone === 'err');
+                },
+                setStatus(message, tone = 'ok') {
+                    if (statusEl) statusEl.textContent = message;
+                    this.setTone(tone);
+                },
+                setMetrics(message, tone = 'ok') {
+                    if (metricsEl) metricsEl.textContent = message;
+                    this.setTone(tone);
+                },
+                setDetail(message, tone = 'ok') {
+                    if (detailEl) detailEl.textContent = message;
+                    this.setTone(tone);
+                }
+            };
+        })();
+        Genesis.setStatus = function (message, tone = 'ok') {
+            this.boot.lastStatus = message;
+            this.ui.setStatus(message, tone);
+        };
+        Genesis.notifyError = function (message) {
+            if (!message) return;
+            this.setStatus('error: ' + message, 'err');
+        };
+        Genesis.errorWindowMs = Genesis.errorWindowMs || 8000;
+        Genesis.hasActiveError = function (now = Date.now()) {
+            const last = this.errors && this.errors.length ? this.errors[this.errors.length - 1] : null;
+            return !!(last && (now - last.at) < this.errorWindowMs);
+        };
+        Genesis.markRecovery = function (stage, tone = 'warn') {
+            this.boot.recoveryStage = stage || 'pending';
+            this.setStatus('rebuild: ' + this.boot.recoveryStage, tone);
+        };
+        function createGenesisRegistry() {
+            let nextId = 1;
+            const records = new WeakMap();
+            let registeredResources = 0;
+            const ownerCounts = new Map();
+            function track(res, meta = {}) {
+                if (!res || (typeof res !== 'object' && typeof res !== 'function')) return res;
+                const existing = records.get(res);
+                if (existing) { Object.assign(existing, meta); return res; }
+                const record = {
+                    id: nextId++,
+                    kind: meta.kind || (res.isTexture ? 'texture' : res.isMaterial ? 'material' : res.isBufferGeometry ? 'geometry' : res.isObject3D ? 'object3d' : 'resource'),
+                    owner: meta.owner || 'unowned',
+                    realm: meta.realm || null,
+                    source: meta.source || null,
+                    createdAt: performance.now()
+                };
+                records.set(res, record);
+                registeredResources++;
+                ownerCounts.set(record.owner, (ownerCounts.get(record.owner) || 0) + 1);
+                return res;
+            }
+            function trackMaterial(material, meta = {}) {
+                const mats = Array.isArray(material) ? material : [material];
+                mats.forEach((mat) => {
+                    if (!mat) return;
+                    track(mat, Object.assign({ kind: 'material' }, meta));
+                    for (const key in mat) {
+                        const value = mat[key];
+                        if (value && value.isTexture) track(value, { kind: 'texture', owner: meta.owner || 'material-texture', realm: meta.realm || null, source: meta.source || key });
+                    }
+                    if (mat.uniforms) {
+                        for (const key in mat.uniforms) {
+                            const uniformValue = mat.uniforms[key] && mat.uniforms[key].value;
+                            if (uniformValue && uniformValue.isTexture) track(uniformValue, { kind: 'texture', owner: meta.owner || 'uniform-texture', realm: meta.realm || null, source: meta.source || key });
+                        }
+                    }
+                });
+            }
+            function trackObject3D(obj, meta = {}) {
+                if (!obj || !obj.traverse) return obj;
+                obj.traverse((node) => {
+                    track(node, Object.assign({ kind: 'object3d' }, meta));
+                    if (node.geometry) track(node.geometry, { kind: 'geometry', owner: meta.owner || node.name || 'mesh', realm: meta.realm || null, source: meta.source || null });
+                    if (node.material) trackMaterial(node.material, { owner: meta.owner || node.name || 'mesh', realm: meta.realm || null, source: meta.source || null });
+                    if (node.skeleton && node.skeleton.boneTexture) track(node.skeleton.boneTexture, { kind: 'texture', owner: meta.owner || node.name || 'skeleton', realm: meta.realm || null, source: 'skeleton.boneTexture' });
+                });
+                return obj;
+            }
+            function audit(renderer) {
+                const topRegisteredOwners = Array.from(ownerCounts.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5)
+                    .map(([owner, count]) => ({ owner, count }));
+                return {
+                    registrySemantics: 'cumulative-registrations',
+                    registeredResources,
+                    geometries: renderer && renderer.info ? renderer.info.memory.geometries : 0,
+                    textures: renderer && renderer.info ? renderer.info.memory.textures : 0,
+                    programs: renderer && renderer.info && renderer.info.programs ? renderer.info.programs.length : 0,
+                    topRegisteredOwners
+                };
+            }
+            function disposeOwner(owner) {
+                console.warn('[GenesisRegistry] disposeOwner is unavailable in weak-tracking mode for', owner);
+                return 0;
+            }
+            return { track, trackMaterial, trackObject3D, audit, disposeOwner };
+        }
+        Genesis.registry = Genesis.registry || createGenesisRegistry();
+        // ========== GENESIS TIER 1 / SHARD B: lifecycle + mixer budget foundation ==========
+        function createGenesisLifecycle() {
+            const mixerMeta = new WeakMap();
+            const _sectorPos = new THREE.Vector3();
+            function getMixerMeta(mixer) {
+                return mixer ? mixerMeta.get(mixer) || null : null;
+            }
+            function resolveMixerRoot(mixer, meta = null) {
+                const resolvedMeta = meta || getMixerMeta(mixer);
+                if (resolvedMeta && resolvedMeta.root) return resolvedMeta.root;
+                if (mixer && mixer.getRoot) return mixer.getRoot();
+                return null;
+            }
+            function linkMixerRoot(mixer, root) {
+                if (!mixer || !root || !root.userData) return;
+                if (!root.userData.__genesisMixers) root.userData.__genesisMixers = new Set();
+                root.userData.__genesisMixers.add(mixer);
+            }
+            function unlinkMixerRoot(mixer, root) {
+                if (!mixer || !root || !root.userData || !root.userData.__genesisMixers) return;
+                root.userData.__genesisMixers.delete(mixer);
+                if (!root.userData.__genesisMixers.size) delete root.userData.__genesisMixers;
+            }
+            function registerMixer(mixer, meta = {}) {
+                if (!mixer) return mixer;
+                const prev = mixerMeta.get(mixer);
+                if (prev && prev.root && prev.root !== meta.root) unlinkMixerRoot(mixer, prev.root);
+                const next = Object.assign({
+                    critical: false,
+                    maxDistance: 220,
+                    allowWhenHidden: false,
+                    sleepWhenFar: true,
+                    sleepWhenDetached: true,
+                    root: null,
+                    owner: 'mixer'
+                }, prev || {}, meta);
+                mixerMeta.set(mixer, next);
+                if (next.root) linkMixerRoot(mixer, next.root);
+                return mixer;
+            }
+            function deregisterMixer(mixer) {
+                const meta = mixerMeta.get(mixer);
+                if (meta && meta.root) unlinkMixerRoot(mixer, meta.root);
+                mixerMeta.delete(mixer);
+            }
+            function isSectorActive(root, meta = {}) {
+                if (!root) return true;
+                if (!meta.allowWhenHidden && root.visible === false) return false;
+                if (meta.sleepWhenDetached !== false && !root.parent) return false;
+                if (!meta.sleepWhenFar || !camera) return true;
+                root.updateWorldMatrix(true, false);
+                _sectorPos.setFromMatrixPosition(root.matrixWorld);
+                const maxDistance = meta.maxDistance || 220;
+                return camera.position.distanceToSquared(_sectorPos) <= maxDistance * maxDistance;
+            }
+            function updateMixer(mixer, dt, metaOverride = null) {
+                if (!mixer) return false;
+                const meta = metaOverride ? registerMixer(mixer, metaOverride) && mixerMeta.get(mixer) : mixerMeta.get(mixer);
+                const root = resolveMixerRoot(mixer, meta);
+                if (meta && !meta.critical && !isSectorActive(root, meta)) return false;
+                mixer.update(dt);
+                return true;
+            }
+            function deregisterMixersDeep(obj) {
+                if (!obj || !obj.traverse) return 0;
+                let removed = 0;
+                obj.traverse((node) => {
+                    const set = node.userData && node.userData.__genesisMixers;
+                    if (!set) return;
+                    Array.from(set).forEach((mixer) => { deregisterMixer(mixer); removed++; });
+                });
+                return removed;
+            }
+            return { registerMixer, deregisterMixer, updateMixer, isSectorActive, deregisterMixersDeep, getMixerMeta, resolveMixerRoot };
+        }
+        Genesis.lifecycle = Genesis.lifecycle || createGenesisLifecycle();
+        if (!THREE.TextureLoader.prototype.__genesisPatched) {
+            const _textureLoad = THREE.TextureLoader.prototype.load;
+            THREE.TextureLoader.prototype.load = function (url, onLoad, onProgress, onError) {
+                const owner = this.__genesisOwner || ('texture:' + String(url || '').split('/').pop());
+                return _textureLoad.call(this, url, (texture) => {
+                    Genesis.registry.track(texture, { kind: 'texture', owner, source: url });
+                    if (onLoad) onLoad(texture);
+                }, onProgress, (err) => {
+                    Genesis.notifyError('texture: ' + String(url || '').split('/').pop());
+                    if (onError) onError(err);
+                });
+            };
+            THREE.TextureLoader.prototype.__genesisPatched = true;
+        }
+
         // ========== SOUL GUN E: decode the ~800MB of GLBs OFF the main thread ==========
         try { MeshoptDecoder.useWorkers(4); } catch (e) { console.warn('[PERF] meshopt workers unavailable', e); }
 
@@ -916,13 +1208,21 @@
             const mgr = lazy ? loadingManager : criticalManager;
             const l = new GLTFLoader(mgr);
             l.setMeshoptDecoder(MeshoptDecoder);
-            if (lazy) {
-                const directLoad = l.load.bind(l);
-                l.load = (url, onLoad, onProgress, onError) => {
-                    enqueueLazyAsset(url.split('/').pop(), () => directLoad(url, onLoad, onProgress, onError));
-                    return l;
-                };
-            }
+            const directLoad = l.load.bind(l);
+            l.load = (url, onLoad, onProgress, onError) => {
+                const owner = options.owner || ((lazy ? 'lazy-gltf:' : 'critical-gltf:') + String(url || '').split('/').pop());
+                const startLoad = () => directLoad(url, (gltf) => {
+                    if (gltf && gltf.scene) Genesis.registry.trackObject3D(gltf.scene, { owner, realm: options.realm || null, source: url });
+                    if (onLoad) onLoad(gltf);
+                }, onProgress, (err) => {
+                    console.warn('[GLTF] failed:', url, err);
+                    Genesis.notifyError('gltf: ' + String(url || '').split('/').pop());
+                    if (onError) onError(err);
+                });
+                if (lazy) enqueueLazyAsset(String(url || '').split('/').pop(), startLoad);
+                else startLoad();
+                return l;
+            };
             return l;
         }
 
@@ -930,6 +1230,14 @@
         function makeOnDemandGLTF() {
             const l = new GLTFLoader(loadingManager);
             l.setMeshoptDecoder(MeshoptDecoder);
+            const directLoad = l.load.bind(l);
+            l.load = (url, onLoad, onProgress, onError) => directLoad(url, (gltf) => {
+                if (gltf && gltf.scene) Genesis.registry.trackObject3D(gltf.scene, { owner: 'realm-gltf:' + String(url || '').split('/').pop(), source: url });
+                if (onLoad) onLoad(gltf);
+            }, onProgress, (err) => {
+                Genesis.notifyError('realm gltf: ' + String(url || '').split('/').pop());
+                if (onError) onError(err);
+            });
             return l;
         }
         const realmAssetLoads = new Set();
@@ -962,11 +1270,17 @@
                     clickTargets.push(child);
                 });
                 if (gltf.animations && gltf.animations.length) {
-                    const mixer = new THREE.AnimationMixer(model);
+                    const mixer = new THREE.AnimationMixer(wrap);
                     // Play a single idle loop (prefer a clip named *idle*) so multi-clip
                     // figures don't freeze from all clips blending at once.
                     const idle = gltf.animations.find((c) => /idle/i.test(c.name)) || gltf.animations[0];
                     mixer.clipAction(idle).play();
+                    Genesis.lifecycle.registerMixer(mixer, {
+                        owner: 'realm-asset:' + key,
+                        root: wrap,
+                        maxDistance: 180,
+                        sleepWhenFar: true
+                    });
                     (realm._assetMixers = realm._assetMixers || []).push(mixer);
                 }
                 layer.add(wrap);
@@ -974,7 +1288,18 @@
             }, undefined, (err) => console.warn('[RealmAssets] failed', key, spec.url, err)));
         }
         function updateRealmAssetMixers(realm, dt = 0.016) {
-            if (realm._assetMixers) realm._assetMixers.forEach((mixer) => mixer.update(dt));
+            // ========== GENESIS TIER 1 / SHARD B: realm mixer sleep gate ==========
+            if (!realm || !realm._assetMixers || !realm._assetMixers.length) return;
+            realm._assetMixers = realm._assetMixers.filter((mixer) => {
+                const meta = Genesis.lifecycle.getMixerMeta ? Genesis.lifecycle.getMixerMeta(mixer) : null;
+                const root = Genesis.lifecycle.resolveMixerRoot ? Genesis.lifecycle.resolveMixerRoot(mixer, meta) : (mixer && mixer.getRoot ? mixer.getRoot() : null);
+                if (root && !root.parent) {
+                    Genesis.lifecycle.deregisterMixer(mixer);
+                    return false;
+                }
+                Genesis.lifecycle.updateMixer(mixer, dt, { root: root || realm, maxDistance: 180, owner: 'realm-asset' });
+                return true;
+            });
         }
 
         const _assetBox = new THREE.Box3();
@@ -1001,13 +1326,35 @@
             loaderPct.textContent = Math.round(pct) + '% loaded';
         }
         function hideLoader() { loaderOverlay.classList.add('hidden'); }
+        function showGenesisFailure(message) {
+            const safe = message || 'Startup degraded — open console for details.';
+            if (loaderPct) loaderPct.textContent = safe;
+            Genesis.setStatus(safe, 'warn');
+            if (typeof window.__genesisReleaseLoader === 'function') window.__genesisReleaseLoader(safe);
+        }
         criticalManager.onStart = () => { if (!window.__cplReady) loaderOverlay.classList.remove('hidden'); };
         criticalManager.onProgress = (url, loaded, total) => { _bytes[url] = { loaded, total }; _refreshProgress(); };
-        criticalManager.onLoad = () => { _refreshProgress(); loaderPct.textContent = 'entering the library…'; hideLoader(); window.__cplReady = true; };
-        criticalManager.onError = (url) => { console.warn('[Loader] error:', url); };
-        loadingManager.onError = (url) => { console.warn('[LazyAssets] error:', url); };
-        // Safety: never trap the user behind the overlay (backstop if critical never resolves)
-        setTimeout(hideLoader, 12000);
+        criticalManager.onLoad = () => {
+            _refreshProgress();
+            loaderPct.textContent = 'entering the library…';
+            hideLoader();
+            window.__cplReady = true;
+            Genesis.boot.criticalLoadedAt = performance.now();
+            Genesis.boot.backstopReleased = !!window.__genesisBackstopReleased;
+            Genesis.setStatus('critical load complete', 'ok');
+            if (Genesis.boot.fallbackGroup) {
+                Genesis.boot.fallbackGroup.visible = false;
+                Genesis.boot.fallbackVisible = false;
+            }
+        };
+        criticalManager.onError = (url) => { console.warn('[Loader] error:', url); showGenesisFailure('critical asset failed: ' + String(url || '').split('/').pop()); };
+        loadingManager.onError = (url) => { console.warn('[LazyAssets] error:', url); Genesis.setStatus('lazy asset failed: ' + String(url || '').split('/').pop(), 'warn'); };
+        // Safety: never claim safe entry before a first frame exists.
+        setTimeout(() => {
+            if (window.__cplReady) return;
+            if (window.__genesisFirstFrameSeen) showGenesisFailure('Critical load still pending — survival mode active.');
+            else __genesisSetLoaderText('Startup stalled before first frame — open console / refresh.', 'CPL — NEEDS ATTENTION');
+        }, 12000);
 
         // Service Worker: cache-first for assets (repeat visits load instantly)
         if ('serviceWorker' in navigator) {
@@ -1262,19 +1609,74 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
         // Gun F: keep r128-era look on the modern engine
         renderer.useLegacyLights = true; // preserve legacy point/ambient light intensities
-        renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // manual GammaCorrectionShader does sRGB; avoid double-correct
+        renderer.outputColorSpace = THREE.SRGBColorSpace; // Genesis scheduler flips to linear only when composer is live
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.75;
-        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.enabled = false;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
+        renderer.domElement.addEventListener('webglcontextlost', (e) => {
+            if (e && typeof e.preventDefault === 'function') e.preventDefault();
+            if (Genesis.recovery && typeof Genesis.recovery.handleContextLost === 'function') Genesis.recovery.handleContextLost();
+            else {
+                Genesis.boot.contextLost = true;
+                Genesis.boot.contextLosses = (Genesis.boot.contextLosses || 0) + 1;
+                Genesis.notifyError('webgl context lost');
+                if (typeof showGenesisFailure === 'function') showGenesisFailure('WebGL context lost — survival mode active. Refresh if visuals do not recover.');
+            }
+        });
+        renderer.domElement.addEventListener('webglcontextrestored', () => {
+            if (Genesis.recovery && typeof Genesis.recovery.handleContextRestored === 'function') Genesis.recovery.handleContextRestored();
+            else {
+                Genesis.boot.contextLost = false;
+                Genesis.setStatus('webgl context restored', 'warn');
+                Genesis.updateTelemetry();
+            }
+        });
         THREE.Cache.enabled = true; // cache GLB/texture requests across reloads -> faster repeat loads
+        Genesis.renderer = renderer;
+        Genesis.scene = scene;
+        Genesis.camera = camera;
+        Genesis.setStatus('booting renderer', 'ok');
+
+        // ========== GENESIS PHASE 2: first-frame survival baseline ==========
+        const genesisFallbackGroup = new THREE.Group();
+        genesisFallbackGroup.name = 'Genesis Survival Fallback';
+        const genesisFallbackLight = new THREE.HemisphereLight(0x88ccff, 0x05060c, 1.4);
+        const genesisFallbackBeacon = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(0.55, 0),
+            new THREE.MeshBasicMaterial({ color: 0x66ccff, wireframe: true, transparent: true, opacity: 0.6 })
+        );
+        const genesisFallbackGrid = new THREE.GridHelper(26, 26, 0x3355ff, 0x112244);
+        if (genesisFallbackGrid.material) {
+            genesisFallbackGrid.material.transparent = true;
+            genesisFallbackGrid.material.opacity = 0.22;
+        }
+        genesisFallbackGrid.position.y = -0.03;
+        genesisFallbackBeacon.position.set(0, 1.2, 0);
+        genesisFallbackGroup.add(genesisFallbackLight, genesisFallbackGrid, genesisFallbackBeacon);
+        scene.add(genesisFallbackGroup);
+        Genesis.registry.trackObject3D(genesisFallbackGroup, { owner: 'genesis-survival', source: 'fallback-scene' });
+        Genesis.boot.fallbackGroup = genesisFallbackGroup;
+        Genesis.boot.fallbackVisible = true;
 
         // ========== IBL ENVIRONMENT (image-based lighting -> realistic metallic reflections) ==========
         // Metals (Porsche, Cadillac, showroom) stop rendering black; whole scene gets soft ambient bounce.
         const pmremGenerator = new THREE.PMREMGenerator(renderer);
         pmremGenerator.compileEquirectangularShader();
-        scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+        function rebuildGenesisEnvironment() {
+            try {
+                if (Genesis.boot.environmentTarget && typeof Genesis.boot.environmentTarget.dispose === 'function') {
+                    Genesis.boot.environmentTarget.dispose();
+                }
+            } catch (e) { console.warn('[Genesis] environment dispose skipped', e); }
+            const nextTarget = pmremGenerator.fromScene(new RoomEnvironment(), 0.04);
+            Genesis.boot.environmentTarget = nextTarget;
+            scene.environment = nextTarget.texture;
+            Genesis.registry.track(scene.environment, { owner: 'scene-environment', kind: 'texture', source: 'RoomEnvironment PMREM' });
+            return scene.environment;
+        }
+        rebuildGenesisEnvironment();
         
         // ========== POSTPROCESSING ==========
         const renderScene = new RenderPass(scene, camera);
@@ -1295,6 +1697,62 @@ bloomPass.radius = 0.7;
         // ========== GAMMA CORRECTION (linear -> sRGB for correct color through composer) ==========
         const gammaPass = new ShaderPass(GammaCorrectionShader);
         effectComposer.addPass(gammaPass);
+
+        // ========== GENESIS TIER 1 / SHARD A: deferred composer + shadow scheduling ==========
+        const genesisRenderSchedule = {
+            composerReady: false,
+            shadowsReady: false,
+            shadowScanAt: 0,
+            shadowCapability: { lights: 0, casters: 0, meaningful: false },
+            init() {
+                this.refreshShadowCapability(true);
+                this.applyMode();
+            },
+            refreshShadowCapability(force = false, now = performance.now()) {
+                if (!force && (now - this.shadowScanAt) < 2000) return this.shadowCapability;
+                let lights = 0;
+                let casters = 0;
+                scene.traverse((obj) => {
+                    if (!obj) return;
+                    if ((obj.isDirectionalLight || obj.isSpotLight || obj.isPointLight) && obj.castShadow) lights++;
+                    if (obj.isMesh && obj.castShadow) casters++;
+                });
+                this.shadowScanAt = now;
+                this.shadowCapability = { lights, casters, meaningful: lights > 0 && casters > 0 };
+                return this.shadowCapability;
+            },
+            shouldEnableComposer(now) {
+                if (perf.tier === 'low') return false;
+                if (!Genesis.boot.firstFrameAt) return false;
+                if (Genesis.boot.recoveryActive) return false;
+                if (loaderActive) return false;
+                return (now - Genesis.boot.firstFrameAt) >= (perf.tier === 'medium' ? 1800 : 900);
+            },
+            shouldEnableShadows(now) {
+                if (perf.tier === 'low') return false;
+                if (!Genesis.boot.firstFrameAt) return false;
+                if (Genesis.boot.recoveryActive) return false;
+                if (loaderActive) return false;
+                if (!this.refreshShadowCapability(false, now).meaningful) return false; // No real shadow-casting light exists in the current hub build, so keep this honestly off.
+                return (now - Genesis.boot.firstFrameAt) >= (perf.tier === 'medium' ? 2600 : 1400);
+            },
+            applyMode() {
+                renderer.outputColorSpace = this.composerReady ? THREE.LinearSRGBColorSpace : THREE.SRGBColorSpace;
+                const shadowsEnabled = this.shadowsReady && this.shadowCapability.meaningful;
+                renderer.shadowMap.enabled = shadowsEnabled;
+                renderer.shadowMap.needsUpdate = shadowsEnabled;
+            },
+            update(now) {
+                this.refreshShadowCapability(false, now);
+                const nextComposer = this.shouldEnableComposer(now);
+                const nextShadows = this.shouldEnableShadows(now);
+                if (nextComposer !== this.composerReady || nextShadows !== this.shadowsReady) {
+                    this.composerReady = nextComposer;
+                    this.shadowsReady = nextShadows;
+                    this.applyMode();
+                }
+            }
+        };
 
         // ========== PERFORMANCE SOUL GUN (adaptive quality) ==========
         // Keeps the experience SMOOTH. When frame rate sags it progressively
@@ -1322,7 +1780,49 @@ bloomPass.radius = 0.7;
         const perf = {
             tier: PERF_MODE === 'auto' ? probeInitialTier() : PERF_MODE,
             fpsEMA: 60, slow: 0, fast: 0,
+            scaleSlow: 0, scaleFast: 0,
+            resolutionStepIndex: 0,
             lowLights: null,
+            getTierProfile(tier = this.tier) {
+                if (tier === 'low') return { baseDpr: 0.6, steps: [0.85, 1.0], defaultStep: 1 };
+                if (tier === 'medium') return { baseDpr: 0.75, steps: [0.82, 0.9, 1.0], defaultStep: 2 };
+                return { baseDpr: 1.0, steps: [0.78, 0.88, 1.0], defaultStep: 2 };
+            },
+            normalizeResolutionStep() {
+                const profile = this.getTierProfile();
+                if (!Number.isFinite(this.resolutionStepIndex)) this.resolutionStepIndex = profile.defaultStep;
+                this.resolutionStepIndex = Math.max(0, Math.min(profile.steps.length - 1, this.resolutionStepIndex));
+            },
+            getResolutionScalar() {
+                this.normalizeResolutionStep();
+                const profile = this.getTierProfile();
+                let scalar = profile.steps[this.resolutionStepIndex] || 1;
+                if (Genesis.boot && Genesis.boot.contextLost) scalar = Math.min(scalar, profile.steps[0] || scalar);
+                if (Genesis.boot && Genesis.boot.recoveryActive) scalar = Math.min(scalar, profile.steps[0] || scalar);
+                if (Genesis.boot && Genesis.boot.fallbackVisible && !window.__cplReady) scalar = Math.min(scalar, profile.steps[0] || scalar);
+                return scalar;
+            },
+            getEffectivePixelRatio() {
+                const profile = this.getTierProfile();
+                const cap = Math.min(window.devicePixelRatio || 1, profile.baseDpr);
+                return Math.max(0.5, Number((cap * this.getResolutionScalar()).toFixed(2)));
+            },
+            getInternalRenderSize() {
+                const pixelRatio = this.getEffectivePixelRatio();
+                return {
+                    width: Math.max(1, Math.floor(window.innerWidth * pixelRatio)),
+                    height: Math.max(1, Math.floor(window.innerHeight * pixelRatio))
+                };
+            },
+            bumpResolution(direction) {
+                this.normalizeResolutionStep();
+                const profile = this.getTierProfile();
+                const next = Math.max(0, Math.min(profile.steps.length - 1, this.resolutionStepIndex + direction));
+                if (next === this.resolutionStepIndex) return false;
+                this.resolutionStepIndex = next;
+                this.apply();
+                return true;
+            },
             ensureLights() {
                 if (this.lowLights) return;
                 this.lowLights = [];
@@ -1330,26 +1830,60 @@ bloomPass.radius = 0.7;
             },
             apply() {
                 const t = this.tier;
+                this.normalizeResolutionStep();
                 bloomPass.enabled = (t !== 'low');
-                renderer.setPixelRatio(t === 'low' ? 0.6 : (t === 'medium' ? 0.75 : 1.0));
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                if (typeof effectComposer !== 'undefined') effectComposer.setSize(window.innerWidth, window.innerHeight);
-                bloomPass.setSize(Math.max(1, Math.floor(window.innerWidth * BLOOM_SCALE)), Math.max(1, Math.floor(window.innerHeight * BLOOM_SCALE)));
+                const pixelRatio = this.getEffectivePixelRatio();
+                const internal = this.getInternalRenderSize();
+                renderer.setPixelRatio(pixelRatio);
+                renderer.setSize(window.innerWidth, window.innerHeight, false);
+                if (typeof effectComposer !== 'undefined') {
+                    if (typeof effectComposer.setPixelRatio === 'function') effectComposer.setPixelRatio(pixelRatio);
+                    effectComposer.setSize(window.innerWidth, window.innerHeight);
+                }
+                bloomPass.setSize(Math.max(1, Math.floor(internal.width * BLOOM_SCALE)), Math.max(1, Math.floor(internal.height * BLOOM_SCALE)));
                 this.ensureLights();
                 this.lowLights.forEach(l => { if (l) l.visible = (t !== 'low'); });
-                if (typeof _billboardFx !== 'undefined') for (const fx of _billboardFx) { if (fx.fill) fx.fill.visible = (t !== 'low'); if (fx.rim) fx.rim.visible = (t !== 'low'); if (fx.pts) fx.pts.visible = (t !== 'low'); }
+                if (typeof _billboardFx !== 'undefined') for (const fx of _billboardFx) { if (fx.rim) fx.rim.visible = (t !== 'low'); if (fx.pts) fx.pts.visible = (t !== 'low'); }
                 if (typeof floatingDust !== 'undefined') floatingDust.visible = (t !== 'low');
                 if (typeof embers !== 'undefined') embers.visible = (t !== 'low');
                 if (typeof dust !== 'undefined') dust.visible = (t !== 'low');
                 if (typeof _realmAtmosFx !== 'undefined') _realmAtmosFx.forEach(o => { o.visible = (t !== 'low'); });
                 if (typeof cityGroup !== 'undefined' && cityGroup) cityGroup.children.forEach(o => { if (o.isPointLight && o.userData.cityGrid) o.visible = (t !== 'low'); });
-                console.log('[PERF] tier=' + t + ' bloom=' + bloomPass.enabled + ' px=' + renderer.getPixelRatio().toFixed(2) + ' fillLightsOff=' + (t === 'low' ? this.lowLights.length : 0));
+                if (typeof genesisRenderSchedule !== 'undefined') genesisRenderSchedule.applyMode();
+                console.log('[PERF] tier=' + t + ' bloom=' + bloomPass.enabled + ' dpr=' + pixelRatio.toFixed(2) + ' scale=' + this.getResolutionScalar().toFixed(2) + ' fillLightsOff=' + (t === 'low' ? this.lowLights.length : 0));
             },
             sample(dt) {
                 if (PERF_MODE !== 'auto') return;
                 const fps = dt > 0 ? 1 / dt : 60;
                 this.fpsEMA = this.fpsEMA * 0.92 + fps * 0.08;
                 const gpu = this.gpuMsEMA || 0;
+                const hasGpuTelemetry = this.hasGpuTelemetry();
+                const stressed = (hasGpuTelemetry && gpu > (this.tier === 'high' ? 19 : this.tier === 'medium' ? 24 : 28)) || this.fpsEMA < (this.tier === 'high' ? 46 : this.tier === 'medium' ? 34 : 27);
+                const comfortable = !Genesis.boot.contextLost && !Genesis.boot.recoveryActive && !loaderActive && (
+                    hasGpuTelemetry
+                        ? (gpu < (this.tier === 'high' ? 11 : this.tier === 'medium' ? 13 : 16) && this.fpsEMA > (this.tier === 'high' ? 57 : this.tier === 'medium' ? 49 : 41))
+                        : this.fpsEMA > (this.tier === 'high' ? 58 : this.tier === 'medium' ? 52 : 44)
+                );
+                if (stressed) {
+                    this.scaleSlow++;
+                    this.scaleFast = 0;
+                    if (this.scaleSlow > 50 && this.bumpResolution(-1)) {
+                        this.scaleSlow = 0;
+                        this.slow = 0;
+                        return;
+                    }
+                } else if (comfortable) {
+                    this.scaleFast++;
+                    this.scaleSlow = 0;
+                    if (this.scaleFast > 180 && this.bumpResolution(1)) {
+                        this.scaleFast = 0;
+                        this.fast = 0;
+                        return;
+                    }
+                } else {
+                    this.scaleSlow = 0;
+                    this.scaleFast = 0;
+                }
                 // Soul Gun G: degrade on ACTUAL gpu stall, not just JS frame time
                 if (gpu > 24 && this.tier === 'high') { this.slow++; if (this.slow > 60) this.setTier('medium'); return; }
                 if (gpu > 30 && this.tier === 'medium') { this.slow++; if (this.slow > 90) this.setTier('low'); return; }
@@ -1359,9 +1893,19 @@ bloomPass.radius = 0.7;
                 else if (this.fpsEMA > 55 && this.tier !== 'high') { this.fast++; if (this.fast > 200) this.setTier(this.tier === 'low' ? 'medium' : 'high'); }
                 else { this.slow = 0; this.fast = 0; }
             },
-            setTier(t) { if (t === this.tier) return; this.tier = t; this.apply(); },
+            setTier(t) {
+                if (t === this.tier) return;
+                this.tier = t;
+                const profile = this.getTierProfile(t);
+                this.resolutionStepIndex = profile.defaultStep;
+                this.slow = this.fast = this.scaleSlow = this.scaleFast = 0;
+                this.apply();
+            },
             // --- Soul Gun G: measure REAL gpu frame time (catches GPU stalls CPU dt cannot) ---
             gl: null, gpuExt: null, gpuQuery: null, gpuInFlight: false, gpuMsEMA: 0,
+            hasGpuTelemetry() {
+                return !!this.gpuExt;
+            },
             initGpu() {
                 try {
                     this.gl = renderer.getContext();
@@ -1382,8 +1926,221 @@ bloomPass.radius = 0.7;
                 }
             }
         };
+        function recreateDragControlsSafely() {
+            if (typeof dragControls === 'undefined' || typeof draggables === 'undefined') return false;
+            try {
+                if (dragControls && typeof dragControls.dispose === 'function') dragControls.dispose();
+                dragControls = new DragControls(draggables, camera, renderer.domElement);
+                dragControls.addEventListener('dragstart', () => { controls.enabled = false; });
+                dragControls.addEventListener('dragend', () => { controls.enabled = cameraMode === 'orbit'; });
+                return true;
+            } catch (err) {
+                console.warn('[Genesis] drag controls rebind failed', err);
+                Genesis.notifyError('drag controls rebind');
+                return false;
+            }
+        }
+        Genesis.recovery = Genesis.recovery || (() => {
+            let watchdog = 0;
+            function showFallback(message) {
+                if (Genesis.boot.fallbackGroup) Genesis.boot.fallbackGroup.visible = true;
+                Genesis.boot.fallbackVisible = true;
+                if (typeof window.__genesisSetLoaderText === 'function' && message) window.__genesisSetLoaderText(message, 'CPL — SURVIVAL MODE');
+                const loaderOverlay = document.getElementById('loader-overlay');
+                if (loaderOverlay) loaderOverlay.classList.remove('hidden');
+                if (typeof showGenesisFailure === 'function' && message) showGenesisFailure(message);
+            }
+            function reapplyRenderState() {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                if (typeof renderer.resetState === 'function') renderer.resetState();
+                perf.apply();
+                genesisRenderSchedule.composerReady = false;
+                genesisRenderSchedule.shadowsReady = false;
+                genesisRenderSchedule.applyMode();
+                bloomPass.enabled = (perf.tier !== 'low');
+                Genesis.updateTelemetry();
+            }
+            function rebindInputs() {
+                try {
+                    if (controls) {
+                        if (typeof controls.disconnect === 'function') controls.disconnect();
+                        if (typeof controls.connect === 'function') controls.connect(renderer.domElement);
+                        controls.enabled = cameraMode === 'orbit';
+                        controls.update();
+                    }
+                } catch (err) {
+                    console.warn('[Genesis] orbit controls rebind failed', err);
+                    Genesis.notifyError('orbit controls rebind');
+                }
+                recreateDragControlsSafely();
+            }
+            function beginWatchdog() {
+                if (watchdog) clearTimeout(watchdog);
+                watchdog = setTimeout(() => {
+                    if (!Genesis.boot.recoveryActive || Genesis.boot.contextLost) return;
+                    Genesis.markRecovery('stabilizing in survival mode', 'warn');
+                    showFallback('WebGL restored — rebuild is taking longer than expected. Survival mode will stay visible until frames stabilize.');
+                    Genesis.updateTelemetry();
+                }, 2600);
+            }
+            function finishRecovery() {
+                if (watchdog) { clearTimeout(watchdog); watchdog = 0; }
+                Genesis.boot.recoveryActive = false;
+                Genesis.boot.recoveryReadyForStableFrames = false;
+                Genesis.boot.recoveryFrames = 0;
+                Genesis.boot.recoveryStage = 'complete';
+                window.__cplErr = null;
+                const loaderOverlay = document.getElementById('loader-overlay');
+                if (loaderOverlay && (window.__cplReady || window.__genesisBackstopReleased)) loaderOverlay.classList.add('hidden');
+                Genesis.setStatus('context rebuild complete', 'ok');
+                Genesis.updateTelemetry();
+            }
+            return {
+                handleContextLost() {
+                    Genesis.boot.contextLost = true;
+                    Genesis.boot.contextLosses = (Genesis.boot.contextLosses || 0) + 1;
+                    Genesis.boot.lastContextLostAt = performance.now();
+                    Genesis.boot.recoveryActive = true;
+                    Genesis.boot.recoveryAttempt = (Genesis.boot.recoveryAttempt || 0) + 1;
+                    Genesis.boot.recoveryReadyForStableFrames = false;
+                    Genesis.boot.recoveryFrames = 0;
+                    Genesis.markRecovery('context lost — holding survival baseline', 'err');
+                    genesisRenderSchedule.composerReady = false;
+                    genesisRenderSchedule.shadowsReady = false;
+                    genesisRenderSchedule.applyMode();
+                    showFallback('WebGL context lost — survival mode active. Attempting staged rebuild when context returns.');
+                    Genesis.updateTelemetry();
+                },
+                handleContextRestored() {
+                    Genesis.boot.contextLost = false;
+                    Genesis.boot.lastContextRestoredAt = performance.now();
+                    Genesis.boot.recoveryActive = true;
+                    Genesis.boot.recoveryReadyForStableFrames = false;
+                    Genesis.boot.recoveryFrames = 0;
+                    Genesis.markRecovery('context restored — rebind renderer', 'warn');
+                    showFallback('WebGL context restored — rebuilding renderer state.');
+                    window.__cplErr = null;
+                    beginWatchdog();
+                    requestAnimationFrame(() => {
+                        try {
+                            rebuildGenesisEnvironment();
+                            reapplyRenderState();
+                            Genesis.markRecovery('size + render state restored', 'warn');
+                            requestAnimationFrame(() => {
+                                try {
+                                    rebindInputs();
+                                    try { renderer.compile(scene, camera); } catch (e) { console.warn('[Genesis] recompile skipped', e); }
+                                    Genesis.boot.recoveryReadyForStableFrames = true;
+                                    Genesis.markRecovery('awaiting stable frames', 'warn');
+                                    Genesis.updateTelemetry();
+                                } catch (err) {
+                                    console.warn('[Genesis] staged restore input rebind failed', err);
+                                    Genesis.notifyError('staged restore input rebind');
+                                    Genesis.boot.recoveryReadyForStableFrames = false;
+                                    Genesis.markRecovery('staged restore failed — holding survival mode', 'err');
+                                    showFallback('WebGL restored, but input rebind failed. Survival mode remains visible.');
+                                    Genesis.updateTelemetry();
+                                }
+                            });
+                        } catch (err) {
+                            console.warn('[Genesis] staged restore rebuild failed', err);
+                            Genesis.notifyError('staged restore rebuild');
+                            Genesis.boot.recoveryReadyForStableFrames = false;
+                            Genesis.markRecovery('staged restore failed — holding survival mode', 'err');
+                            showFallback('WebGL restored, but staged rebuild failed. Survival mode remains visible.');
+                            Genesis.updateTelemetry();
+                        }
+                    });
+                },
+                noteFrame() {
+                    if (!Genesis.boot.recoveryActive || Genesis.boot.contextLost || !Genesis.boot.recoveryReadyForStableFrames) return;
+                    Genesis.boot.recoveryFrames = (Genesis.boot.recoveryFrames || 0) + 1;
+                    if (Genesis.boot.recoveryFrames < 3) return;
+                    if (Genesis.boot.fallbackGroup) Genesis.boot.fallbackGroup.visible = false;
+                    Genesis.boot.fallbackVisible = false;
+                    finishRecovery();
+                }
+            };
+        })();
+        Genesis.telemetry = Genesis.telemetry || {
+            fps: 0,
+            tier: perf.tier,
+            gpuMs: null,
+            dpr: renderer ? renderer.getPixelRatio() : 1,
+            renderScale: 1,
+            drawCalls: 0,
+            triangles: 0,
+            geometries: 0,
+            textures: 0,
+            registrySemantics: 'cumulative-registrations',
+            registeredResources: 0,
+            programs: 0,
+            criticalReady: false,
+            survivalReleased: !!window.__genesisBackstopReleased,
+            fallbackVisible: true,
+            composerReady: false,
+            shadowsReady: false,
+            shadowReason: 'pending',
+            contextLost: false,
+            contextLosses: 0,
+            statusSignal: 'booting',
+            topRegisteredOwners: []
+        };
+        Genesis.updateTelemetry = function () {
+            if (!renderer) return this.telemetry;
+            const info = renderer.info;
+            const audit = this.registry.audit(renderer);
+            const metrics = this.telemetry;
+            const shadowCapability = genesisRenderSchedule.refreshShadowCapability ? genesisRenderSchedule.refreshShadowCapability(false) : { meaningful: false };
+            const hasActiveError = Genesis.hasActiveError();
+            metrics.fps = Math.round(perf.fpsEMA || 0);
+            metrics.tier = perf.tier;
+            metrics.gpuMs = perf.hasGpuTelemetry() ? Number((perf.gpuMsEMA || 0).toFixed(1)) : null;
+            metrics.dpr = Number((renderer.getPixelRatio() || 1).toFixed(2));
+            metrics.renderScale = Number((perf.getResolutionScalar ? perf.getResolutionScalar() : 1).toFixed(2));
+            metrics.drawCalls = info.render.calls;
+            metrics.triangles = info.render.triangles;
+            metrics.geometries = info.memory.geometries;
+            metrics.textures = info.memory.textures;
+            metrics.registrySemantics = audit.registrySemantics;
+            metrics.registeredResources = audit.registeredResources;
+            metrics.programs = audit.programs;
+            metrics.criticalReady = !!window.__cplReady;
+            metrics.survivalReleased = !!window.__genesisBackstopReleased;
+            metrics.fallbackVisible = !!(Genesis.boot && Genesis.boot.fallbackVisible);
+            metrics.composerReady = !!genesisRenderSchedule.composerReady;
+            metrics.shadowsReady = !!(genesisRenderSchedule.shadowsReady && shadowCapability.meaningful);
+            metrics.shadowReason = metrics.shadowsReady ? 'live' : (shadowCapability.meaningful ? 'scheduled' : 'none');
+            metrics.contextLost = !!(Genesis.boot && Genesis.boot.contextLost);
+            metrics.contextLosses = Genesis.boot && Genesis.boot.contextLosses ? Genesis.boot.contextLosses : 0;
+            metrics.topRegisteredOwners = audit.topRegisteredOwners;
+            metrics.statusSignal = Genesis.boot.recoveryActive && !metrics.contextLost
+                ? 'recovering'
+                : metrics.contextLost
+                ? 'context-lost'
+                : hasActiveError
+                    ? 'error'
+                    : (!metrics.criticalReady && metrics.fallbackVisible)
+                        ? 'survival'
+                        : (!metrics.criticalReady)
+                            ? 'warming'
+                            : (metrics.composerReady ? 'stable+' : 'stable');
+            window.__genesisTelemetry = metrics;
+            const tone = metrics.contextLost || hasActiveError ? 'err' : ((Genesis.boot.recoveryActive || (!metrics.criticalReady && metrics.fallbackVisible) || !metrics.survivalReleased) ? 'warn' : 'ok');
+            const statusLine = metrics.statusSignal
+                + ' · ' + (metrics.criticalReady ? 'world ready' : 'critical loading')
+                + ' · ' + (metrics.composerReady ? 'postfx on' : 'raw render');
+            const metricsLine = 'fps ' + metrics.fps + ' · gpu ' + (metrics.gpuMs == null ? 'n/a' : (metrics.gpuMs + 'ms')) + ' · ' + metrics.tier + ' · dc ' + metrics.drawCalls + ' · tri ' + metrics.triangles + ' · tex ' + metrics.textures;
+            const detailLine = 'dpr ' + metrics.dpr + ' (' + metrics.renderScale + 'x) · cmp ' + (metrics.composerReady ? 'on' : 'off') + ' · shd ' + metrics.shadowReason + ' · backstop ' + (metrics.survivalReleased ? 'open' : 'held') + ' · fb ' + (metrics.fallbackVisible ? 'on' : 'off') + ' · ctx ' + (metrics.contextLost ? 'lost' : ('ok' + (metrics.contextLosses ? ':' + metrics.contextLosses : '')));
+            Genesis.ui.setStatus(statusLine, tone);
+            Genesis.ui.setMetrics(metricsLine, tone);
+            Genesis.ui.setDetail(detailLine, tone);
+            return metrics;
+        };
         perf.initGpu();
-        bloomPass.setSize(Math.max(1, Math.floor(window.innerWidth * BLOOM_SCALE)), Math.max(1, Math.floor(window.innerHeight * BLOOM_SCALE)));
+        if (typeof effectComposer.setPixelRatio === 'function') effectComposer.setPixelRatio(renderer.getPixelRatio());
+        bloomPass.setSize(Math.max(1, Math.floor(window.innerWidth * renderer.getPixelRatio() * BLOOM_SCALE)), Math.max(1, Math.floor(window.innerHeight * renderer.getPixelRatio() * BLOOM_SCALE)));
         
         // ========== ORBIT CONTROLS ==========
         const controls = new OrbitControls(camera, renderer.domElement);
@@ -2469,11 +3226,14 @@ bloomPass.radius = 0.7;
             frame.userData.commandAction = action || null;
             return { canvas, ctx: canvas.getContext('2d'), tex, mesh, grp, dirty: true };
         }
-        function drawOffline(screen) {
+        function drawOffline(screen, options = null) {
             const ctx = screen.ctx; ctx.fillStyle = '#04070d'; ctx.fillRect(0, 0, 512, 384);
             ctx.fillStyle = '#33424f'; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText('GSK OFFLINE', 256, 154); ctx.fillText('command center idle', 256, 190);
-            ctx.font = '14px monospace'; ctx.fillStyle = '#6f8da8'; ctx.fillText('click console buttons below', 256, 238); ctx.textAlign = 'left';
+            ctx.fillText((options && options.headline) || 'GSK OFFLINE', 256, 154); ctx.fillText((options && options.subhead) || 'command center idle', 256, 190);
+            ctx.font = '14px monospace'; ctx.fillStyle = '#6f8da8'; ctx.fillText((options && options.hint) || 'click console buttons below', 256, 238);
+            if (options && options.title) { ctx.fillStyle = options.accent || '#8aa8c4'; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'left'; ctx.fillText(options.title, 12, 24); }
+            if (options && options.footer) { ctx.fillStyle = options.accent || '#8aa8c4'; ctx.font = '12px monospace'; ctx.textAlign = 'left'; ctx.fillText(options.footer, 12, 358); }
+            else ctx.textAlign = 'left';
             screen.tex.needsUpdate = true;
         }
         function drawRuntime(screen, thoughts, ready) {
@@ -2531,8 +3291,8 @@ bloomPass.radius = 0.7;
             cmdText(ctx, 'CLICK SCREEN: SPAWN SOUL', 12, 354, '#b9a6ff', 14);
             screen.tex.needsUpdate = true;
         }
-        async function refreshMemories(cc) { try { const m = await gsk.memories(); cc.memoriesData = m; drawMemories(cc.screens.memories, m); } catch (e) { } }
-        async function refreshAgents(cc) { try { const s = await gsk.spawned(); cc.agentsData = s; drawAgents(cc.screens.agents, s); } catch (e) { } }
+        async function refreshMemories(cc) { try { const m = await gsk.memories(); cc.memoriesData = m; drawMemories(cc.screens.memories, m); } catch (e) { drawOffline(cc.screens.memories, { title: 'GSK · MEMORIES', accent: '#8affc4', headline: 'MEMORIES OFFLINE', subhead: 'last live memory view withheld', hint: 'wait for GSK / refresh later', footer: 'OFFLINE SNAPSHOT BLOCKED' }); } }
+        async function refreshAgents(cc) { try { const s = await gsk.spawned(); cc.agentsData = s; drawAgents(cc.screens.agents, s); } catch (e) { drawOffline(cc.screens.agents, { title: 'GSK · ACTIVE AGENTS', accent: '#b9a6ff', headline: 'AGENTS OFFLINE', subhead: 'spawn roster unavailable', hint: 'wait for GSK / refresh later', footer: 'OFFLINE SNAPSHOT BLOCKED' }); } }
         function makeCmdButton(label, accent, action) {
             const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 96;
             const ctx = canvas.getContext('2d');
@@ -2548,6 +3308,145 @@ bloomPass.radius = 0.7;
             mesh.userData.commandAction = action;
             mesh.userData.commandLabel = label;
             return mesh;
+        }
+        function ensureHubWindowState(cc) {
+            if (!cc) return null;
+            if (!cc.hubWindows) {
+                cc.hubWindows = {
+                    active: null,
+                    order: [],
+                    registry: {},
+                    sharedScreen: cc.terminalScreen || null
+                };
+            }
+            if (typeof Genesis !== 'undefined') Genesis.hubWindows = cc.hubWindows;
+            return cc.hubWindows;
+        }
+        function registerHubWindow(cc, key, config) {
+            const state = ensureHubWindowState(cc);
+            if (!state || !key) return null;
+            const windowDef = Object.assign({
+                key,
+                title: key,
+                accent: '#66ffff',
+                description: '',
+                footer: '',
+                usesKeyboard: false,
+                onOpen: null,
+                onClose: null,
+                render: null
+            }, config || {});
+            state.registry[key] = windowDef;
+            if (state.order.indexOf(key) === -1) state.order.push(key);
+            return windowDef;
+        }
+        function drawHubWindowChrome(screen, spec) {
+            if (!screen || !screen.ctx) return;
+            const ctx = screen.ctx;
+            const accent = (spec && spec.accent) || '#66ffff';
+            const title = (spec && spec.title) || 'GENESIS WINDOW';
+            cmdClear(ctx, accent);
+            cmdTitle(ctx, title, accent);
+            if (spec && spec.description) cmdWrap(ctx, spec.description, 12, 44, 488, 18, '#9fe6c4', 12);
+            if (spec && spec.footer) cmdText(ctx, spec.footer, 12, 358, accent, 12);
+        }
+        function setCmdScreenAction(screen, action, label) {
+            if (!screen || !screen.grp || !action) return;
+            screen.grp.traverse((node) => {
+                if (!node || !node.userData) return;
+                node.userData.commandConsole = action;
+                node.userData.commandAction = action;
+                if (label) node.userData.commandLabel = label;
+            });
+        }
+        function getAgentRouteLabel() {
+            return (typeof activeAgentRoute === 'string' && activeAgentRoute)
+                ? activeAgentRoute
+                : (((typeof worldState !== 'undefined' && worldState && worldState.agentRoute) || 'GSK'));
+        }
+        function getAgentRouteContext(baseLabel) {
+            const route = getAgentRouteLabel();
+            return (baseLabel || 'CPL in-world terminal') + ' · active route ' + route + ' — ' + (AGENT_ROUTES[route] || 'custom role') + '. Respond through this role when useful, and treat the 3D world as GSK\'s command interface.';
+        }
+        function drawWorkbenchPaused(screen) {
+            drawHubWindowChrome(screen, {
+                title: 'GENESIS · WORKBENCH PATH',
+                accent: '#66ffff',
+                description: 'Phase 18 groundwork only. The one-canvas holo-terminal path is reserved here for the paused CPL workbench.',
+                footer: 'PAUSED · structure only · no broad UI rewrite'
+            });
+            const ctx = screen.ctx;
+            cmdText(ctx, 'STATUS: WINDOW SYSTEM READY', 12, 106, '#ffe0a8', 16);
+            cmdText(ctx, 'ACTIVE ROUTE: ' + getAgentRouteLabel(), 12, 128, '#8affc4', 14);
+            cmdWrap(ctx, 'Shared screen + routed actions + keyboard-safe open/close now exist so the real workbench can land later without breaking diegetic baseline.', 12, 136, 488, 20, '#dffaff', 14);
+            const bullets = [
+                '• one shared holo canvas',
+                '• terminal and future workbench share window routing',
+                '• command-center wrappers stay intact',
+                '• visible baseline preserved'
+            ];
+            let y = 222;
+            bullets.forEach((line) => { y = cmdWrap(ctx, line, 12, y, 488, 18, '#bfe6ff', 13) + 4; });
+            screen.tex.needsUpdate = true;
+        }
+        function renderHubWindow(cc) {
+            const state = ensureHubWindowState(cc);
+            if (!state || !state.sharedScreen) return;
+            const key = state.active;
+            const windowDef = key ? state.registry[key] : null;
+            if (!windowDef) {
+                state.sharedScreen.grp.visible = false;
+                if (cc) cc.terminalOpen = false;
+                return;
+            }
+            setCmdScreenAction(state.sharedScreen, windowDef.key, windowDef.title);
+            state.sharedScreen.grp.visible = true;
+            if (cc) cc.terminalOpen = !!windowDef.usesKeyboard;
+            if (cc && cc.keyboardGroup) cc.keyboardGroup.visible = !!windowDef.usesKeyboard;
+            if (typeof windowDef.render === 'function') windowDef.render(state.sharedScreen, cc, windowDef);
+            state.sharedScreen.tex.needsUpdate = true;
+        }
+        function getActiveHubWindow() {
+            if (!commandCenter || !commandCenter.hubWindows || !commandCenter.hubWindows.active) return null;
+            return commandCenter.hubWindows.registry ? commandCenter.hubWindows.registry[commandCenter.hubWindows.active] || null : null;
+        }
+        function isHubWindowInputLockActive() {
+            const activeWindow = getActiveHubWindow();
+            return !!(activeWindow && isInside && (activeWindow.usesKeyboard || activeWindow.key === 'workbench'));
+        }
+        function openHubWindow(key, options) {
+            if (!commandCenter) return;
+            const cc = commandCenter;
+            const state = ensureHubWindowState(cc);
+            const windowDef = state && state.registry ? state.registry[key] : null;
+            if (!windowDef) return;
+            if ((windowDef.usesKeyboard || windowDef.key === 'workbench') && typeof keyState !== 'undefined') Object.keys(keyState).forEach((code) => { keyState[code] = false; });
+            if (state.active && state.active !== key) {
+                const prev = state.registry[state.active];
+                if (prev && typeof prev.onClose === 'function') prev.onClose(cc, prev, { next: key });
+            }
+            state.active = key;
+            if (typeof windowDef.onOpen === 'function') windowDef.onOpen(cc, windowDef, options || {});
+            renderHubWindow(cc);
+        }
+        function closeHubWindow() {
+            if (!commandCenter) return;
+            const cc = commandCenter;
+            const state = ensureHubWindowState(cc);
+            if (!state || !state.active) {
+                if (cc.keyboardGroup) cc.keyboardGroup.visible = false;
+                if (state && state.sharedScreen) state.sharedScreen.grp.visible = false;
+                cc.terminalOpen = false;
+                if (typeof keyState !== 'undefined') Object.keys(keyState).forEach((code) => { keyState[code] = false; });
+                return;
+            }
+            const current = state.registry[state.active];
+            if (current && typeof current.onClose === 'function') current.onClose(cc, current, { next: null });
+            state.active = null;
+            if (cc.keyboardGroup) cc.keyboardGroup.visible = false;
+            if (state.sharedScreen) state.sharedScreen.grp.visible = false;
+            cc.terminalOpen = false;
+            if (typeof keyState !== 'undefined') Object.keys(keyState).forEach((code) => { keyState[code] = false; });
         }
         function makeInWorldKeyboard() {
             const group = new THREE.Group();
@@ -2584,30 +3483,33 @@ bloomPass.radius = 0.7;
         function pulseKey(mesh) { if (mesh && mesh.userData) mesh.userData.pulseUntil = performance.now() + 120; }
         function openInWorldTerminal() {
             if (!commandCenter) return;
-            const cc = commandCenter;
-            cc.terminalOpen = true;
-            cc.terminalScreen.grp.visible = true;
-            if (cc.keyboardGroup) cc.keyboardGroup.visible = true;
-            if (!cc.terminalLog.length) cc.terminalLog.push('GSK> type on the keys. SEND asks GSK. ESC closes.');
-            drawTerminal(cc);
+            openHubWindow('terminal', { source: 'command-center' });
             const p = (typeof playerNPC !== 'undefined' && playerNPC) ? playerNPC.position.clone().add(new THREE.Vector3(0, 1.3, 0)) : new THREE.Vector3(0, 1.5, 0);
             if (typeof spawnWhisper === 'function') spawnWhisper(p, 'GSK terminal online. Your words render in the world.');
         }
-        function closeInWorldTerminal() {
+        function openWorkbenchWindow() {
             if (!commandCenter) return;
-            const cc = commandCenter;
-            cc.terminalOpen = false;
-            cc.terminalScreen.grp.visible = false;
-            if (cc.keyboardGroup) cc.keyboardGroup.visible = false;
+            openHubWindow('workbench', { source: 'command-center' });
+            const p = (typeof playerNPC !== 'undefined' && playerNPC) ? playerNPC.position.clone().add(new THREE.Vector3(0, 1.3, 0)) : new THREE.Vector3(0, 1.5, 0);
+            if (typeof spawnWhisper === 'function') spawnWhisper(p, 'Workbench path is paused, but the Genesis window is ready for it.');
+        }
+        function closeInWorldTerminal() {
+            closeHubWindow();
+        }
+        if (typeof Genesis !== 'undefined') {
+            Genesis.openInWorldTerminal = openInWorldTerminal;
+            Genesis.openWorkbenchWindow = openWorkbenchWindow;
+            Genesis.closeHubWindow = closeHubWindow;
         }
         function drawTerminal(cc) {
-            const screen = cc.terminalScreen; if (!screen) return;
+            const screen = cc && cc.hubWindows && cc.hubWindows.sharedScreen ? cc.hubWindows.sharedScreen : (cc ? cc.terminalScreen : null); if (!screen) return;
             const ctx = screen.ctx;
             cmdClear(ctx, '#0bff9a');
             cmdTitle(ctx, 'GSK · TERMINAL (in-world)', '#8affc4');
             cmdText(ctx, 'keys type into the world · SEND asks GSK · ESC closes', 12, 44, '#9fe6c4', 12);
+            cmdText(ctx, 'route: ' + getAgentRouteLabel(), 12, 58, '#66ffff', 12);
             const lines = cc.terminalLog.slice(-9);
-            let y = 64;
+            let y = 78;
             for (const l of lines) y = cmdWrap(ctx, l, 12, y, 488, 18, l.indexOf('GSK>') === 0 ? '#cfffe6' : '#bfe6ff', 13) + 2;
             cmdWrap(ctx, 'YOU> ' + cc.terminalBuffer + '_', 12, 350, 488, 18, '#ffe0a8', 14);
             screen.tex.needsUpdate = true;
@@ -2628,7 +3530,7 @@ bloomPass.radius = 0.7;
             cc.terminalBuffer = '';
             drawTerminal(cc);
             try {
-                const r = await gsk.chat(msg, 'CPL in-world terminal');
+                const r = await gsk.chat(msg, getAgentRouteContext('CPL in-world terminal'));
                 const text = (r && (r.result || r.text || r.response)) ? (r.result || r.text || r.response) : (r ? JSON.stringify(r) : '');
                 cc.terminalLog.push('GSK> ' + String(text).slice(0, 380));
             } catch (e) { cc.terminalLog.push('GSK> (offline) ' + e.message); }
@@ -2660,6 +3562,10 @@ bloomPass.radius = 0.7;
                 return true;
             }
             if (action === 'terminal') { return true; }
+            if (action === 'workbench') {
+                openWorkbenchWindow();
+                return true;
+            }
             if (action === 'key') {
                 const ch = target.userData.keyChar;
                 if (ch) { pulseKey(target); typeTerminalChar(ch); }
@@ -2720,11 +3626,34 @@ bloomPass.radius = 0.7;
                 interiorGroup.add(b);
                 buttons.push(b);
             });
-            const sTerm = makeCmdScreen(3.0, 1.9, 'terminal', 'GSK TERMINAL', 0x8affc4); sTerm.grp.position.set(0, 1.05, -1.55); sTerm.grp.visible = false; interiorGroup.add(sTerm.grp); screens.terminal = sTerm;
+            const sTerm = makeCmdScreen(3.0, 1.9, 'terminal', 'GSK HOLO TERMINAL', 0x8affc4); sTerm.grp.position.set(0, 1.05, -1.55); sTerm.grp.visible = false; interiorGroup.add(sTerm.grp); screens.terminal = sTerm; screens.holoTerminal = sTerm;
             const kb = makeInWorldKeyboard(); kb.position.set(0, 0.5, -1.12); kb.visible = false; interiorGroup.add(kb);
             pedestal.userData.commandConsole = true;
             bookGroupInt.children.forEach(c => c.userData.commandConsole = true);
             commandCenter = { screens, buttons, thoughts: [], memoriesData: null, agentsData: null, lastMem: 0, lastAgents: 0, lastThoughtDraw: 0, lastMoodDraw: 0, ws: null, offlineShown: false, terminalOpen: false, terminalBuffer: '', terminalLog: [], terminalScreen: sTerm, keyboardGroup: kb };
+            registerHubWindow(commandCenter, 'terminal', {
+                title: 'GSK · TERMINAL (in-world)',
+                accent: '#8affc4',
+                description: 'The shared holo-terminal canvas routes live GSK conversation through the command center.',
+                footer: 'READ / TYPE / ASK · one-canvas path',
+                usesKeyboard: true,
+                onOpen(cc) {
+                    if (!cc.terminalLog.length) cc.terminalLog.push('GSK> type on the keys. SEND asks GSK. ESC closes.');
+                },
+                render(screen, cc) {
+                    drawTerminal(cc);
+                }
+            });
+            registerHubWindow(commandCenter, 'workbench', {
+                title: 'GENESIS · WORKBENCH PATH',
+                accent: '#66ffff',
+                description: 'Paused CPL workbench landing slot.',
+                footer: 'SAFE GROUNDWORK ONLY',
+                usesKeyboard: false,
+                render(screen) {
+                    drawWorkbenchPaused(screen);
+                }
+            });
             const signCanvas = document.createElement('canvas'); signCanvas.width = 512; signCanvas.height = 128;
             const sx = signCanvas.getContext('2d');
             sx.fillStyle = 'rgba(4,8,16,0.85)'; sx.fillRect(0, 0, 512, 128);
@@ -2741,7 +3670,22 @@ bloomPass.radius = 0.7;
             const online = (typeof gskBridge !== 'undefined' && gskBridge && gskBridge.gskOnline);
             const cc = commandCenter;
             if (!online) {
-                if (!cc.offlineShown) { drawOffline(cc.screens.runtime); drawOffline(cc.screens.mood); drawOffline(cc.screens.memories); drawOffline(cc.screens.agents); cc.offlineShown = true; }
+                if (cc.ws) { try { cc.ws.close(); } catch (_) { } cc.ws = null; }
+                if (!cc.offlineShown) {
+                    drawOffline(cc.screens.runtime, { title: 'GSK · RUNTIME', accent: '#66ffff', headline: 'GSK OFFLINE', subhead: 'runtime stream unavailable', hint: 'live proof resumes when the soul link returns', footer: 'READ-ONLY LINK DOWN' });
+                    drawOffline(cc.screens.mood, { title: 'GSK · MOOD / PHASE', accent: '#ffcc77', headline: 'MOOD DEGRADED', subhead: 'no live phase telemetry', hint: 'world mood controls remain gated', footer: 'NO LIVE SIGNAL' });
+                    drawOffline(cc.screens.memories, { title: 'GSK · MEMORIES', accent: '#8affc4', headline: 'MEMORIES OFFLINE', subhead: 'no live memory roster', hint: 'refresh again when GSK returns', footer: 'OFFLINE SNAPSHOT BLOCKED' });
+                    drawOffline(cc.screens.agents, { title: 'GSK · ACTIVE AGENTS', accent: '#b9a6ff', headline: 'AGENTS OFFLINE', subhead: 'spawn roster unavailable', hint: 'wait for GSK before issuing agent actions', footer: 'OFFLINE SNAPSHOT BLOCKED' });
+                    cc.offlineShown = true;
+                }
+                const activeWindow = getActiveHubWindow();
+                if (activeWindow && cc.hubWindows && cc.hubWindows.sharedScreen) {
+                    if (activeWindow.key === 'terminal') {
+                        drawOffline(cc.hubWindows.sharedScreen, { title: 'GSK · TERMINAL (in-world)', accent: '#8affc4', headline: 'TERMINAL OFFLINE', subhead: 'shared terminal link is down', hint: 'queued text stays local until GSK returns · ESC closes', footer: 'NO LIVE ROUTE' });
+                    } else if (activeWindow.key === 'workbench') {
+                        drawOffline(cc.hubWindows.sharedScreen, { title: 'GENESIS · WORKBENCH PATH', accent: '#66ffff', headline: 'WORKBENCH DEGRADED', subhead: 'paused shell remains offline-safe', hint: 'no stale workbench content is shown while the soul link is down', footer: 'PAUSED · OFFLINE SAFE' });
+                    }
+                }
                 return;
             }
             cc.offlineShown = false;
@@ -2766,6 +3710,11 @@ bloomPass.radius = 0.7;
             if (time - cc.lastMoodDraw > 0.5) { drawMood(cc.screens.mood); cc.lastMoodDraw = time; }
             if (time - cc.lastMem > 8) { cc.lastMem = time; refreshMemories(cc); }
             if (time - cc.lastAgents > 8) { cc.lastAgents = time; refreshAgents(cc); }
+            const activeHubKey = cc.hubWindows && cc.hubWindows.active;
+            if (activeHubKey && cc.hubWindows.registry && cc.hubWindows.registry[activeHubKey] && cc.hubWindows.sharedScreen) {
+                const activeWindow = cc.hubWindows.registry[activeHubKey];
+                if (activeWindow.usesKeyboard || activeWindow.key === 'workbench') renderHubWindow(cc);
+            }
             if (cc.keyboardGroup && cc.keyboardGroup.visible) {
                 const now = performance.now();
                 cc.keyboardGroup.children.forEach(k => { const s = now < (k.userData.pulseUntil || 0) ? 1.25 : 1.0; k.scale.setScalar(s); });
@@ -2773,11 +3722,13 @@ bloomPass.radius = 0.7;
         }
         try { buildCommandCenter(); } catch (e) { console.warn('[CommandCenter] init failed', e); }
         document.addEventListener('keydown', (e) => {
-            if (!commandCenter || !commandCenter.terminalOpen || !isInside) return;
-            if (e.key === 'Escape') { closeInWorldTerminal(); return; }
-            if (e.key === 'Enter') { e.preventDefault(); sendTerminal(); return; }
-            if (e.key === 'Backspace') { e.preventDefault(); typeTerminalChar('back'); return; }
-            if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); typeTerminalChar(e.key === ' ' ? 'space' : e.key); }
+            const activeWindow = getActiveHubWindow();
+            if (!commandCenter || !isInside || !activeWindow) return;
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeHubWindow(); return; }
+            if (!activeWindow.usesKeyboard) return;
+            if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); sendTerminal(); return; }
+            if (e.key === 'Backspace') { e.preventDefault(); e.stopPropagation(); typeTerminalChar('back'); return; }
+            if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); e.stopPropagation(); typeTerminalChar(e.key === ' ' ? 'space' : e.key); }
         });
         
         // ========== WISPS & DUST ==========
@@ -3355,9 +4306,12 @@ bloomPass.radius = 0.7;
                 new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
             sweep.position.set(0, y, 0.06); group.add(sweep);
 
-            // better lighting: a real front fill + rim glow (self-lit board via emissive)
-            const fill = new THREE.PointLight(accent, 1.6, 26, 2); fill.position.set(0, y, 1.9); group.add(fill);
-            const rim = new THREE.PointLight(accent, 0.7, 30, 2); rim.position.set(0, y + 0.5, -1.6); group.add(rim);
+            // ========== GENESIS TIER 1 / SHARD A: billboard emissive glow replaces per-board point lights ==========
+            const rim = new THREE.Mesh(
+                new THREE.PlaneGeometry(w * 1.08, h * 1.08),
+                new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })
+            );
+            rim.position.set(0, y, -0.01); group.add(rim);
 
             // floating ambient particles (guf)
             const pc = 26, ppos = new Float32Array(pc * 3);
@@ -3371,7 +4325,7 @@ bloomPass.radius = 0.7;
             const pmat = new THREE.PointsMaterial({ color: accent, size: 0.12, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
             const pts = new THREE.Points(pg, pmat); group.add(pts);
 
-            const fx = { group, sweep, halo, neon: neonMat, fill, rim, pts, mat: imageMat, base: y, h, w, phase: Math.random() * Math.PI * 2 };
+            const fx = { group, sweep, halo, neon: neonMat, rim, pts, mat: imageMat, base: y, h, w, phase: Math.random() * Math.PI * 2 };
             _billboardFx.push(fx);
 
             const imgUrl = billboardImages[idx % billboardImages.length];
@@ -3382,12 +4336,12 @@ bloomPass.radius = 0.7;
                 tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
                 fx.posterTex = tex;
                 imageMat.map = tex; imageMat.emissiveMap = tex;
-                imageMat.emissive = new THREE.Color(0xffffff); imageMat.emissiveIntensity = 0.5;
+                imageMat.emissive = new THREE.Color(0xffffff); imageMat.emissiveIntensity = 0.72;
                 imageMat.needsUpdate = true;
             }, undefined, (err) => { console.warn('[Billboard] image failed:', posterUrl, err); });
             const vidUrl = (typeof perf !== 'undefined' && perf.tier !== 'low') ? BILLBOARD_VIDEOS[idx] : null;
             if (vidUrl) { group.userData.billboard = vidUrl; fx.videoUrl = vidUrl; applyBillboardVideo(plane, imageMat, vidUrl, fx); }
-            if (typeof perf !== 'undefined' && perf.tier === 'low') { fx.fill.visible = false; fx.rim.visible = false; if (fx.pts) fx.pts.visible = false; }
+            if (typeof perf !== 'undefined' && perf.tier === 'low') { fx.rim.visible = false; if (fx.pts) fx.pts.visible = false; }
             return group;
         }
 
@@ -3403,7 +4357,8 @@ bloomPass.radius = 0.7;
                 fx.sweep.position.y = sy;
                 fx.sweep.material.opacity = 0.3 + 0.25 * Math.sin(time * 0.6 + fx.phase);
                 fx.halo.material.opacity = 0.10 + 0.05 * Math.sin(time * 1.2 + fx.phase);
-                fx.fill.intensity = 1.3 + 0.3 * Math.sin(time * 2 + fx.phase);
+                fx.mat.emissiveIntensity = 0.58 + 0.24 * p;
+                if (fx.rim && fx.rim.material) fx.rim.material.opacity = 0.05 + 0.05 * p;
                 fx.pts.rotation.y = time * 0.2;
             }
         }
@@ -3563,7 +4518,9 @@ bloomPass.radius = 0.7;
                 if (pct) pct.textContent = p + '%';
                 const n = PATH.length - 1;
                 const seg = Math.min(n, Math.floor(Math.min(1, t) * n));
-                if (capEl) capEl.textContent = (PATH[seg] && PATH[seg].cap) || '';
+                const caption = (PATH[seg] && PATH[seg].cap) || '';
+                if (typeof window.__genesisSetScrollCaptionBase === 'function') window.__genesisSetScrollCaptionBase(caption);
+                else if (capEl) capEl.textContent = caption;
             }
             function maybeShowEnter() {
                 if (ready && enterBtn) enterBtn.classList.add('show');
@@ -4561,6 +5518,12 @@ bloomPass.radius = 0.7;
                 const walk = mixer.clipAction(findClip(/walk/i)); walk.loop = THREE.LoopRepeat;
                 const idle = mixer.clipAction(findClip(/idle/i)); idle.loop = THREE.LoopRepeat;
                 idle.play();
+                Genesis.lifecycle.registerMixer(mixer, {
+                    owner: 'walker-rig',
+                    root: group,
+                    maxDistance: 120,
+                    sleepWhenFar: true
+                });
                 group.userData.walker = { mixer, walk, idle, current: idle };
             });
         }
@@ -4852,8 +5815,12 @@ bloomPass.radius = 0.7;
             const tag = (e.target && e.target.tagName || '').toLowerCase();
             return tag === 'input' || tag === 'textarea' || tag === 'select';
         }
+        function isCommandCenterKeyboardActive() {
+            const activeWindow = getActiveHubWindow();
+            return !!(activeWindow && activeWindow.usesKeyboard && isInside);
+        }
         document.addEventListener('keydown', (e) => {
-            if (isTypingTarget(e)) return;
+            if (isTypingTarget(e) || isHubWindowInputLockActive()) return;
             keyState[e.code] = true;
             if (e.code === 'KeyC') { setCameraMode(cameraMode === 'npc' ? 'orbit' : 'npc'); return; }
             if (cameraMode !== 'npc') return;
@@ -4864,7 +5831,7 @@ bloomPass.radius = 0.7;
             }
             if (e.code === 'Space') e.preventDefault();
         });
-        document.addEventListener('keyup', (e) => { keyState[e.code] = false; });
+        document.addEventListener('keyup', (e) => { if (isHubWindowInputLockActive()) return; keyState[e.code] = false; });
 
         // drag-to-look (free cursor — no pointer lock, so clicks + UI keep working)
         let _dragLook = false;
@@ -5447,7 +6414,7 @@ bloomPass.radius = 0.7;
             _loadSet(items, zone) {
                 items.forEach((item, i) => {
                     makeGLTF({ lazy: true }).load(item.glb, (gltf) => {
-                        const wrap = this._normalize(gltf, this._targetSize(item.file, zone));
+                        const wrap = this._normalize(gltf, this._targetSize(item.file, zone), zone);
                         if (zone === 'space') this._placeSpace(wrap, item, i);
                         else this._placeHeaven(wrap, item, i);
                     }, undefined, (err) => console.warn('[RecentCityExtensions] load failed:', item.file, err));
@@ -5479,7 +6446,7 @@ bloomPass.radius = 0.7;
                 return 8;
             }
 
-            _normalize(gltf, targetSize) {
+            _normalize(gltf, targetSize, zone) {
                 const model = gltf.scene;
                 model.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
                 const { box, size, center } = measureAsset(model);
@@ -5491,6 +6458,12 @@ bloomPass.radius = 0.7;
                 if (gltf.animations && gltf.animations.length) {
                     const mixer = new THREE.AnimationMixer(wrap);
                     gltf.animations.forEach(clip => mixer.clipAction(clip).play());
+                    Genesis.lifecycle.registerMixer(mixer, {
+                        owner: 'recent-city-extension',
+                        root: wrap,
+                        maxDistance: zone === 'space' ? 520 : 280,
+                        sleepWhenFar: true
+                    });
                     this.mixers.push(mixer);
                 }
                 return wrap;
@@ -5624,7 +6597,21 @@ bloomPass.radius = 0.7;
                 }
                 for (const l of this.spaceLights) l.intensity = (l.userData.base || 2) * glow;
 
-                this.mixers.forEach(m => m.update(dt));
+                // ========== GENESIS TIER 1 / SHARD B: centralized mixer budgeting ==========
+                this.mixers = this.mixers.filter((mixer) => {
+                    const root = mixer && mixer.getRoot ? mixer.getRoot() : null;
+                    if (root && !root.parent) {
+                        Genesis.lifecycle.deregisterMixer(mixer);
+                        return false;
+                    }
+                    Genesis.lifecycle.updateMixer(mixer, dt, {
+                        owner: 'recent-city-extension',
+                        root: root,
+                        maxDistance: root && root.parent === this.spaceCity ? 520 : 280,
+                        sleepWhenFar: true
+                    });
+                    return true;
+                });
                 for (const o of this.spaceOrbiters) {
                     const a = o.phase + time * o.speed * traffic;
                     o.obj.position.x = Math.cos(a) * o.radius;
@@ -6842,6 +7829,8 @@ bloomPass.radius = 0.7;
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && readingState === 'open') {
                 closeBookBtn.click();
+            } else if (e.key === 'Escape' && commandCenter && commandCenter.terminalOpen && isInside) {
+                return;
             } else if (e.key === 'Escape' && isInside) {
                 exitPyramid();
             } else if (e.key === 'Escape' && spawnOverlay.classList.contains('active')) {
@@ -9736,9 +10725,9 @@ bloomPass.radius = 0.7;
 
         // ========== DOUR-005 PRIORITY 4: 36 CHAMBER PLANETS ==========
         // The hub ring has 36 sockets (chamberSockets[]). Clicking a socket teleports
-        // into that chamber's small single-biome world (generated on first visit, then
-        // cached) and permanently lights that socket. "Fill them one by one" — a chamber
-        // only becomes real once walked into. ESC returns to the hub.
+        // into that chamber's small single-biome world. Only chamber discovery persists in
+        // worldState; visit/lifecycle counters are session-only, shared realm assets cache once,
+        // and the active chamber content is rebuilt deterministically on each entry. ESC returns to the hub.
         const chamberBase = new THREE.Vector3(0, -20000, 0);
         const chamberRoot = new THREE.Group();
         chamberRoot.position.copy(chamberBase);
@@ -9770,7 +10759,54 @@ bloomPass.radius = 0.7;
             calm: 0x8fe6c4, awe: 0xc8a8ff, anxious: 0xd66b6b, default: 0x88aaff
         };
         const chamberWorlds = {};
+        const chamberVisited = new Set((worldState.chambers || []).filter((idx) => Number.isInteger(idx) && idx >= 0 && idx < 36));
+        worldState.chambers = [...chamberVisited].sort((a, b) => a - b);
+        function createChamberWorld(index, discovered) {
+            return {
+                index,
+                discovered: !!discovered,
+                session: {
+                    visits: 0,
+                    lifecycle: 'idle',
+                    lastEnteredAt: 0
+                }
+            };
+        }
+        chamberVisited.forEach((index) => {
+            chamberWorlds[index] = createChamberWorld(index, true);
+        });
+        function ensureChamberWorld(index) {
+            const idx = Math.max(0, Math.min(35, index | 0));
+            if (!chamberWorlds[idx]) chamberWorlds[idx] = createChamberWorld(idx, chamberVisited.has(idx));
+            return chamberWorlds[idx];
+        }
+        function makeChamberRng(index) {
+            let state = ((((index | 0) + 1) * 2654435761) >>> 0) || 1;
+            return () => {
+                state = (state + 0x6D2B79F5) >>> 0;
+                let t = Math.imul(state ^ (state >>> 15), 1 | state);
+                t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+        }
+        function ensureChamberPersistentFixtures(group) {
+            const assetLayer = group.userData.realmAssetLayer || new THREE.Group();
+            assetLayer.name = 'chamber Real Assets';
+            assetLayer.userData.__chamberPersistent = true;
+            if (assetLayer.parent !== group) group.add(assetLayer);
+            group.userData.realmAssetLayer = assetLayer;
+            return assetLayer;
+        }
+        function rebuildChamberClickTargets(group) {
+            chamberClickTargets.length = 0;
+            const assetLayer = ensureChamberPersistentFixtures(group);
+            assetLayer.traverse((o) => {
+                if (o.isMesh) chamberClickTargets.push(o);
+            });
+        }
         function disposeObjectDeep(obj) {
+            // ========== GENESIS TIER 1 / SHARD B: safe mixer deregistration ==========
+            if (Genesis.lifecycle) Genesis.lifecycle.deregisterMixersDeep(obj);
             obj.traverse((o) => {
                 if (o.geometry) try { o.geometry.dispose(); } catch (e) {}
                 if (o.material) {
@@ -9783,11 +10819,26 @@ bloomPass.radius = 0.7;
             });
         }
 
+        function clearChamberTransient(group) {
+            const assetLayer = ensureChamberPersistentFixtures(group);
+            group.children.slice().forEach((child) => {
+                if (child === assetLayer) return;
+                if (child.userData && child.userData.__chamberPersistent) return;
+                disposeObjectDeep(child);
+                group.remove(child);
+            });
+            group._feature = null;
+            group._weather = null;
+            group.userData.chamberLifecycleState = 'idle';
+            group.userData.activeChamberIndex = -1;
+            rebuildChamberClickTargets(group);
+        }
+
         function buildChamberInto(group, index) {
-            const assetLayer = group.userData.realmAssetLayer;
-            group.children.slice().forEach((child) => { if (child !== assetLayer) { disposeObjectDeep(child); group.remove(child); } });
-            chamberClickTargets.length = 0;
-            if (assetLayer) assetLayer.traverse((o) => { if (o.isMesh) chamberClickTargets.push(o); });
+            const rng = makeChamberRng(index);
+            clearChamberTransient(group);
+            group.userData.chamberLifecycleState = 'enter';
+            group.userData.activeChamberIndex = index;
             const biome = CHAMBER_BIOMES[index % CHAMBER_BIOMES.length];
             group.add(new THREE.AmbientLight(biome.col, 0.5));
             const key = new THREE.PointLight(biome.col, 2.2, 240, 2);
@@ -9802,9 +10853,9 @@ bloomPass.radius = 0.7;
             const feat = new THREE.Group();
             if (biome.feat === 'crystal') {
                 for (let i = 0; i < 5; i++) {
-                    const c = new THREE.Mesh(new THREE.OctahedronGeometry(4 + Math.random() * 4, 0), new THREE.MeshStandardMaterial({ color: biome.col, emissive: biome.col, emissiveIntensity: 0.7, transparent: true, opacity: 0.85, roughness: 0.2 }));
+                    const c = new THREE.Mesh(new THREE.OctahedronGeometry(4 + rng() * 4, 0), new THREE.MeshStandardMaterial({ color: biome.col, emissive: biome.col, emissiveIntensity: 0.7, transparent: true, opacity: 0.85, roughness: 0.2 }));
                     const a = (i / 5) * Math.PI * 2;
-                    c.position.set(Math.cos(a) * 12, 6 + Math.random() * 8, Math.sin(a) * 12);
+                    c.position.set(Math.cos(a) * 12, 6 + rng() * 8, Math.sin(a) * 12);
                     feat.add(c);
                 }
             } else if (biome.feat === 'spire') {
@@ -9812,7 +10863,7 @@ bloomPass.radius = 0.7;
                 sp.position.y = 22; feat.add(sp);
             } else if (biome.feat === 'archive') {
                 for (let i = 0; i < 9; i++) {
-                    const b = new THREE.Mesh(new THREE.BoxGeometry(3, 8 + Math.random() * 12, 3), new THREE.MeshStandardMaterial({ color: biome.col, emissive: biome.col, emissiveIntensity: 0.5 }));
+                    const b = new THREE.Mesh(new THREE.BoxGeometry(3, 8 + rng() * 12, 3), new THREE.MeshStandardMaterial({ color: biome.col, emissive: biome.col, emissiveIntensity: 0.5 }));
                     const a = (i / 9) * Math.PI * 2;
                     b.position.set(Math.cos(a) * 14, 8, Math.sin(a) * 14);
                     feat.add(b);
@@ -9830,7 +10881,7 @@ bloomPass.radius = 0.7;
             } else {
                 for (let i = 0; i < 7; i++) {
                     const b = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshStandardMaterial({ color: biome.col, emissive: biome.col, emissiveIntensity: 0.6 }));
-                    b.position.set((Math.random() - 0.5) * 22, 6 + Math.random() * 16, (Math.random() - 0.5) * 22);
+                    b.position.set((rng() - 0.5) * 22, 6 + rng() * 16, (rng() - 0.5) * 22);
                     feat.add(b);
                 }
             }
@@ -9842,28 +10893,35 @@ bloomPass.radius = 0.7;
             const wgeo = new THREE.BufferGeometry();
             const wp = [];
             for (let i = 0; i < 320; i++) {
-                const rr = 18 + Math.random() * 46;
-                const aa = Math.random() * Math.PI * 2;
-                wp.push(Math.cos(aa) * rr, Math.random() * 62, Math.sin(aa) * rr);
+                const rr = 18 + rng() * 46;
+                const aa = rng() * Math.PI * 2;
+                wp.push(Math.cos(aa) * rr, rng() * 62, Math.sin(aa) * rr);
             }
             wgeo.setAttribute('position', new THREE.Float32BufferAttribute(wp, 3));
             const wmat = new THREE.PointsMaterial({ color: 0x88aaff, size: 0.7, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
             const weather = new THREE.Points(wgeo, wmat);
             group.add(weather);
             group._weather = weather;
+            group.userData.chamberLifecycleState = 'active';
         }
 
         function enterChamber(index) {
             if (inChamber) exitChamber();
+            const chamberIndex = Math.max(0, Math.min(35, index | 0));
+            const chamberWorld = ensureChamberWorld(chamberIndex);
+            const chamberSession = chamberWorld.session || (chamberWorld.session = { visits: 0, lifecycle: 'idle', lastEnteredAt: 0 });
             inChamber = true;
-            currentChamber = index;
+            currentChamber = chamberIndex;
             _hubPlayerPos = playerNPC.position.clone();
             _hubPlayerYaw = playerYaw;
-            // Rebuild the requested biome every visit; the previous implementation showed the last chamber visited.
-            buildChamberInto(chamberRoot, index);
-            chamberWorlds[index] = true;
-            if (!(worldState.chambers || []).includes(index)) worldState.chambers = [...(worldState.chambers || []), index];
-            if (chamberSockets[index]) chamberSockets[index].lit = true;
+            buildChamberInto(chamberRoot, chamberIndex);
+            chamberWorld.discovered = true;
+            chamberSession.visits = (chamberSession.visits || 0) + 1;
+            chamberSession.lastEnteredAt = Date.now();
+            chamberSession.lifecycle = 'active';
+            chamberVisited.add(chamberIndex);
+            worldState.chambers = [...chamberVisited].sort((a, b) => a - b);
+            if (chamberSockets[chamberIndex]) chamberSockets[chamberIndex].lit = true;
             saveWorldState();
             loadRealmAssetsOnce('chamber', chamberRoot, REALM_ASSET_SPECS.chamber, chamberClickTargets);
             playerNPC.position.set(chamberBase.x, chamberBase.y + 2, chamberBase.z + 44);
@@ -9873,8 +10931,15 @@ bloomPass.radius = 0.7;
         }
         function exitChamber() {
             if (!inChamber) return;
+            const prevIndex = currentChamber;
+            const chamberWorld = prevIndex >= 0 ? ensureChamberWorld(prevIndex) : null;
+            const chamberSession = chamberWorld && chamberWorld.session ? chamberWorld.session : null;
             inChamber = false;
             currentChamber = -1;
+            if (chamberSession) chamberSession.lifecycle = 'exit';
+            chamberRoot.userData.chamberLifecycleState = 'exit';
+            clearChamberTransient(chamberRoot);
+            if (chamberSession) chamberSession.lifecycle = 'idle';
             if (_hubPlayerPos) playerNPC.position.copy(_hubPlayerPos); else playerNPC.position.set(0, 0, 12);
             playerYaw = _hubPlayerYaw;
             playerFloorY = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
@@ -9901,6 +10966,7 @@ bloomPass.radius = 0.7;
         }
         function updateChamberRealm(time, dt) {
             updateRealmAssetMixers(chamberRoot, dt);
+            chamberRoot.userData.chamberLifecycleState = inChamber ? 'active' : 'idle';
             if (inChamber && chamberRoot._feature) chamberRoot._feature.rotation.y = time * 0.2;
             if (chamberRoot._weather) {
                 const mood = (gskBridge && gskBridge.gskOnline) ? (gskBridge.currentMood || 'neutral') : 'neutral';
@@ -9916,6 +10982,12 @@ bloomPass.radius = 0.7;
 
         // ========== PHASE 1: navigation HUD, realm atmosphere, POI, onboarding ==========
         const allPOIs = [];
+        function markChamberScaffoldPersistent(parent, obj) {
+            if (!obj || parent !== chamberRoot) return obj;
+            obj.userData = obj.userData || {};
+            obj.userData.__chamberPersistent = true;
+            return obj;
+        }
         function makeChevronTexture(hex) {
             const c = document.createElement('canvas'); c.width = c.height = 64;
             const x = c.getContext('2d');
@@ -9928,7 +11000,7 @@ bloomPass.radius = 0.7;
         function addPOI(parent, hex, lx, ly, lz) {
             const mat = new THREE.SpriteMaterial({ map: makeChevronTexture(hex), transparent: true, opacity: 0.9, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending });
             const s = new THREE.Sprite(mat); s.scale.set(4, 4, 4); s.position.set(lx, ly, lz); s.renderOrder = 999;
-            parent.add(s); allPOIs.push(s); return s;
+            parent.add(markChamberScaffoldPersistent(parent, s)); allPOIs.push(s); return s;
         }
         const _realmAtmosFx = [];
         function makeRealmParticles(color, count, radius, height, size) {
@@ -9953,7 +11025,7 @@ bloomPass.radius = 0.7;
             for (const [x, y, z] of pts) {
                 const l = new THREE.PointLight(color, 0.9, radius * 2.4, 2);
                 l.position.set(x, y, z);
-                group.add(l);
+                group.add(markChamberScaffoldPersistent(group, l));
             }
         }
         function addRealmGroundGlow(group, color, radius) {
@@ -9962,13 +11034,13 @@ bloomPass.radius = 0.7;
                 new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })
             );
             ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05;
-            group.add(ring);
+            group.add(markChamberScaffoldPersistent(group, ring));
             const disc = new THREE.Mesh(
                 new THREE.CircleGeometry(radius * 0.6, 64),
                 new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })
             );
             disc.rotation.x = -Math.PI / 2; disc.position.y = 0.04;
-            group.add(disc);
+            group.add(markChamberScaffoldPersistent(group, disc));
         }
         function buildRealmAtmospheres() {
             const defs = [
@@ -9981,10 +11053,10 @@ bloomPass.radius = 0.7;
             for (const d of defs) {
                 const dome = new THREE.Mesh(new THREE.SphereGeometry(180, 28, 18),
                     new THREE.MeshBasicMaterial({ color: d.c, side: THREE.BackSide, transparent: true, opacity: 0.12, depthWrite: false, fog: false }));
-                dome.position.set(0, 80, 0); dome.userData.baseOpacity = 0.12; d.g.add(dome); _realmAtmosFx.push(dome);
-                const light = new THREE.PointLight(d.c, 1.4, 520, 2); light.position.set(0, 70, 0); d.g.add(light);
+                dome.position.set(0, 80, 0); dome.userData.baseOpacity = 0.12; d.g.add(markChamberScaffoldPersistent(d.g, dome)); _realmAtmosFx.push(dome);
+                const light = new THREE.PointLight(d.c, 1.4, 520, 2); light.position.set(0, 70, 0); d.g.add(markChamberScaffoldPersistent(d.g, light));
                 addPOI(d.g, d.c, d.lx, d.ly, d.lz);
-                d.g.add(makeRealmParticles(d.c, 220, 150, 120, 0.8));
+                d.g.add(markChamberScaffoldPersistent(d.g, makeRealmParticles(d.c, 220, 150, 120, 0.8)));
                 addRealmRimLights(d.g, d.c, 150);
                 if (d.g !== merchantRealm) addRealmGroundGlow(d.g, d.c, 200);
             }
@@ -10081,7 +11153,7 @@ bloomPass.radius = 0.7;
         try { buildRealmAtmospheres(); buildCityAtmosphere(); } catch (e) { console.warn('[Phase1] atmospheres failed', e); }
 
         // ========== ANIMATION ==========
-        let time = 0, lastTime = 0, _frameCount = 0, _uiTick = 0, _hintCache = '';
+        let time = 0, lastTime = 0, _frameCount = 0, _uiTick = 0, _hintCache = '', _genesisTick = 0;
         
         function animate() {
             if (!_perfRunning) return; // tab hidden -> stop the loop entirely
@@ -10090,6 +11162,12 @@ bloomPass.radius = 0.7;
             const dt = Math.min(0.033, (now - lastTime) / 1000);
             lastTime = now;
             time += dt;
+            genesisRenderSchedule.update(now);
+            if (!Genesis.boot.firstFrameAt) {
+                Genesis.boot.firstFrameAt = now;
+                if (typeof window.__genesisMarkFirstFrame === 'function') window.__genesisMarkFirstFrame();
+                Genesis.setStatus('first frame alive', 'ok');
+            }
             if (loaderActive) ScrollWorldLoader.update(dt);
             updateRealmAtmospheres(time);
             if (!_audioSeeded) { _audioSeeded = true; CPL_AUDIO.seed(); }
@@ -10100,6 +11178,10 @@ bloomPass.radius = 0.7;
             updateBillboardVideoPlayback();
             const _slow = (_frameCount++ & 1) === 0; // half-rate for cosmetic-only systems (Gun H)
             const hubActive = !isInside && !inScribe && !inMerchant && !inBuilder && !inProphet && !inChamber;
+            // ========== GENESIS TIER 1 / SHARD B: world sector sleeping foundation ==========
+            const hubCityActive = hubActive && Genesis.lifecycle.isSectorActive(cityGroup, { root: cityGroup, maxDistance: 260, sleepWhenFar: true });
+            const skySectorActive = hubActive && Genesis.lifecycle.isSectorActive(skyLayer, { root: skyLayer, maxDistance: 560, sleepWhenFar: true });
+            const heavenSectorActive = hubActive && Genesis.lifecycle.isSectorActive(heaven, { root: heaven, maxDistance: 420, sleepWhenFar: true });
             perf.sample(dt);
             
             _uiTick += dt;
@@ -10195,41 +11277,44 @@ bloomPass.radius = 0.7;
                 g.rotation.y += 0.00015 * (1 + i * 0.2) * (i % 2 === 0 ? 1 : -1);
                 g.rotation.x += 0.00005 * (i % 2 === 0 ? 1 : -1);
             });
+            }
 
             // --- sky layer: clouds, worlds, galaxies, sky-cities ---
-            for (const c of skyClouds) {
-                c.obj.position.y = c.baseY + Math.sin(time * 0.3 + c.phase) * (1 + c.drift);
-                c.obj.rotation.y += 0.0008 * c.drift;
+            if (skySectorActive) {
+                for (const c of skyClouds) {
+                    c.obj.position.y = c.baseY + Math.sin(time * 0.3 + c.phase) * (1 + c.drift);
+                    c.obj.rotation.y += 0.0008 * c.drift;
+                }
+                for (const w of skyWorlds) {
+                    w.mesh.rotation.y += w.spin;
+                    w.mesh.rotation.x += w.spin * 0.5;
+                    const a = w.baseAng + time * w.orbit * 0.016;
+                    w.mesh.position.x = Math.cos(a) * w.rad;
+                    w.mesh.position.z = Math.sin(a) * w.rad;
+                    w.mesh.position.y = w.y + Math.sin(time * 0.4 + w.phase) * 1.2;
+                    if (w.ring) { w.ring.position.copy(w.mesh.position); w.ring.rotation.z += 0.004; }
+                }
+                for (const g of skyGalaxies) { g.rotation.y += 0.0004; g.rotation.x += 0.0001; }
+                for (const c of skyCities) {
+                    c.obj.position.y = c.baseY + Math.sin(time * 0.25 + c.phase) * 1.5;
+                    c.obj.rotation.y += c.spin * 0.016;
+                }
+                if (skyBackdrop) skyBackdrop.rotation.y += 0.00005;
+                for (const n of skyNebulae) {
+                    n.obj.position.y = n.baseY + Math.sin(time * 0.12 + n.phase) * n.bob;
+                    n.obj.material.rotation += n.spin;
+                }
+                for (const a of skyAnchors) {
+                    if (a.follow) a.obj.position.copy(a.follow.position);
+                    a.obj.position.y = a.baseY + Math.sin(time * 0.16 + a.phase) * a.bob;
+                    a.obj.rotation.y += a.spin;
+                    a.obj.rotation.z += a.spin * 0.35;
+                }
+                for (const c of skyConstellations) {
+                    c.obj.material.opacity = 0.2 + Math.sin(time * 0.35 + c.phase) * 0.08;
+                }
+                if (window.__recentCityExtensions) window.__recentCityExtensions.update(dt, time);
             }
-            for (const w of skyWorlds) {
-                w.mesh.rotation.y += w.spin;
-                w.mesh.rotation.x += w.spin * 0.5;
-                const a = w.baseAng + time * w.orbit * 0.016;
-                w.mesh.position.x = Math.cos(a) * w.rad;
-                w.mesh.position.z = Math.sin(a) * w.rad;
-                w.mesh.position.y = w.y + Math.sin(time * 0.4 + w.phase) * 1.2;
-                if (w.ring) { w.ring.position.copy(w.mesh.position); w.ring.rotation.z += 0.004; }
-            }
-            for (const g of skyGalaxies) { g.rotation.y += 0.0004; g.rotation.x += 0.0001; }
-            for (const c of skyCities) {
-                c.obj.position.y = c.baseY + Math.sin(time * 0.25 + c.phase) * 1.5;
-                c.obj.rotation.y += c.spin * 0.016;
-            }
-            if (skyBackdrop) skyBackdrop.rotation.y += 0.00005;
-            for (const n of skyNebulae) {
-                n.obj.position.y = n.baseY + Math.sin(time * 0.12 + n.phase) * n.bob;
-                n.obj.material.rotation += n.spin;
-            }
-            for (const a of skyAnchors) {
-                if (a.follow) a.obj.position.copy(a.follow.position);
-                a.obj.position.y = a.baseY + Math.sin(time * 0.16 + a.phase) * a.bob;
-                a.obj.rotation.y += a.spin;
-                a.obj.rotation.z += a.spin * 0.35;
-            }
-            for (const c of skyConstellations) {
-                c.obj.material.opacity = 0.2 + Math.sin(time * 0.35 + c.phase) * 0.08;
-            }
-            if (window.__recentCityExtensions) window.__recentCityExtensions.update(dt, time);
             
             // --- rotate nebulae ---
             nebulae.forEach(n => {
@@ -10256,7 +11341,7 @@ bloomPass.radius = 0.7;
             });
             
             // --- city cars ---
-            for (const car of cars) {
+            if (hubCityActive) for (const car of cars) {
                 if (car.axis === 'x') {
                     car.group.position.x += car.speed * car.dir * dt;
                     if (car.group.position.x > 86) car.group.position.x = -86;
@@ -10271,7 +11356,7 @@ bloomPass.radius = 0.7;
             }
             
             // --- flying ships ---
-            for (const ship of ships) {
+            if (skySectorActive) for (const ship of ships) {
                 ship.phase += dt;
                 ship.group.position.x += Math.cos(ship.lane) * ship.speed * dt;
                 ship.group.position.z += Math.sin(ship.lane + 0.4) * ship.speed * dt;
@@ -10285,7 +11370,7 @@ bloomPass.radius = 0.7;
             }
             
             // --- ground traffic (real GLB cars) ---
-            for (const car of groundCars) {
+            if (hubCityActive) for (const car of groundCars) {
                 car.group.position.x += car.speed * car.direction * dt;
                 if (car.group.position.x > 80) {
                     car.group.position.x = -80;
@@ -10295,8 +11380,8 @@ bloomPass.radius = 0.7;
             }
             
             // --- citizens wandering ---
-            if (yukaSteering) { yukaTime.update(); for (const e of yukaEntities) e.update(yukaTime); }
-            for (const c of citizens) {
+            if (hubCityActive && yukaSteering) { yukaTime.update(); for (const e of yukaEntities) e.update(yukaTime); }
+            if (hubCityActive) for (const c of citizens) {
                 if (yukaSteering && c.yuka) {
                     c.group.position.x = c.yuka.position.x;
                     c.group.position.z = c.yuka.position.z;
@@ -10313,7 +11398,7 @@ bloomPass.radius = 0.7;
                         const moving = v.lengthSq() > 0.02;
                         const want = moving ? w.walk : w.idle;
                         if (w.current !== want) { w.current.fadeOut(0.25); want.reset().fadeIn(0.25).play(); w.current = want; }
-                        w.mixer.update(dt);
+                        Genesis.lifecycle.updateMixer(w.mixer, dt, { owner: 'walker-rig', root: c.group, maxDistance: 120, sleepWhenFar: true });
                     }
                     continue;
                 }
@@ -10342,11 +11427,11 @@ bloomPass.radius = 0.7;
                         want.reset().fadeIn(0.25).play();
                         w.current = want;
                     }
-                    w.mixer.update(dt);
+                    Genesis.lifecycle.updateMixer(w.mixer, dt, { owner: 'walker-rig', root: c.group, maxDistance: 120, sleepWhenFar: true });
                 }
             }
-            if (paimonMixer) paimonMixer.update(dt);
-            if (paimonNPC) {
+            if (paimonMixer) Genesis.lifecycle.updateMixer(paimonMixer, dt, { owner: 'paimon', root: paimonNPC || scene, maxDistance: 160, sleepWhenFar: true });
+            if (hubCityActive && paimonNPC) {
                 paimonTimer += dt;
                 if (paimonTimer > 4) {
                     paimonTimer = 0;
@@ -10365,7 +11450,7 @@ bloomPass.radius = 0.7;
             }
             
             // --- seraphs orbiting ---
-            for (const s of seraphs) {
+            if (heavenSectorActive) for (const s of seraphs) {
                 const t = time * s.speed + s.phase;
                 s.group.position.x = s.base.x + Math.cos(t) * s.orbit;
                 s.group.position.y = s.base.y + Math.sin(t * 1.7) * 0.6;
@@ -10374,14 +11459,15 @@ bloomPass.radius = 0.7;
             }
             
             // --- heaven crown rotation + celestial layer drift ---
-            crown.rotation.z += 0.008;
-            axis.rotation.y += 0.016;
-            for (const h of heavenDetails) {
-                h.obj.rotation[h.axis] += h.spin * (dt * 60);
-            }
-            for (const f of heavenFloaters) {
-                f.obj.position.y = f.baseY + Math.sin(time * f.speed + f.phase) * f.amp;
-            }
+            if (heavenSectorActive) {
+                crown.rotation.z += 0.008;
+                axis.rotation.y += 0.016;
+                for (const h of heavenDetails) {
+                    h.obj.rotation[h.axis] += h.spin * (dt * 60);
+                }
+                for (const f of heavenFloaters) {
+                    f.obj.position.y = f.baseY + Math.sin(time * f.speed + f.phase) * f.amp;
+                }
             }
             
             // --- book reading animation ---
@@ -10423,7 +11509,7 @@ bloomPass.radius = 0.7;
             if (portalUniforms) portalUniforms.uTime.value = time;
             if (floatDustUniforms) floatDustUniforms.uTime.value = time;
             if (emberUniforms) emberUniforms.uTime.value = time;
-            if (hubActive) updateHubExtensions(time);
+            if (skySectorActive || heavenSectorActive) updateHubExtensions(time);
             if (inScribe) updateScribeRealm(time, dt);
             if (inMerchant) updateMerchantRealm(time, dt);
             if (inBuilder) updateBuilderRealm(time, dt);
@@ -10448,23 +11534,35 @@ bloomPass.radius = 0.7;
             updatePlayerNPC(dt);
             if (cameraMode === 'orbit') controls.update();
             perf.beginGpu();
-            effectComposer.render();
+            if (genesisRenderSchedule.composerReady) effectComposer.render();
+            else renderer.render(scene, camera);
             perf.endGpu();
             perf.pollGpu();
+            if (Genesis.recovery && typeof Genesis.recovery.noteFrame === 'function') Genesis.recovery.noteFrame();
+            if (!Genesis.boot.recoveryActive && Genesis.boot.fallbackGroup && Genesis.boot.fallbackGroup.visible && (window.__cplReady || (window.__genesisBackstopReleased && Genesis.boot.firstFrameAt && (now - Genesis.boot.firstFrameAt) > 1500 && renderer.info.render.calls > 20))) {
+                Genesis.boot.fallbackGroup.visible = false;
+                Genesis.boot.fallbackVisible = false;
+            }
+            _genesisTick += dt;
+            if (_genesisTick >= 0.25) {
+                _genesisTick = 0;
+                Genesis.boot.backstopReleased = !!window.__genesisBackstopReleased;
+                Genesis.updateTelemetry();
+            }
         }
 
         // ========== GUN D: precompile all visible shaders once so the first frames don't hitch ==========
         try { renderer.compile(scene, camera); } catch (e) { console.warn('[PERF] precompile skipped', e); }
 
+        genesisRenderSchedule.init();
         animate();
 
         // ========== RESIZE ==========
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            effectComposer.setSize(window.innerWidth, window.innerHeight);
-            bloomPass.setSize(Math.max(1, Math.floor(window.innerWidth * BLOOM_SCALE)), Math.max(1, Math.floor(window.innerHeight * BLOOM_SCALE)));
+            perf.apply();
+            Genesis.updateTelemetry();
         });
 
         // ========== PERF: apply tier once the whole world exists ==========
@@ -10512,6 +11610,12 @@ bloomPass.radius = 0.7;
     </div>
 
     <div id="objective"></div>
+
+    <div id="genesis-pill">
+        <div class="g-row"><span class="g-label">Genesis</span><span class="g-value" id="genesis-status">booting…</span></div>
+        <div class="g-row"><span class="g-label">Telemetry</span><span class="g-value" id="genesis-metrics">awaiting first frame…</span></div>
+        <div class="g-row"><span class="g-label">Render</span><span class="g-value" id="genesis-detail">dpr -- · cmp -- · shd --</span></div>
+    </div>
 
     <div id="scroll-loader">
         <div class="sl-progress-track"><div class="sl-progress-fill" id="sl-fill"></div></div>
