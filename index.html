@@ -583,6 +583,8 @@
           text-align: center; max-width: min(520px, 86vw); }
         #scroll-loader h1 { font-size: 20px; letter-spacing: 5px; margin: 0 0 4px; color: #ffe0a8; }
         #scroll-loader .sl-sub { font-size: 10px; color: #9fd0ff; letter-spacing: 2px; margin-bottom: 10px; }
+        #scroll-loader .sl-caption { font-size: 14px; color: #ffe0a8; letter-spacing: 2px; margin: 2px 0 8px; min-height: 18px;
+          text-shadow: 0 0 12px rgba(255,200,120,0.4); }
         #scroll-loader .sl-hint { font-size: 12px; color: #cfe6ff; line-height: 1.5; }
         #scroll-loader .sl-hint b { color: #66ffff; }
         #scroll-loader .sl-enter { margin-top: 12px; font-family: Georgia, serif; font-size: 12px; letter-spacing: 3px;
@@ -3526,14 +3528,19 @@ bloomPass.radius = 0.7;
         const ScrollWorldLoader = (() => {
             let t = 0;            // 0..1 flight progress
             let ready = false;    // critical assets loaded
-            let el, fill, pct, enterBtn;
-            // camera flythrough keyframes: [position, lookAt]
+            let el, fill, pct, enterBtn, capEl;
+            // Guided cinematic flythrough: each keyframe is a SITE in the living world.
+            // Scroll scrubs between them; load progress auto-advances the tour.
             const PATH = [
-                { p: new THREE.Vector3(0, 70, 140), l: new THREE.Vector3(0, 6, 0) },
-                { p: new THREE.Vector3(46, 34, 78), l: new THREE.Vector3(0, 10, 0) },
-                { p: new THREE.Vector3(22, 14, 44), l: new THREE.Vector3(0, 5, 0) },
-                { p: new THREE.Vector3(9, 6, 24),  l: new THREE.Vector3(0, 3, 0) },
-                { p: new THREE.Vector3(0, 2.4, 18), l: new THREE.Vector3(0, 2.0, 6) }
+                { p: new THREE.Vector3(0, 92, 175),  l: new THREE.Vector3(0, 12, 0),   cap: 'ENTERING THE LIVING LIBRARY' },
+                { p: new THREE.Vector3(78, 26, 96),  l: new THREE.Vector3(0, 6, 0),    cap: 'THE NEON CITY — 40 souls orbit the stacks' },
+                { p: new THREE.Vector3(26, 12, 34),  l: new THREE.Vector3(0, 7, 0),    cap: 'THE LIVING LIBRARY — click books to read' },
+                { p: new THREE.Vector3(8, 28, 18),   l: new THREE.Vector3(0, 42, -12), cap: 'HEAVEN — the angel choir circles above' },
+                { p: new THREE.Vector3(0, 48, -64),  l: new THREE.Vector3(0, 43, -22), cap: 'THE CELESTIAL CROWN' },
+                { p: new THREE.Vector3(-34, 12, 74), l: new THREE.Vector3(0, 7, 50),   cap: 'THE REALM GATES — craft to Scribe, Market, Build, Prophet' },
+                { p: new THREE.Vector3(0, 9, 66),    l: new THREE.Vector3(0, 11, 50),  cap: 'THE CARETAKER guards the hub door' },
+                { p: new THREE.Vector3(34, 7, -32),  l: new THREE.Vector3(0, 3, -10),  cap: 'THE SCRIPTORIUM — where scripture is written' },
+                { p: new THREE.Vector3(0, 2.4, 18),  l: new THREE.Vector3(0, 2.0, 6),  cap: 'WELCOME, TRAVELER' }
             ];
             const _pos = new THREE.Vector3(), _look = new THREE.Vector3();
             function samplePath(u) {
@@ -3554,6 +3561,9 @@ bloomPass.radius = 0.7;
                 const p = Math.round(Math.min(1, t) * 100);
                 if (fill) fill.style.width = p + '%';
                 if (pct) pct.textContent = p + '%';
+                const n = PATH.length - 1;
+                const seg = Math.min(n, Math.floor(Math.min(1, t) * n));
+                if (capEl) capEl.textContent = (PATH[seg] && PATH[seg].cap) || '';
             }
             function maybeShowEnter() {
                 if (ready && enterBtn) enterBtn.classList.add('show');
@@ -3574,6 +3584,7 @@ bloomPass.radius = 0.7;
                 fill = document.getElementById('sl-fill');
                 pct = document.getElementById('sl-pct');
                 enterBtn = document.getElementById('sl-enter');
+                capEl = document.getElementById('sl-caption');
                 if (!el) return;
                 const io = document.getElementById('intro-overlay');
                 if (io) io.style.display = 'none';
@@ -3597,7 +3608,7 @@ bloomPass.radius = 0.7;
             function update(dt) {
                 if (!loaderActive) return;
                 if (window.__cplReady) { ready = true; maybeShowEnter(); }
-                if (t < 1) { t = Math.min(1, t + dt * 0.1); applyCamera(); setProgress(); }
+                if (t < 1) { t = Math.min(1, t + dt * 0.06); applyCamera(); setProgress(); }
                 maybeShowEnter();
             }
             return { init, update, get active() { return loaderActive; }, finish };
@@ -10338,7 +10349,8 @@ bloomPass.radius = 0.7;
         <div class="sl-card">
             <h1>THE LIVING LIBRARY</h1>
             <div class="sl-sub">GSK · SOUL PROTOCOL · ENTERING THE WORLD</div>
-            <div class="sl-hint">Scroll, or simply wait — your approach flight is <b>scrubbable</b>. The world streams in around you.</div>
+            <div class="sl-caption" id="sl-caption"></div>
+            <div class="sl-hint">Scroll, or simply wait — your guided flight is <b>scrubbable</b>. The world streams in around you.</div>
             <button class="sl-enter" id="sl-enter">ENTER THE LIBRARY</button>
         </div>
     </div>
