@@ -3715,6 +3715,52 @@ bloomPass.radius = 0.7;
         }
         initQuarks();
 
+        // ========== RAPIER PHYSICS (engine 4/7) ==========
+        // A small contained physics layer: ambient glowing "wisdom shards" that
+        // drop and settle on the hub floor, their Three meshes synced from Rapier
+        // rigid bodies each frame. Stepping happens in animate via updateRapier().
+        // Loaded via dynamic import (compat = wasm bundled in, no extra fetch);
+        // on any failure the layer self-disables and CPL is untouched. Off on 'low'.
+        let RAPIER = null, _rapWorld = null, _rapShards = [], _rapReady = false;
+        async function initRapier() {
+            if (_rapReady || (perf && perf.tier === 'low')) return;
+            try {
+                RAPIER = await import('https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/+esm');
+                await RAPIER.init();
+                _rapWorld = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+                // hub floor collider (top surface at y=0)
+                _rapWorld.createCollider(RAPIER.ColliderDesc.cuboid(60, 0.1, 60).setTranslation(0, -0.1, 0));
+                const shardMat = new THREE.MeshStandardMaterial({ color: 0x88e0ff, emissive: 0x2244aa, emissiveIntensity: 1.1, roughness: 0.3, metalness: 0.2 });
+                for (let i = 0; i < 9; i++) {
+                    const r = 0.16 + Math.random() * 0.1;
+                    const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), shardMat);
+                    scene.add(mesh);
+                    const rb = _rapWorld.createRigidBody(
+                        RAPIER.RigidBodyDesc.dynamic()
+                            .setTranslation((Math.random() - 0.5) * 12, 2 + Math.random() * 4, (Math.random() - 0.5) * 12)
+                            .setAngvel({ x: Math.random() * 2, y: Math.random() * 2, z: Math.random() * 2 })
+                    );
+                    _rapWorld.createCollider(RAPIER.ColliderDesc.ball(r).setRestitution(0.45).setFriction(0.8), rb);
+                    _rapShards.push({ body: rb, mesh, r });
+                }
+                _rapReady = true;
+                console.log('[CPL] Rapier physics active');
+            } catch (e) { console.warn('[CPL] Rapier unavailable:', e.message); }
+        }
+        function updateRapier() {
+            if (!_rapReady) return;
+            try {
+                _rapWorld.step();
+                for (const s of _rapShards) {
+                    const p = s.body.translation();
+                    const q = s.body.rotation();
+                    s.mesh.position.set(p.x, p.y, p.z);
+                    s.mesh.quaternion.set(q.x, q.y, q.z, q.w);
+                }
+            } catch (e) { _rapReady = false; } // deactivate on error, world keeps running
+        }
+        initRapier();
+
         function updateBillboardVideoPlayback() {
             let active = 0;
             for (const fx of _billboardFx) {
@@ -10049,6 +10095,7 @@ bloomPass.radius = 0.7;
             if (!_audioSeeded) { _audioSeeded = true; CPL_AUDIO.seed(); }
             CPL_AUDIO.update(time);
             updateQuarks(dt);
+            updateRapier();
             updateBillboards(time);
             updateBillboardVideoPlayback();
             const _slow = (_frameCount++ & 1) === 0; // half-rate for cosmetic-only systems (Gun H)
