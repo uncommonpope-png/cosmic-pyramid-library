@@ -1017,6 +1017,18 @@
             this.boot.lastStatus = message;
             this.ui.setStatus(message, tone);
         };
+
+        // ========== GENESIS COST CONTRACT (Phase A — reversible primitive) ==========
+        // Every CPL object declares a `cost` on its root Object3D via userData.cost.
+        // Future managers read this to make automatic sleep/LOD decisions.
+        // Flag-gated: set window.__GENESIS_COST_CONTRACT = false to disable (no-op) without touching call sites.
+        window.__GENESIS_COST_CONTRACT = (typeof window.__GENESIS_COST_CONTRACT === 'boolean') ? window.__GENESIS_COST_CONTRACT : true;
+        Genesis.declareCost = function (obj, partial) {
+            if (window.__GENESIS_COST_CONTRACT === false) return;
+            if (!obj || !obj.userData) return;
+            const def = { cpu: 0, gpu: 0, memory: 0, updateFreq: 0, priority: 0, sector: 'unknown', sleep: 'never' };
+            obj.userData.cost = Object.assign(def, partial || {});
+        };
         Genesis.notifyError = function (message) {
             if (!message) return;
             this.setStatus('error: ' + message, 'err');
@@ -4062,6 +4074,7 @@ bloomPass.radius = 0.7;
                 parts.push(beacon);
             }
 
+            if (window.__GENESIS_COST_CONTRACT !== false) for (const p of parts) Genesis.declareCost(p, { cpu: 1, gpu: 2, memory: 0.5, updateFreq: 0, priority: 3, sector: 'city-core', sleep: 'distance' });
             buildings.push({ mesh: box, parts, x, z, type, h, w, d });
         }
         
@@ -4247,6 +4260,7 @@ bloomPass.radius = 0.7;
             }, { once: true });
             video.addEventListener('error', () => console.warn('[Billboard] video failed:', vidUrl));
             fx.video = video; fx.videoUrl = vidUrl;
+            if (window.__GENESIS_COST_CONTRACT !== false && plane && plane.userData) Genesis.declareCost(plane, { cpu: 1, gpu: 3, memory: 4, updateFreq: 30, priority: 5, sector: 'city-core', sleep: 'offscreen' });
         }
         function makeBillboard(spot, idx) {
             const w = spot.w || 5.8;
@@ -4257,6 +4271,7 @@ bloomPass.radius = 0.7;
             group.rotation.y = spot.rot || 0;
             const accent = spot.accent || 0xff33aa;
             cityGroup.add(group);
+            if (window.__GENESIS_COST_CONTRACT !== false) Genesis.declareCost(group, { cpu: 0.5, gpu: 1.5, memory: 0.3, updateFreq: 1, priority: 4, sector: 'city-core', sleep: 'distance' });
 
             const neonMat = new THREE.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.9 });
             const darkMat = new THREE.MeshStandardMaterial({ color: 0x03040a, emissive: 0x010205, roughness: 0.75, metalness: 0.3 });
@@ -4650,6 +4665,7 @@ bloomPass.radius = 0.7;
                 sys.emitter = emitter;
                 emitter.position.set(0, 2.85, 0); // pyramid capstone apex
                 scene.add(emitter);
+                if (window.__GENESIS_COST_CONTRACT !== false) Genesis.declareCost(emitter, { cpu: 1, gpu: 4, memory: 1, updateFreq: 60, priority: 2, sector: 'city-core', sleep: 'distance' });
                 const br = new Q.BatchedParticleRenderer();
                 br.addSystem(sys);
                 scene.add(br);
@@ -5546,6 +5562,7 @@ bloomPass.radius = 0.7;
             const r = 5 + Math.random() * 25;
             cGroup.position.set(Math.cos(a) * r, 0.2, Math.sin(a) * r);
             cityGroup.add(cGroup);
+            if (window.__GENESIS_COST_CONTRACT !== false) Genesis.declareCost(cGroup, { cpu: 2, gpu: 1, memory: 0.4, updateFreq: 10, priority: 6, sector: 'realm-denizens', sleep: 'distance' });
             npcTalkTargets.push(cGroup);
             assignWalkerRig(cGroup, i % walkerRigUrls.length, talkData, body);
             const baseSpeed = 1 + Math.random() * 2;
@@ -10730,6 +10747,7 @@ bloomPass.radius = 0.7;
         // and the active chamber content is rebuilt deterministically on each entry. ESC returns to the hub.
         const chamberBase = new THREE.Vector3(0, -20000, 0);
         const chamberRoot = new THREE.Group();
+        if (window.__GENESIS_COST_CONTRACT !== false) Genesis.declareCost(chamberRoot, { cpu: 3, gpu: 4, memory: 2, updateFreq: 5, priority: 8, sector: 'chamber', sleep: 'idle' });
         chamberRoot.position.copy(chamberBase);
         scene.add(chamberRoot);
         const chamberClickTargets = [];
