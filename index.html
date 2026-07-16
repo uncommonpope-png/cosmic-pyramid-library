@@ -1109,49 +1109,6 @@
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Sector Manager module load skipped:', e && e.message); });
         })();
 
-        // ========== GENESIS VISIBILITY SYSTEM (Phase B6 — manager #6) ==========
-        // Frustum + distance + priority decisions for what is allowed to be seen/updated each frame.
-        // Reads userData.cost (priority, sleep). High-priority wakes first (Love: visitor sees substance first).
-        // Flag-gated by window.__GENESIS_VISIBILITY (default true; false => no-op).
-        window.__GENESIS_VISIBILITY = (typeof window.__GENESIS_VISIBILITY === 'boolean') ? window.__GENESIS_VISIBILITY : true;
-        (function () {
-            if (window.__GENESIS_VISIBILITY === false) { Genesis.Visibility = { register(){}, isVisible(){return true;}, wakeOrder(){return [];}, tick(){} }; return; }
-            const entries = new Map();
-            const _frustum = new THREE.Frustum();
-            const _projScreen = new THREE.Matrix4();
-            const _box = new THREE.Box3();
-            const _sphere = new THREE.Sphere();
-            function _inFrustum(root) {
-                if (!camera) return true;
-                root.updateWorldMatrix(true, false);
-                _box.setFromObject(root);
-                if (_box.isEmpty()) return true;
-                _box.getBoundingSphere(_sphere);
-                _projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-                _frustum.setFromProjectionMatrix(_projScreen);
-                return _frustum.intersectsSphere(_sphere);
-            }
-            Genesis.Visibility = {
-                register(id, root, opts) { entries.set(id, { root, priority: (opts && opts.priority != null) ? opts.priority : 5, maxDistance: (opts && opts.maxDistance) || 260, visible: true }); },
-                isVisible(id) { const e = entries.get(id); return !!e && e.visible; },
-                wakeOrder() { return [...entries.entries()].sort((a, b) => b[1].priority - a[1].priority).map(([id]) => id); },
-                tick() {
-                    for (const [id, e] of entries) {
-                        let never = false;
-                        e.root.traverse((o) => { if (o.userData && o.userData.cost && o.userData.cost.sleep === 'never') never = true; });
-                        if (never) { e.visible = true; if (e.root.visible === false) e.root.visible = true; continue; }
-                        const inView = _inFrustum(e.root);
-                        e.visible = inView;
-                        if (e.root.visible !== inView) e.root.visible = inView;
-                    }
-                }
-            };
-            import('./src/genesis/visibility-system.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, camera, Genesis.SectorManager);
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Visibility System loaded from module (src/genesis/visibility-system.js)');
-            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Visibility System module load skipped:', e && e.message); });
-        })();
-
         Genesis.notifyError = function (message) {
             if (!message) return;
             this.setStatus('error: ' + message, 'err');
@@ -3961,7 +3918,6 @@ bloomPass.radius = 0.7;
         const cityGroup = new THREE.Group();
         scene.add(cityGroup);
         if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('city-core', cityGroup, { maxDistance: 260, autoSleep: false }); // city always near spawn; never auto-dispose
-        if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('city-core', cityGroup, { priority: 5, maxDistance: 260 });
 
         // Ground plane - large city floor
         const cityGroundGeo = new THREE.PlaneGeometry(200, 200);
@@ -11307,7 +11263,6 @@ bloomPass.radius = 0.7;
             time += dt;
             genesisRenderSchedule.update(now);
             if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager && Genesis.SectorManager.tick) Genesis.SectorManager.tick();
-            if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility && Genesis.Visibility.tick) Genesis.Visibility.tick();
             if (!Genesis.boot.firstFrameAt) {
                 Genesis.boot.firstFrameAt = now;
                 if (typeof window.__genesisMarkFirstFrame === 'function') window.__genesisMarkFirstFrame();
