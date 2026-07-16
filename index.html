@@ -2279,19 +2279,11 @@ renderer.toneMappingExposure = 0.75;
                 }
             `
         });
-        const infGrid = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), infGridMat);
-        infGrid.rotation.x = -Math.PI / 2;
-        infGrid.position.y = -0.03;
-        infGrid.renderOrder = -1;
-        infGrid.name = 'Infinite Grid';
-        infGrid.frustumCulled = false;
-        scene.add(infGrid);
-        Genesis.registry.trackObject3D(infGrid, { owner: 'infinite-grid', sector: 'survival', priority: 10 });
-        // Pin the infinite grid to the camera target every frame so it is truly endless.
-        // (Hooked into animate() below — Genesis.lifecycle has no onFrame; we use window.__genesisFrameCb.)
-        window.__genesisInfGrid = infGrid;
-        window.__genesisFrameCb = window.__genesisFrameCb || [];
-        window.__genesisFrameCb.push(() => { try { infGrid.position.set(controls.target.x, -0.03, controls.target.z); } catch (e) {} });
+        // Craig (2026-07-16): the infinite shader grid was BROKEN — its vertex shader used
+        // position.xzy (z=0 for a flat plane) so the grid rendered as a VERTICAL
+        // band slicing the world in half, and it fought the per-frame target pin. KILLED.
+        // The solid gridFloor (600x600 plane at y=-0.06, line ~2226) is the real
+        // floor and stays. No more world-splitting sheet.
         Genesis.registry.trackObject3D(genesisFallbackGroup, { owner: 'genesis-survival', source: 'fallback-scene' });
         Genesis.boot.fallbackGroup = genesisFallbackGroup;
         Genesis.boot.fallbackVisible = true;
@@ -4938,7 +4930,7 @@ bloomPass.radius = 0.7;
                 tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
                 fx.videoTex = tex;
                 // Feed the Shang Tsung soul shader so the DayZ clip wears samsy's form.
-                if (fx.soul && fx.soul.uniforms) { fx.soul.uniforms.uTex.value = tex; fx.soul.needsUpdate = true; }
+                if (fx.soul && fx.soul.uniforms) { fx.soul.uniforms.uTex.value = tex; fx.soul.uniforms.uHasTex.value = 1; fx.soul.needsUpdate = true; }
                 if (fx._near && video.paused) { try { video.play().catch(() => {}); } catch (e) {} }
             }, { once: true });
             video.addEventListener('error', () => console.warn('[Billboard] video failed:', vidUrl));
@@ -4958,6 +4950,7 @@ bloomPass.radius = 0.7;
                 depthWrite: false,
                 uniforms: {
                     uTex: { value: null },
+                    uHasTex: { value: 0 },
                     uTime: { value: 0 },
                     uAccent: { value: new THREE.Color(accent) },
                     uGlitch: { value: 0.0 }
@@ -4973,6 +4966,7 @@ bloomPass.radius = 0.7;
                     precision highp float;
                     varying vec2 vUv;
                     uniform sampler2D uTex;
+                    uniform bool uHasTex;
                     uniform float uTime;
                     uniform vec3 uAccent;
                     uniform float uGlitch;
@@ -4985,23 +4979,32 @@ bloomPass.radius = 0.7;
                     }
                     void main(){
                         vec2 uv = vUv;
-                        float g = uGlitch * (0.5 + 0.5*sin(uTime*9.0 + uv.y*40.0));
-                        float slice = step(0.985, hash(vec2(floor(uv.y*36.0), floor(uTime*12.0))));
-                        float shift = (slice*0.04 + g*0.02);
-                        float r = texture2D(uTex, uv + vec2( shift, 0.0)).r;
-                        float gr= texture2D(uTex, uv).g;
-                        float b = texture2D(uTex, uv + vec2(-shift, 0.0)).b;
-                        vec3 col = vec3(r, gr, b);
-                        float n = noise(uv*18.0 + uTime*0.6);
-                        col += (n-0.5) * 0.06;
-                        float scan = 0.85 + 0.15*sin(uv.y*900.0 - uTime*6.0);
-                        col *= scan;
-                        float lum = dot(col, vec3(0.299,0.587,0.114));
-                        col = mix(col, col + uAccent*0.35, (1.0-lum)*0.4);
+                        vec3 col;
+                        float a = 0.95;
+                        if (!uHasTex) {
+                            // No texture yet (or failed): show the accent as a lit panel, never black.
+                            col = uAccent * (0.5 + 0.5 * sin(uTime * 2.0 + uv.y * 6.0));
+                            a = 0.85;
+                        } else {
+                            float g = uGlitch * (0.5 + 0.5*sin(uTime*9.0 + uv.y*40.0));
+                            float band = floor(uv.y*36.0) + floor(uTime*12.0)*41.0;
+                            float slice = step(0.985, fract(sin(band)*43758.5453));
+                            float shift = (slice*0.04 + g*0.02);
+                            float r = texture2D(uTex, uv + vec2( shift, 0.0)).r;
+                            float gr= texture2D(uTex, uv).g;
+                            float b = texture2D(uTex, uv + vec2(-shift, 0.0)).b;
+                            col = vec3(r, gr, b);
+                            float n = noise(uv*18.0 + uTime*0.6);
+                            col += (n-0.5) * 0.06;
+                            float scan = 0.85 + 0.15*sin(uv.y*900.0 - uTime*6.0);
+                            col *= scan;
+                            float lum = dot(col, vec3(0.299,0.587,0.114));
+                            col = mix(col, col + uAccent*0.35, (1.0-lum)*0.4);
+                        }
                         vec2 c = abs(uv-0.5);
                         float vig = smoothstep(0.62, 0.42, max(c.x,c.y));
                         col *= mix(0.55, 1.0, vig);
-                        float a = mix(0.92, 1.0, vig);
+                        a = mix(0.85, 1.0, vig);
                         gl_FragColor = vec4(col, a);
                     }
                 `
@@ -5095,12 +5098,14 @@ bloomPass.radius = 0.7;
             const imgUrl = DAYZ_POSTERS[idx % DAYZ_POSTERS.length];
             group.userData.billboard = imgUrl;
             const posterUrl = `${imgUrl}?v=${BILLBOARD_ASSET_VERSION}`;
-            new THREE.TextureLoader(criticalManager).load(posterUrl, (tex) => {
+            // Billboards are DECORATIVE — must NOT gate the critical loader (a stuck
+            // criticalManager locked the city 2026-07-16). Use loadingManager.
+            new THREE.TextureLoader(loadingManager).load(posterUrl, (tex) => {
                 tex.colorSpace = THREE.SRGBColorSpace;
                 tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
                 fx.posterTex = tex;
                 // Feed the Shang Tsung soul shader (poster = first frame before video plays).
-                if (soulMat.uniforms) { soulMat.uniforms.uTex.value = tex; soulMat.needsUpdate = true; }
+                if (soulMat.uniforms) { soulMat.uniforms.uTex.value = tex; soulMat.uniforms.uHasTex.value = 1; soulMat.needsUpdate = true; }
             }, undefined, (err) => { console.warn('[Billboard] image failed:', posterUrl, err); });
             // Craig (2026-07-16): the billboards are TRASH — they show wrong stills and never
             // the real DayZ videos. FIX: videos are PRIMARY (play on load, muted loop), the
@@ -12198,17 +12203,21 @@ bloomPass.radius = 0.7;
             });
             
             // --- city cars ---
+            // Craig (2026-07-16): cars drove CRAZY/sideways. ROOT CAUSE: this update loop
+            // re-set rotation.y every frame with INVERTED logic vs spawn (line 5631),
+            // overriding the correct spawn fix. FIX: rotation must match spawn: x-travel
+            // body points along X (y=0 or PI by dir), z-travel y=PI/2 (or -PI/2).
             if (hubCityActive) for (const car of cars) {
                 if (car.axis === 'x') {
                     car.group.position.x += car.speed * car.dir * dt;
                     if (car.group.position.x > 86) car.group.position.x = -86;
                     if (car.group.position.x < -86) car.group.position.x = 86;
-                    car.group.rotation.y = car.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+                    car.group.rotation.y = car.dir > 0 ? 0 : Math.PI;
                 } else {
                     car.group.position.z += car.speed * car.dir * dt;
                     if (car.group.position.z > 86) car.group.position.z = -86;
                     if (car.group.position.z < -86) car.group.position.z = 86;
-                    car.group.rotation.y = car.dir > 0 ? 0 : Math.PI;
+                    car.group.rotation.y = car.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
                 }
             }
             
