@@ -1189,6 +1189,54 @@
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Memory Manager module load skipped:', e && e.message); });
         })();
 
+        // ========== GENESIS ANIMATION SCHEDULER (Phase B7 — manager #7) ==========
+        // Registers AnimationMixers with metadata; ticks ONLY active (in-range, awake,
+        // visible) mixers, pausing far ones. Observes existing mixers via lifecycle.
+        // Flag: __GENESIS_ANIM_SCHEDULER. When on, it is the active tick path.
+        window.__GENESIS_ANIM_SCHEDULER = (typeof window.__GENESIS_ANIM_SCHEDULER === 'boolean') ? window.__GENESIS_ANIM_SCHEDULER : true;
+        (function () {
+            if (window.__GENESIS_ANIM_SCHEDULER === false) { Genesis.AnimationScheduler = { registerMixer(){}, deregisterMixer(){}, tick(){}, setOptionalPaused(){}, summary(){return{};} }; return; }
+            const _mixers = new Map();
+            let _optionalPaused = false;
+            function _isActive(root, maxDistance, critical) {
+                if (!root) return true;
+                if (Genesis.lifecycle && typeof Genesis.lifecycle.isSectorActive === 'function') {
+                    if (!Genesis.lifecycle.isSectorActive(root, { root: root, maxDistance: maxDistance || 180, sleepWhenFar: true, allowWhenHidden: !!critical })) return false;
+                } else if (camera && root.parent) {
+                    root.updateWorldMatrix(true, false);
+                    const p = new THREE.Vector3().setFromMatrixPosition(root.matrixWorld);
+                    if (camera.position.distanceToSquared(p) > (maxDistance || 180) * (maxDistance || 180)) return false;
+                }
+                return true;
+            }
+            Genesis.AnimationScheduler = {
+                registerMixer(mixer, meta) {
+                    if (!mixer) return;
+                    _mixers.set(mixer, { root: (meta && meta.root) || (mixer.getRoot ? mixer.getRoot() : null), maxDistance: (meta && meta.maxDistance) || 180, owner: (meta && meta.owner) || 'unknown', critical: !!(meta && meta.critical), optional: !!(meta && meta.optional) });
+                },
+                deregisterMixer(mixer) { _mixers.delete(mixer); },
+                tick(dt) {
+                    for (const [mixer, meta] of _mixers) {
+                        if (meta.optional && _optionalPaused) continue;
+                        if (!_isActive(meta.root, meta.maxDistance, meta.critical)) continue;
+                        if (Genesis.lifecycle && typeof Genesis.lifecycle.updateMixer === 'function') { try { Genesis.lifecycle.updateMixer(mixer, dt, { root: meta.root, maxDistance: meta.maxDistance, owner: meta.owner, critical: meta.critical }); continue; } catch (e) {} }
+                        try { mixer.update(dt); } catch (e) {}
+                    }
+                },
+                setOptionalPaused(v) { _optionalPaused = !!v; },
+                summary() { return { registered: _mixers.size, optionalPaused: _optionalPaused }; }
+            };
+            // Observe existing mixer registrations: wrap lifecycle.registerMixer.
+            if (Genesis.lifecycle && typeof Genesis.lifecycle.registerMixer === 'function') {
+                const _origReg = Genesis.lifecycle.registerMixer.bind(Genesis.lifecycle);
+                Genesis.lifecycle.registerMixer = function (mixer, meta) { const r = _origReg(mixer, meta); Genesis.AnimationScheduler.registerMixer(mixer, meta); return r; };
+            }
+            import('./src/genesis/animation-scheduler.js').then((m) => {
+                const ext = m.install(window.Genesis, THREE, camera, scene);
+                if (ext && typeof console !== 'undefined') console.log('[Genesis] Animation Scheduler loaded from module (src/genesis/animation-scheduler.js)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Animation Scheduler module load skipped:', e && e.message); });
+        })();
+
         Genesis.notifyError = function (message) {
             if (!message) return;
             this.setStatus('error: ' + message, 'err');
@@ -11345,6 +11393,7 @@ bloomPass.radius = 0.7;
             genesisRenderSchedule.update(now);
             if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager && Genesis.SectorManager.tick) Genesis.SectorManager.tick();
             if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility && Genesis.Visibility.tick) Genesis.Visibility.tick();
+            if (window.__GENESIS_ANIM_SCHEDULER !== false && Genesis.AnimationScheduler && Genesis.AnimationScheduler.tick) Genesis.AnimationScheduler.tick(dt);
             if (!Genesis.boot.firstFrameAt) {
                 Genesis.boot.firstFrameAt = now;
                 if (typeof window.__genesisMarkFirstFrame === 'function') window.__genesisMarkFirstFrame();
