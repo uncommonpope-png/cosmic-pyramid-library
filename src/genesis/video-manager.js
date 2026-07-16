@@ -46,7 +46,7 @@ export function install(Genesis, THREE, _camera, _scene) {
   Genesis.VideoManager = Object.assign(Genesis.VideoManager || {}, {
     register(v, p, meta) { return mgr.register(v, p, meta); },
     unregister(v) { return mgr.unregister(v); },
-    activeCount() { return mgr.count(); },
+    activeCount() { return mgr.activeCount(); },
     capCheck(max) { return mgr.capCheck(max); },
     tick() { return mgr.tick(); },
     summary() { return mgr.summary(); }
