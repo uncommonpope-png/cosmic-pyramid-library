@@ -890,9 +890,18 @@
             var cap = document.getElementById('sl-caption');
             if (cap && message) cap.textContent = message;
         }
+        function __genesisSyncEnterVisibility() {
+            var enterBtn = document.getElementById('sl-enter');
+            if (!enterBtn) return;
+            var safeReady = !!window.__cplReady && (!!window.__genesisFirstFrameSeen || !!window.__genesisBackstopReleased);
+            enterBtn.classList.toggle('show', safeReady);
+        }
         function __genesisReleaseLoader(reason, options) {
             options = options || {};
-            if (window.__genesisBackstopReleased) return true;
+            if (window.__genesisBackstopReleased) {
+                __genesisSyncEnterVisibility();
+                return true;
+            }
             if (!options.force && !window.__genesisFirstFrameSeen) {
                 if (reason) __genesisSetLoaderText(reason, 'CPL — WAITING FOR FIRST FRAME');
                 window.__genesisPendingLoaderReleaseReason = reason || window.__genesisPendingLoaderReleaseReason;
@@ -901,8 +910,7 @@
             window.__genesisBackstopReleased = true;
             var overlay = document.getElementById('loader-overlay');
             if (overlay) overlay.classList.add('hidden');
-            var enterBtn = document.getElementById('sl-enter');
-            if (enterBtn) enterBtn.classList.add('show');
+            __genesisSyncEnterVisibility();
             if (reason) __genesisSetLoaderText(reason, 'CPL — SURVIVAL MODE');
             return true;
         }
