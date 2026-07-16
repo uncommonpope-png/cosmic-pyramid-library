@@ -18,14 +18,55 @@ export function createVerticalStackManager(ctx = {}) {
   let exteriorVisible = true;
   let lastTransition = null;
 
+  function rootsFor(record) {
+    if (!record || !record.root) return [];
+    let companions = record.options.companionRoots || [];
+    if (typeof companions === 'function') {
+      try { companions = companions() || []; } catch (_) { companions = []; }
+    }
+    const seen = new Set();
+    const entries = [{ root: record.root, role: record.options.role || record.id }];
+    for (const entry of Array.isArray(companions) ? companions : []) {
+      const root = entry && entry.root ? entry.root : entry;
+      if (root) entries.push({ root, role: (entry && entry.root && entry.role) || 'companion' });
+    }
+    return entries.filter((entry) => {
+      if (!entry.root || seen.has(entry.root)) return false;
+      seen.add(entry.root);
+      return true;
+    });
+  }
+
+  function visibleInTree(root) {
+    let node = root;
+    while (node) {
+      if (node.visible === false) return false;
+      node = node.parent;
+    }
+    return true;
+  }
+
   function applyState(record) {
     if (!record || !record.root) return;
     const stateVisible = record.state === STRATUM_STATES.ACTIVE || record.state === STRATUM_STATES.LOADED;
-    record.root.userData.__genesisVisibilityOwner = 'vertical-stack';
-    record.root.userData.verticalStratumId = record.id;
-    record.root.userData.verticalState = record.state;
-    record.root.userData.verticalSimulationActive = record.state === STRATUM_STATES.ACTIVE;
-    record.root.visible = exteriorVisible && !record.root.userData.__verticalExteriorHidden && stateVisible;
+    for (const entry of rootsFor(record)) {
+      const root = entry.root;
+      root.userData.__genesisVisibilityOwner = 'vertical-stack';
+      root.userData.verticalStratumId = record.id;
+      root.userData.verticalStratumRole = entry.role;
+      root.userData.verticalState = record.state;
+      root.userData.verticalSimulationActive = record.state === STRATUM_STATES.ACTIVE;
+      const shouldShow = exteriorVisible && !root.userData.__verticalExteriorHidden && stateVisible;
+      if (!shouldShow) {
+        if (!record.hiddenRoots.has(root)) record.visibilityBeforeHide.set(root, root.visible !== false);
+        record.hiddenRoots.add(root);
+        root.visible = false;
+      } else if (record.hiddenRoots.has(root)) {
+        root.visible = record.visibilityBeforeHide.get(root) !== false;
+        record.hiddenRoots.delete(root);
+        record.visibilityBeforeHide.delete(root);
+      }
+    }
   }
 
   function setRecordState(record, state) {
@@ -42,7 +83,7 @@ export function createVerticalStackManager(ctx = {}) {
   function registerStratum(id, root, options = {}) {
     if (!id || !root) throw new Error('registerStratum requires id and root');
     const state = VALID_STATES.has(options.state) ? options.state : STRATUM_STATES.UNLOADED;
-    const record = { id, root, options: { ...options }, state, changedAt: now() };
+    const record = { id, root, options: { ...options }, state, changedAt: now(), hiddenRoots: new Set(), visibilityBeforeHide: new Map() };
     strata.set(id, record);
     if (state === STRATUM_STATES.ACTIVE) {
       if (activeId && activeId !== id) setRecordState(strata.get(activeId), STRATUM_STATES.SLEEPING);
@@ -153,7 +194,7 @@ export function createVerticalStackManager(ctx = {}) {
   function setExteriorVisible(visible) {
     exteriorVisible = !!visible;
     for (const record of strata.values()) {
-      record.root.userData.__verticalExteriorHidden = !exteriorVisible;
+      for (const entry of rootsFor(record)) entry.root.userData.__verticalExteriorHidden = !exteriorVisible;
       applyState(record);
     }
   }
@@ -171,13 +212,21 @@ export function createVerticalStackManager(ctx = {}) {
   function summary() {
     const stratumSummary = {};
     for (const [id, record] of strata) {
+      const roots = rootsFor(record);
       stratumSummary[id] = {
         state: record.state,
-        visible: !!record.root.visible,
+        visible: visibleInTree(record.root),
         simulationActive: record.state === STRATUM_STATES.ACTIVE,
         rootName: record.root.name || '',
+        contentType: record.options.contentType || id,
         parentType: record.root.parent ? record.root.parent.type : null,
-        order: record.options.order == null ? 0 : record.options.order
+        order: record.options.order == null ? 0 : record.options.order,
+        roots: roots.map((entry) => ({
+          role: entry.role,
+          name: entry.root.name || '',
+          visible: visibleInTree(entry.root),
+          directSceneChild: !!(ctx.scene && entry.root.parent === ctx.scene)
+        }))
       };
     }
     return {
@@ -216,7 +265,7 @@ export function createVerticalStackManager(ctx = {}) {
 
 export function install(Genesis, _THREE = THREE, _camera, _scene) {
   if (!Genesis) return null;
-  const manager = createVerticalStackManager();
+  const manager = createVerticalStackManager({ scene: _scene });
   Genesis.VerticalStackManager = manager;
   return manager;
 }
