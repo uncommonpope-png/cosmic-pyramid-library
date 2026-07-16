@@ -1061,54 +1061,6 @@
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Resource Manager module load skipped:', e && e.message); });
         })();
 
-        // ========== GENESIS SECTOR MANAGER (Phase B4 — manager #4) ==========
-        // Partitions world into sectors; governs enter->active->sleep->dispose.
-        // Reads userData.cost.sleep (Phase A) to decide rest behavior. Makes "sleep distant sectors" real.
-        // Flag-gated by window.__GENESIS_SECTOR_MANAGER (default true; false => no-op).
-        window.__GENESIS_SECTOR_MANAGER = (typeof window.__GENESIS_SECTOR_MANAGER === 'boolean') ? window.__GENESIS_SECTOR_MANAGER : true;
-        (function () {
-            const SLEEP_PURGE_MS = 20000;
-            if (window.__GENESIS_SECTOR_MANAGER === false) { Genesis.SectorManager = { register(){}, sleep(){}, wake(){}, tick(){}, isAwake(){return true;}, summary(){return{};} }; return; }
-            const sectors = new Map();
-            function _isActive(root, maxDistance) {
-                if (!root) return true;
-                if (root.visible === false) return false;
-                if (!root.parent) return false;
-                if (!camera) return true;
-                root.updateWorldMatrix(true, false);
-                const p = new THREE.Vector3().setFromMatrixPosition(root.matrixWorld);
-                return camera.position.distanceToSquared(p) <= maxDistance * maxDistance;
-            }
-            function _sleepCost(root) { let mode = 'distance'; root.traverse((o) => { if (o.userData && o.userData.cost && o.userData.cost.sleep) mode = o.userData.cost.sleep; }); return mode; }
-            Genesis.SectorManager = {
-                register(id, root, opts) { sectors.set(id, { root, maxDistance: (opts && opts.maxDistance) || 220, autoSleep: !opts || opts.autoSleep !== false, state: 'active', lastAwakeAt: performance.now(), asleepFor: 0, disposed: false }); },
-                sleep(id) { const s = sectors.get(id); if (!s) return; s.root.visible = false; s.state = 'asleep'; s.lastAsleepAt = performance.now(); },
-                wake(id) { const s = sectors.get(id); if (!s) return; s.root.visible = true; s.state = 'active'; s.lastAwakeAt = performance.now(); s.asleepFor = 0; s.disposed = false; },
-                isAwake(id) { const s = sectors.get(id); return !!s && s.state === 'active'; },
-                tick() {
-                    const now = performance.now();
-                    for (const [id, s] of sectors) {
-                        if (!s.autoSleep) continue;
-                        const active = _isActive(s.root, s.maxDistance);
-                        const costMode = _sleepCost(s.root);
-                        if (active) { if (s.state !== 'active') this.wake(id); }
-                        else {
-                            if (s.state === 'active') this.sleep(id);
-                            if (costMode !== 'never' && Genesis.ResourceManager) {
-                                s.asleepFor = now - (s.lastAsleepAt || now);
-                                if (s.asleepFor > SLEEP_PURGE_MS && !s.disposed) { Genesis.ResourceManager.dispose(id); s.disposed = true; }
-                            }
-                        }
-                    }
-                },
-                summary() { const out = {}; for (const [id, s] of sectors) out[id] = { state: s.state, maxDistance: s.maxDistance, disposed: !!s.disposed }; return out; }
-            };
-            import('./src/genesis/sector-manager.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, camera, Genesis.ResourceManager);
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Sector Manager loaded from module (src/genesis/sector-manager.js)');
-            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Sector Manager module load skipped:', e && e.message); });
-        })();
-
         Genesis.notifyError = function (message) {
             if (!message) return;
             this.setStatus('error: ' + message, 'err');
@@ -3917,8 +3869,7 @@ bloomPass.radius = 0.7;
         // ========== SOULFEILD CITY BELOW THE LIBRARY ==========
         const cityGroup = new THREE.Group();
         scene.add(cityGroup);
-        if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('city-core', cityGroup, { maxDistance: 260, autoSleep: false }); // city always near spawn; never auto-dispose
-
+        
         // Ground plane - large city floor
         const cityGroundGeo = new THREE.PlaneGeometry(200, 200);
         const cityGroundMat = new THREE.MeshStandardMaterial({ color: 0x080818, roughness: 0.8, metalness: 0.15, emissive: 0x040410, emissiveIntensity: 0.1 });
@@ -11262,7 +11213,6 @@ bloomPass.radius = 0.7;
             lastTime = now;
             time += dt;
             genesisRenderSchedule.update(now);
-            if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager && Genesis.SectorManager.tick) Genesis.SectorManager.tick();
             if (!Genesis.boot.firstFrameAt) {
                 Genesis.boot.firstFrameAt = now;
                 if (typeof window.__genesisMarkFirstFrame === 'function') window.__genesisMarkFirstFrame();
