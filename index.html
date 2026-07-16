@@ -1036,6 +1036,9 @@
             obj.userData.cost = Object.assign(def, partial || {});
         };
 
+        function initGenesisManagers() {
+            if (Genesis._managersInitialized) return;
+            Genesis._managersInitialized = true;
         // ========== GENESIS RESOURCE MANAGER (Phase B1 — manager #1) ==========
         // Central ledger of every GPU resource: who owns it + what it costs (reads userData.cost).
         // Audits against renderer.info.memory so leaks are never invisible.
@@ -1489,6 +1492,7 @@
                 if (ext && typeof console !== 'undefined') console.log('[Genesis] Performance Governor v2 loaded from module (src/genesis/performance-governor.js)');
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Performance Governor v2 module load skipped:', e && e.message); });
         })();
+        }
 
         Genesis.notifyError = function (message) {
             if (!message) return;
@@ -2413,6 +2417,7 @@ bloomPass.radius = 0.7;
                 }
             }
         };
+        initGenesisManagers();
         function recreateDragControlsSafely() {
             if (typeof dragControls === 'undefined' || typeof draggables === 'undefined') return false;
             try {
@@ -2441,6 +2446,7 @@ bloomPass.radius = 0.7;
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
                 if (typeof renderer.resetState === 'function') renderer.resetState();
+                initGenesisManagers();
                 perf.apply();
                 genesisRenderSchedule.composerReady = false;
                 genesisRenderSchedule.shadowsReady = false;
