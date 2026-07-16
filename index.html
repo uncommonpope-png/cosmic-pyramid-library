@@ -1982,6 +1982,39 @@
             }, { once: true, passive: true });
         })();
 
+        // ========== GENESIS SCALE ENGINE (Phase E — bounded population + instanced traffic) ==========
+        // Bounded extensions of Phase B (PopulationEngine hero) + Phase C (VehicleController hero).
+        // OFF by default so the live world is byte-identical: no-op stub, module never imported,
+        // legacy groundCars/citizens fully visible + untouched. When ON, spawns bounded NEAR/MID/FAR
+        // bands (<=9 total mixers) and renders the 28 legacy groundCars as ONE instanced draw call.
+        // Mirrors the PopulationEngine / VehicleController flag-gate idiom.
+        window.__GENESIS_SCALE_ENGINE = (typeof window.__GENESIS_SCALE_ENGINE === 'boolean') ? window.__GENESIS_SCALE_ENGINE : false;
+        (function () {
+            if (window.__GENESIS_SCALE_ENGINE !== true) {
+                // No-op stub: never imported, never mutates managers or the world.
+                Genesis.ScaleEngine = { enable(){}, disable(){}, tick(){}, summary(){return {enabled:false,tier:'high',bands:{hero:0,near:0,mid:0,far:0},mixersRegistered:0,instancedTrafficCount:0,drawCallEstimate:0,tier:'high',surfaceActive:true};}, sample(){return {enabled:false,near:[],mid:[],far:[],frame:0};}, BAND_CAPS:{} };
+                return;
+            }
+            // Expose script-scoped helpers the imported module needs (idempotent; only when ON).
+            try {
+                if (typeof cloneAvatarModel === 'function') window.cloneAvatarModel = cloneAvatarModel;
+                if (typeof requestAvatarAsset === 'function') window.requestAvatarAsset = requestAvatarAsset;
+                if (typeof onAvatarReady === 'function') window.onAvatarReady = onAvatarReady;
+                if (typeof NPC_WALKER_KINDS !== 'undefined') window.NPC_WALKER_KINDS = NPC_WALKER_KINDS;
+                if (typeof groundCars !== 'undefined') window.groundCars = groundCars;
+            } catch (_) {}
+            // No-op stub first so call sites before async load never throw.
+            Genesis.ScaleEngine = { enable(){}, disable(){}, tick(){}, summary(){return {enabled:false,tier:'high',bands:{hero:0,near:0,mid:0,far:0},mixersRegistered:0,instancedTrafficCount:0,drawCallEstimate:0,tier:'high',surfaceActive:true};}, sample(){return {enabled:false,near:[],mid:[],far:[],frame:0};}, BAND_CAPS:{} };
+            import('./src/genesis/scale-engine.js').then((m) => {
+                if (typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene, cityGroup);
+                if (typeof console !== 'undefined') console.log('[Genesis] Scale Engine module validated (inline manager replaced).');
+                // Auto-enable once the world is ready (flag ON = opt-in to scale).
+                window.addEventListener('cpl:ready', () => {
+                    try { if (Genesis.ScaleEngine && typeof Genesis.ScaleEngine.enable === 'function') Genesis.ScaleEngine.enable(); } catch (e) { console.warn('[ScaleEngine] enable failed:', e && e.message); }
+                }, { once: true, passive: true });
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Scale Engine module load skipped:', e && e.message); });
+        })();
+
         window.__GENESIS_VERTICAL_STACK = (typeof window.__GENESIS_VERTICAL_STACK === 'boolean') ? window.__GENESIS_VERTICAL_STACK : true;
         (function () {
             const STATES = Object.freeze({ UNLOADED: 'UNLOADED', LOADED: 'LOADED', ACTIVE: 'ACTIVE', SLEEPING: 'SLEEPING' });
@@ -13519,6 +13552,10 @@ bloomPass.radius = 0.7;
             if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility && Genesis.Visibility.tick) Genesis.Visibility.tick();
             if (window.__GENESIS_ANIM_SCHEDULER !== false && Genesis.AnimationScheduler && Genesis.AnimationScheduler.tick) Genesis.AnimationScheduler.tick(dt, ++_genesisFrameSerial);
             if (window.__GENESIS_POPULATION_ENGINE !== false && Genesis.PopulationEngine && typeof Genesis.PopulationEngine.tick === 'function') Genesis.PopulationEngine.tick(dt);
+            // Genesis Scale Engine (Phase E): tick AFTER PopulationEngine. Bounded
+            // population bands + instanced traffic sync. No-op when flag OFF (it is
+            // OFF by default), so the legacy world is untouched. Respect surface sleep.
+            if (window.__GENESIS_SCALE_ENGINE === true && Genesis.ScaleEngine && typeof Genesis.ScaleEngine.tick === 'function') Genesis.ScaleEngine.tick(dt);
             if (window.__genesisFrameCb) { for (let _fi = 0; _fi < window.__genesisFrameCb.length; _fi++) { try { window.__genesisFrameCb[_fi](dt); } catch (e) {} } }
             if (window.__GENESIS_LIGHTING_MANAGER !== false && Genesis.LightingManager && Genesis.LightingManager.tick) Genesis.LightingManager.tick();
             if (window.__GENESIS_STREAMING_MANAGER !== false && Genesis.StreamingManager && Genesis.StreamingManager.tick) Genesis.StreamingManager.tick();
