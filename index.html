@@ -1894,6 +1894,49 @@
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Population Engine module load skipped:', e && e.message); });
         })();
 
+        // ========== GENESIS VEHICLE CONTROLLER (Phase C — subsystem #4) ==========
+        // ONE hero car driven by Rapier rigid-body physics. OFF by default so the
+        // live world is byte-identical. When false the manager is a no-op stub and
+        // the module is never imported. Mirrors the PopulationEngine flag-gate idiom.
+        window.__GENESIS_VEHICLE_CONTROLLER = (typeof window.__GENESIS_VEHICLE_CONTROLLER === 'boolean') ? window.__GENESIS_VEHICLE_CONTROLLER : false;
+        (function () {
+            if (window.__GENESIS_VEHICLE_CONTROLLER === false) {
+                Genesis.VehicleController = { spawnHeroCar(){}, tick(){}, summary(){return {enabled:false,spawned:false,rapierReady:false,mode:'AUTO',speed:0,position:{x:0,y:0,z:0},collisions:0,cameraAttached:false};}, getChaseCameraTarget(){return null;}, setMode(){} };
+                return;
+            }
+            const api = {
+                spawnHeroCar(){}, tick(){}, summary(){return {enabled:true,spawned:false,rapierReady:false,mode:'AUTO',speed:0,position:{x:0,y:0,z:0},collisions:0,cameraAttached:false};}, getChaseCameraTarget(){return null;}, setMode(){}
+            };
+            Genesis.VehicleController = api;
+            import('./src/genesis/vehicle-controller.js').then((m) => {
+                if (typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene, cityGroup);
+                if (typeof console !== 'undefined') console.log('[Genesis] Vehicle Controller module validated (inline manager replaced).');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Vehicle Controller module load skipped:', e && e.message); });
+
+            // Spawn deferral: only after Rapier ready + __cplReady (mirrors primeNpcBodies).
+            // NOTE: _rapReady is declared later in this scope (let, TDZ) so we must
+            // NOT reference it synchronously here — only inside deferred callbacks
+            // that run after the Rapier init completes.
+            // _rapReady (declared with let later in this scope) is referenced only
+            // inside spawn(), which is invoked from timers / frame hooks — i.e. AFTER
+            // the Rapier init has run (L6302). At that point _rapReady is initialized;
+            // the synchronous IIFE body never touches it, so there is no TDZ risk.
+            const spawn = () => {
+                if (!_rapReady) return false; // Rapier not initialized yet
+                try { if (Genesis.VehicleController && typeof Genesis.VehicleController.spawnHeroCar === 'function') Genesis.VehicleController.spawnHeroCar(); } catch (e) { console.warn('[VehicleController] spawn failed:', e && e.message); }
+                return true;
+            };
+            window.addEventListener('cpl:ready', () => { setTimeout(spawn, 200); }, { once: true, passive: true });
+            // Rapier may finish after cpl:ready; the per-frame tick hook calls this
+            // until spawned (idempotent — spawnHeroCar no-ops if already spawned).
+            if (typeof window !== 'undefined') {
+                window.__genesisVehicleSpawnCheck = function () {
+                    if (!Genesis.VehicleController || Genesis.VehicleController.summary().spawned) return true;
+                    return spawn();
+                };
+            }
+        })();
+
         window.__GENESIS_VERTICAL_STACK = (typeof window.__GENESIS_VERTICAL_STACK === 'boolean') ? window.__GENESIS_VERTICAL_STACK : true;
         (function () {
             const STATES = Object.freeze({ UNLOADED: 'UNLOADED', LOADED: 'LOADED', ACTIVE: 'ACTIVE', SLEEPING: 'SLEEPING' });
@@ -13437,6 +13480,14 @@ bloomPass.radius = 0.7;
             if (hubSurfaceActive && CPL_AUDIO.update(time)) surfaceSystemTicks.audio++;
             if (hubSurfaceActive && updateQuarks(dt)) surfaceSystemTicks.particles++;
             if (hubSurfaceActive && updateRapier()) surfaceSystemTicks.physics++;
+            // Genesis Vehicle Controller: tick AFTER the world step (no double-step).
+            // Only when the flag is ON and the surface is active. The module reads
+            // body state, applies impulses, and syncs the mesh — it never steps.
+            if (window.__GENESIS_VEHICLE_CONTROLLER !== false && hubSurfaceActive && Genesis.VehicleController && typeof Genesis.VehicleController.tick === 'function') {
+                // Late spawn safety: if Rapier became ready after cpl:ready, spawn now.
+                if (window.__genesisVehicleSpawnCheck && window.__genesisVehicleSpawnCheck()) { /* spawned or will retry */ }
+                Genesis.VehicleController.tick(dt);
+            }
             if (hubSurfaceActive && updateBillboards(time)) surfaceSystemTicks.billboards++;
             if (updateBillboardVideoPlayback(hubSurfaceActive) && hubSurfaceActive) surfaceSystemTicks.videos++;
             const _slow = (_frameCount++ & 1) === 0; // half-rate for cosmetic-only systems (Gun H)
