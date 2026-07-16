@@ -1152,6 +1152,43 @@
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Visibility System module load skipped:', e && e.message); });
         })();
 
+        // ========== GENESIS MEMORY MANAGER (Phase B5 — manager #5) ==========
+        // Extends disposeObjectDeep with envMap/PMREM/skeleton/ImageBitmap/renderLists
+        // reclamation and routes ownership through ResourceManager. Pure observer until
+        // its flag is on; NEVER changes visuals. Flag: __GENESIS_MEMORY_MANAGER.
+        window.__GENESIS_MEMORY_MANAGER = (typeof window.__GENESIS_MEMORY_MANAGER === 'boolean') ? window.__GENESIS_MEMORY_MANAGER : true;
+        (function () {
+            if (window.__GENESIS_MEMORY_MANAGER === false) { Genesis.MemoryManager = { deepDispose(){}, disposeOwner(){}, summary(){return{total:0};} }; return; }
+            const _baseDispose = (typeof disposeObjectDeep === 'function') ? disposeObjectDeep : null;
+            Genesis.MemoryManager = {
+                deepDispose(obj, owner) {
+                    if (!obj) return 0;
+                    let freed = 0;
+                    try { if (_baseDispose) _baseDispose(obj); else if (obj.traverse) { obj.traverse((o) => { if (o.geometry && o.geometry.dispose) { try { o.geometry.dispose(); } catch (e) {} } if (o.material) { const mats = Array.isArray(o.material) ? o.material : [o.material]; mats.forEach((m) => { for (const k in m) { const v = m[k]; if (v && v.isTexture && v.dispose) { try { v.dispose(); } catch (e) {} } if (m.dispose) { try { m.dispose(); } catch (e) {} } } }); } }); } freed++; } catch (e) { if (typeof console !== 'undefined') console.warn('[MemoryManager] base dispose failed', e && e.message); }
+                    obj.traverse && obj.traverse((o) => {
+                        if (o.material) { const mats = Array.isArray(o.material) ? o.material : [o.material]; mats.forEach((m) => { if (m && m.envMap && m.envMap.isTexture && m.envMap.dispose && !m.envMap.__genesisKept) { try { m.envMap.dispose(); } catch (e) {} } }); }
+                        if (o.isSkinnedMesh && o.skeleton && o.skeleton.boneTexture && o.skeleton.boneTexture.dispose) { try { o.skeleton.boneTexture.dispose(); } catch (e) {} }
+                        const srcTex = (o.material && (Array.isArray(o.material) ? o.material : [o.material]).find((mm) => mm && mm.image && mm.image.close));
+                        if (srcTex && srcTex.image && typeof srcTex.image.close === 'function') { try { srcTex.image.close(); } catch (e) {} }
+                    });
+                    if (owner && Genesis.ResourceManager && typeof Genesis.ResourceManager.dispose === 'function') { try { Genesis.ResourceManager.dispose(owner); } catch (e) {} }
+                    if (renderer && renderer.renderLists && typeof renderer.renderLists.dispose === 'function') { try { renderer.renderLists.dispose(); } catch (e) {} }
+                    return freed;
+                },
+                disposeOwner(owner) {
+                    if (!owner) return 0;
+                    if (Genesis.ResourceManager && typeof Genesis.ResourceManager.dispose === 'function') { try { Genesis.ResourceManager.dispose(owner); } catch (e) {} }
+                    if (renderer && renderer.renderLists && typeof renderer.renderLists.dispose === 'function') { try { renderer.renderLists.dispose(); } catch (e) {} }
+                    return 0;
+                },
+                summary() { return Genesis.ResourceManager && Genesis.ResourceManager.summary ? Genesis.ResourceManager.summary() : { total: 0 }; }
+            };
+            import('./src/genesis/memory-manager.js').then((m) => {
+                const ext = m.install(window.Genesis, THREE, renderer, camera, scene, _baseDispose);
+                if (ext && typeof console !== 'undefined') console.log('[Genesis] Memory Manager loaded from module (src/genesis/memory-manager.js)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Memory Manager module load skipped:', e && e.message); });
+        })();
+
         Genesis.notifyError = function (message) {
             if (!message) return;
             this.setStatus('error: ' + message, 'err');
