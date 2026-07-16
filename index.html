@@ -4869,6 +4869,16 @@ bloomPass.radius = 0.7;
             19: 'assets/billboards/billboard-02.mp4',
             20: 'assets/billboards/billboard-03.mp4'
         };
+        // Craig (2026-07-16): poster stills are YOUR DayZ art from ChatGPT, not generic JPGs.
+        const DAYZ_POSTERS = [
+            'assets/recent/dayz/dayz zz.png', 'assets/recent/dayz/dayz 3.png', 'assets/recent/dayz/dayz 6.png',
+            'assets/recent/dayz/dayz 66.png', 'assets/recent/dayz/dayz 6666.png', 'assets/recent/dayz/dayz cc.png',
+            'assets/recent/dayz/dayz ss.png', 'assets/recent/dayz/dayz x.png', 'assets/recent/dayz/dayz.png',
+            'assets/recent/dayz/pink dayz.jpg', 'assets/recent/dayz/dayz zz.png', 'assets/recent/dayz/dayz 3.png',
+            'assets/recent/dayz/dayz 6.png', 'assets/recent/dayz/dayz 66.png', 'assets/recent/dayz/dayz 6666.png',
+            'assets/recent/dayz/dayz cc.png', 'assets/recent/dayz/dayz ss.png', 'assets/recent/dayz/dayz x.png',
+            'assets/recent/dayz/dayz.png', 'assets/recent/dayz/pink dayz.jpg', 'assets/recent/dayz/dayz zz.png'
+        ];
         const billboardSpots = [
             { x: -28, z: -43, rot: 0, accent: 0xff33aa },
             { x: 28, z: -43, rot: 0, accent: 0x44ddff },
@@ -4991,7 +5001,7 @@ bloomPass.radius = 0.7;
             const fx = { group, sweep, halo, neon: neonMat, rim, pts, mat: imageMat, base: y, h, w, phase: Math.random() * Math.PI * 2 };
             _billboardFx.push(fx);
 
-            const imgUrl = billboardImages[idx % billboardImages.length];
+            const imgUrl = DAYZ_POSTERS[idx % DAYZ_POSTERS.length];
             group.userData.billboard = imgUrl;
             const posterUrl = `${imgUrl}?v=${BILLBOARD_ASSET_VERSION}`;
             new THREE.TextureLoader(criticalManager).load(posterUrl, (tex) => {
@@ -5002,8 +5012,17 @@ bloomPass.radius = 0.7;
                 imageMat.emissive = new THREE.Color(0xffffff); imageMat.emissiveIntensity = 0.72;
                 imageMat.needsUpdate = true;
             }, undefined, (err) => { console.warn('[Billboard] image failed:', posterUrl, err); });
-            const vidUrl = (typeof perf !== 'undefined' && perf.tier !== 'low') ? BILLBOARD_VIDEOS[idx] : null;
-            if (vidUrl) { group.userData.billboard = vidUrl; fx.videoUrl = vidUrl; applyBillboardVideo(plane, imageMat, vidUrl, fx); }
+            // Craig (2026-07-16): the billboards are TRASH — they show wrong stills and never
+            // the real DayZ videos. FIX: videos are PRIMARY (play on load, muted loop), the
+            // poster is YOUR DayZ art (assets/recent/dayz/*.png), and we no longer gate
+            // playback behind perf.tier or "near" proximity — the board is alive from spawn.
+            const vidUrl = BILLBOARD_VIDEOS[idx] || null;
+            if (vidUrl) {
+                group.userData.billboard = vidUrl; fx.videoUrl = vidUrl;
+                applyBillboardVideo(plane, imageMat, vidUrl, fx);
+                // Play immediately (not only when _near) so the DayZ clip is visible from across the city.
+                if (fx.video) { try { fx.video.play().catch(() => {}); } catch (e) {} }
+            }
             if (typeof perf !== 'undefined' && perf.tier === 'low') { fx.rim.visible = false; if (fx.pts) fx.pts.visible = false; }
             return group;
         }
