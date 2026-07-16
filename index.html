@@ -1276,7 +1276,8 @@
                 tick() { _capCheck(); },
                 summary() { return { registered: _lights.size, activePointLights: _activePointLights(), decorativeEnabled: _decorativeEnabled, cap: _HARD_CAP }; }
             };
-            // Observe existing lights: walk the scene for point lights (perf is declared later; do NOT reference it here — TDZ).
+            // Observe existing lights: register those the perf system already tracked.
+            if (typeof perf !== 'undefined' && perf.lowLights) perf.lowLights.forEach((l) => { if (l && l.isPointLight) _register(l, { owner: 'city-fill', decorative: true, cost: 1, priority: 1 }); });
             if (typeof scene !== 'undefined' && scene) scene.traverse((o) => { if (o.isPointLight) _register(o, { owner: o.userData && o.userData.cityGrid ? 'city-grid' : 'scene', decorative: !!(o.userData && o.userData.decorative), cost: 1, priority: (o.userData && o.userData.cityGrid) ? 3 : 5 }); });
             import('./src/genesis/lighting-manager.js').then((m) => {
                 const ext = m.install(window.Genesis, THREE, camera, scene);
@@ -1383,7 +1384,7 @@
             if (window.__GENESIS_RENDER_GRAPH === false) { Genesis.RenderGraph = { addPass(){}, setResolutionScale(){}, compose(){return false;}, tick(){}, getResolutionScale(){return 1;}, summary(){return{passes:0};} }; return; }
             const _passes = new Map();
             let _resolutionScale = 1.0;
-            const _baseDPR = (renderer.getPixelRatio ? renderer.getPixelRatio() : 1);
+            const _baseDPR = (typeof perf !== 'undefined' && perf.getEffectivePixelRatio) ? perf.getEffectivePixelRatio() : (renderer.getPixelRatio ? renderer.getPixelRatio() : 1);
             const _MIN = 0.5, _MAX = 1.0;
             function _setResolutionScale(scale) {
                 _resolutionScale = Math.max(_MIN, Math.min(_MAX, scale));
