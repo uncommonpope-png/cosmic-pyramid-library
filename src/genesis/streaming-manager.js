@@ -14,9 +14,10 @@ export function createStreamingManager(ctx) {
   const now = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
 
   function register(assetKey, loaderFn, meta = {}) {
-    if (!assetKey || typeof loaderFn !== 'function') return;
-    if (assets.has(assetKey) && meta.loadOnce !== false) return;
+    if (!assetKey || typeof loaderFn !== 'function') return false;
+    if (assets.has(assetKey) && meta.loadOnce !== false) return false;
     assets.set(assetKey, { loaderFn, meta, state: 'queued', loaded: false, object: null, queuedAt: now(), invokedAt: 0, completedAt: 0, error: null, promise: null });
+    return true;
   }
 
   function ensureLoaded(key) {
@@ -101,7 +102,7 @@ export function createStreamingManager(ctx) {
       states[asset.state] = (states[asset.state] || 0) + 1;
       const tier = asset.meta.tier || 'decor';
       byTier[tier] = (byTier[tier] || 0) + 1;
-      requests[key] = { state: asset.state, loaded: asset.loaded, invoked: asset.invokedAt > 0, tier, priority: asset.meta.priority || 0, sector: asset.meta.sector || null, error: asset.error };
+      requests[key] = { requestId: asset.meta.requestId || key, label: asset.meta.label || key, owner: asset.meta.owner || key, state: asset.state, loaded: asset.loaded, invoked: asset.invokedAt > 0, tier, priority: asset.meta.priority || 0, sector: asset.meta.sector || null, error: asset.error };
     }
     return { registered: assets.size, loaded, states, byTier, requests };
   }

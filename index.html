@@ -978,6 +978,21 @@
 
         // ========== GENESIS TIER 0: telemetry + survival + registry ==========
         const Genesis = window.Genesis || (window.Genesis = {});
+        const surfaceLateRoots = [];
+        let surfaceLateRefreshScheduled = false;
+        function registerSurfaceLateRoot(root, role, name) {
+            if (!root) return root;
+            if (name) root.name = name;
+            if (!surfaceLateRoots.some((entry) => entry.root === root)) surfaceLateRoots.push({ root, role: role || 'surface-late-root' });
+            if (!surfaceLateRefreshScheduled && Genesis.VerticalStackManager && Genesis.VerticalStackManager.refreshCompanions) {
+                surfaceLateRefreshScheduled = true;
+                queueMicrotask(() => {
+                    surfaceLateRefreshScheduled = false;
+                    if (Genesis.VerticalStackManager && Genesis.VerticalStackManager.refreshCompanions) Genesis.VerticalStackManager.refreshCompanions('surface');
+                });
+            }
+            return root;
+        }
         Genesis.version = 'tier0-foundation';
         Genesis.errors = window.__genesisErrors || (window.__genesisErrors = []);
         Genesis.boot = Genesis.boot || {
@@ -1149,14 +1164,17 @@
             const _box = new THREE.Box3();
             const _sphere = new THREE.Sphere();
             const _visibilityPosition = new THREE.Vector3();
-            function _inFrustum(root) {
+            function _prepareVisibilityFrustum() {
                 if (!camera) return true;
-                root.updateWorldMatrix(true, false);
+                _projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+                _frustum.setFromProjectionMatrix(_projScreen);
+                return true;
+            }
+            function _boundsInFrustum(root) {
+                if (!camera) return true;
                 _box.setFromObject(root);
                 if (_box.isEmpty()) return true;
                 _box.getBoundingSphere(_sphere);
-                _projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-                _frustum.setFromProjectionMatrix(_projScreen);
                 return _frustum.intersectsSphere(_sphere);
             }
             function _visibleInTree(root) {
@@ -1164,21 +1182,28 @@
                 while (node) { if (node.visible === false) return false; node = node.parent; }
                 return true;
             }
-            function _measureVisibility(entry) {
+            function _measureVisibility(entry, stateOwned) {
                 entry.root.updateWorldMatrix(true, false);
                 _visibilityPosition.setFromMatrixPosition(entry.root.matrixWorld);
                 entry.inRange = !camera || camera.position.distanceToSquared(_visibilityPosition) <= entry.maxDistance * entry.maxDistance;
-                entry.inFrustum = _inFrustum(entry.root);
+                if (stateOwned) {
+                    entry.inFrustum = !camera || _frustum.containsPoint(_visibilityPosition);
+                    entry.metricKind = 'root-origin-point';
+                } else {
+                    entry.inFrustum = _boundsInFrustum(entry.root);
+                    entry.metricKind = 'bounds-sphere';
+                }
             }
             Genesis.Visibility = {
-                register(id, root, opts) { entries.set(id, { root, priority: (opts && opts.priority != null) ? opts.priority : 5, maxDistance: (opts && opts.maxDistance) || 260, stateOwned: !!(opts && opts.stateOwned), owner: (opts && opts.owner) || null, managedExternally: !!(opts && opts.stateOwned), visible: true, inRange: true, inFrustum: true }); },
+                register(id, root, opts) { entries.set(id, { root, priority: (opts && opts.priority != null) ? opts.priority : 5, maxDistance: (opts && opts.maxDistance) || 260, stateOwned: !!(opts && opts.stateOwned), owner: (opts && opts.owner) || null, managedExternally: !!(opts && opts.stateOwned), visible: true, inRange: true, inFrustum: true, metricKind: (opts && opts.stateOwned) ? 'root-origin-point' : 'bounds-sphere' }); },
                 isVisible(id) { const e = entries.get(id); return !!e && e.visible; },
                 wakeOrder() { return [...entries.entries()].sort((a, b) => b[1].priority - a[1].priority).map(([id]) => id); },
                 tick() {
+                    _prepareVisibilityFrustum();
                     for (const [id, e] of entries) {
                         const stateOwned = e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner);
                         e.managedExternally = stateOwned;
-                        _measureVisibility(e);
+                        _measureVisibility(e, stateOwned);
                         if (stateOwned) { e.visible = _visibleInTree(e.root); continue; }
                         let never = false;
                         e.root.traverse((o) => { if (o.userData && o.userData.cost && o.userData.cost.sleep === 'never') never = true; });
@@ -1188,7 +1213,7 @@
                         if (e.root.visible !== inView) e.root.visible = inView;
                     }
                 },
-                summary() { const out = {}; for (const [id, e] of entries) out[id] = { visible: e.visible, inRange: e.inRange, inFrustum: e.inFrustum, maxDistance: e.maxDistance, priority: e.priority, stateOwned: e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner), managedExternally: e.managedExternally, owner: e.owner }; return out; }
+                summary() { const out = {}; for (const [id, e] of entries) out[id] = { visible: e.visible, inRange: e.inRange, inFrustum: e.inFrustum, maxDistance: e.maxDistance, priority: e.priority, stateOwned: e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner), managedExternally: e.managedExternally, metricKind: e.metricKind, distanceMetric: 'root-origin', owner: e.owner }; return out; }
             };
             import('./src/genesis/visibility-system.js').then((m) => {
                 if (!Genesis.Visibility && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, Genesis.SectorManager);
@@ -1370,11 +1395,13 @@
             if (window.__GENESIS_STREAMING_MANAGER === false) { Genesis.StreamingManager = { register(){}, ensureLoaded(){return null;}, unload(){return false;}, tick(){}, summary(){return{registered:0,loaded:0,states:{},byTier:{},requests:{}};} }; return; }
             const _assets = new Map();
             const _streamNow = () => performance.now();
+            let _lazyRequestSequence = 0;
             Genesis.StreamingManager = {
                 register(assetKey, loaderFn, meta) {
-                    if (!assetKey || typeof loaderFn !== 'function') return;
-                    if (_assets.has(assetKey) && (meta && meta.loadOnce) !== false) return;
+                    if (!assetKey || typeof loaderFn !== 'function') return false;
+                    if (_assets.has(assetKey) && (meta && meta.loadOnce) !== false) return false;
                     _assets.set(assetKey, { loaderFn, meta: meta || {}, state: 'queued', loaded: false, object: null, queuedAt: _streamNow(), invokedAt: 0, completedAt: 0, error: null, promise: null });
+                    return true;
                 },
                 ensureLoaded(key) {
                     const a = _assets.get(key);
@@ -1417,13 +1444,13 @@
                         }
                     }
                 },
-                summary() { const byTier = {}, requests = {}, states = {}; let loaded = 0; for (const [key, a] of _assets) { if (a.loaded) loaded++; states[a.state] = (states[a.state] || 0) + 1; const tier = (a.meta && a.meta.tier) || 'decor'; byTier[tier] = (byTier[tier] || 0) + 1; requests[key] = { state: a.state, loaded: a.loaded, invoked: a.invokedAt > 0, tier, priority: (a.meta && a.meta.priority) || 0, sector: (a.meta && a.meta.sector) || null, error: a.error }; } return { registered: _assets.size, loaded, states, byTier, requests }; }
+                summary() { const byTier = {}, requests = {}, states = {}; let loaded = 0; for (const [key, a] of _assets) { if (a.loaded) loaded++; states[a.state] = (states[a.state] || 0) + 1; const tier = (a.meta && a.meta.tier) || 'decor'; byTier[tier] = (byTier[tier] || 0) + 1; requests[key] = { requestId: (a.meta && a.meta.requestId) || key, label: (a.meta && a.meta.label) || key, owner: (a.meta && a.meta.owner) || key, state: a.state, loaded: a.loaded, invoked: a.invokedAt > 0, tier, priority: (a.meta && a.meta.priority) || 0, sector: (a.meta && a.meta.sector) || null, error: a.error }; } return { registered: _assets.size, loaded, states, byTier, requests }; }
             };
             // Observe the existing lazy queue: wrap enqueueLazyAsset so queued tasks register.
             if (typeof enqueueLazyAsset === 'function') {
                 const _orig = enqueueLazyAsset;
                 // enqueueLazyAsset is a function declaration; rebind reference used later.
-                try { enqueueLazyAsset = function (label, fn, tier) { const resolvedTier = tier || 'decor'; const key = 'lazy:' + label; Genesis.StreamingManager.register(key, fn, { owner: key, sector: (typeof currentSectorId !== 'undefined') ? currentSectorId : null, tier: resolvedTier, priority: resolvedTier === 'world' ? 100 : 10 }); return _orig(label, () => Genesis.StreamingManager.ensureLoaded(key), tier); }; } catch (e) {}
+                try { enqueueLazyAsset = function (label, fn, tier, requestMeta) { const resolvedTier = tier || 'decor'; const resolvedLabel = String(label || 'asset'); const sequence = ++_lazyRequestSequence; const key = 'lazy:' + resolvedLabel + '#' + sequence; const meta = Object.assign({}, requestMeta || {}, { requestId: key, label: resolvedLabel, owner: (requestMeta && requestMeta.owner) || key, sector: (requestMeta && requestMeta.sector) || ((typeof currentSectorId !== 'undefined') ? currentSectorId : null), tier: resolvedTier, priority: (requestMeta && requestMeta.priority != null) ? requestMeta.priority : (resolvedTier === 'world' ? 100 : 10) }); Genesis.StreamingManager.register(key, fn, meta); return _orig(label, () => { const pending = Genesis.StreamingManager.ensureLoaded(key); if (pending && typeof pending.catch === 'function') pending.catch(() => {}); return pending; }, tier, meta); }; } catch (e) {}
             }
             import('./src/genesis/streaming-manager.js').then((m) => {
                 if (!Genesis.StreamingManager && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene);
@@ -1555,7 +1582,7 @@
             const STATES = Object.freeze({ UNLOADED: 'UNLOADED', LOADED: 'LOADED', ACTIVE: 'ACTIVE', SLEEPING: 'SLEEPING' });
             const validStates = new Set(Object.values(STATES));
             if (window.__GENESIS_VERTICAL_STACK === false) {
-                Genesis.VerticalStackManager = Object.freeze({ states: STATES, registerStratum(){}, registerConnector(){}, getActive(){return 'surface';}, getStratum(){return null;}, transitionTo(){return Promise.resolve({active:'surface',strata:{},connectors:[]});}, setState(){return false;}, setExteriorVisible(){}, endpoints(){return[];}, summary(){return{active:'surface',strata:{},connectors:[]};}, tick(){return'surface';} });
+                Genesis.VerticalStackManager = Object.freeze({ states: STATES, registerStratum(){}, registerConnector(){}, getActive(){return 'surface';}, getStratum(){return null;}, transitionTo(){return Promise.resolve({active:'surface',strata:{},connectors:[]});}, setState(){return false;}, setExteriorVisible(){}, refreshCompanions(){return 0;}, endpoints(){return[];}, summary(){return{active:'surface',strata:{},connectors:[],performance:{applyCount:0,refreshCount:0,tickCount:0,idleTickCount:0,applyPolicy:'disabled'}};}, tick(){return'surface';} });
                 return;
             }
             const strata = new Map();
@@ -1564,8 +1591,12 @@
             let transitionPromise = null;
             let exteriorVisible = true;
             let lastTransition = null;
+            let applyCount = 0;
+            let refreshCount = 0;
+            let tickCount = 0;
+            let idleTickCount = 0;
             const now = () => performance.now();
-            function rootsFor(record) {
+            function resolveRoots(record) {
                 if (!record || !record.root) return [];
                 let companions = record.options.companionRoots || [];
                 if (typeof companions === 'function') { try { companions = companions() || []; } catch (e) { companions = []; } }
@@ -1577,6 +1608,7 @@
                 }
                 return entries.filter((entry) => { if (!entry.root || seen.has(entry.root)) return false; seen.add(entry.root); return true; });
             }
+            function rootsFor(record) { return record && Array.isArray(record.roots) ? record.roots : []; }
             function visibleInTree(root) {
                 let node = root;
                 while (node) { if (node.visible === false) return false; node = node.parent; }
@@ -1584,6 +1616,7 @@
             }
             function applyState(record) {
                 if (!record || !record.root) return;
+                applyCount++;
                 const stateVisible = record.state === STATES.ACTIVE || record.state === STATES.LOADED;
                 for (const entry of rootsFor(record)) {
                     const root = entry.root;
@@ -1621,7 +1654,7 @@
                     const roots = rootsFor(record);
                     out[id] = { state: record.state, visible: visibleInTree(record.root), simulationActive: record.state === STATES.ACTIVE, rootName: record.root.name || '', contentType: record.options.contentType || id, parentType: record.root.parent ? record.root.parent.type : null, order: record.options.order == null ? 0 : record.options.order, roots: roots.map((entry) => ({ role: entry.role, name: entry.root.name || '', visible: visibleInTree(entry.root), directSceneChild: entry.root.parent === scene })) };
                 }
-                return { active: activeId, transitioning: !!transitionPromise, exteriorVisible, strata: out, connectors: connectorSummary(), lastTransition: lastTransition ? Object.assign({}, lastTransition) : null };
+                return { active: activeId, transitioning: !!transitionPromise, exteriorVisible, strata: out, connectors: connectorSummary(), lastTransition: lastTransition ? Object.assign({}, lastTransition) : null, performance: { applyCount, refreshCount, tickCount, idleTickCount, applyPolicy: 'state-or-refresh-only' } };
             }
             function findConnector(from, to, connectorId) {
                 if (connectorId && connectors.has(connectorId)) return connectors.get(connectorId);
@@ -1632,13 +1665,26 @@
                 return null;
             }
             function nextFrame() { return new Promise((resolve) => requestAnimationFrame(() => resolve())); }
+            function refreshCompanionRoots(id) {
+                const records = id ? [strata.get(id)] : [...strata.values()];
+                let refreshed = 0;
+                for (const record of records) {
+                    if (!record) continue;
+                    record.roots = resolveRoots(record);
+                    refreshCount++;
+                    refreshed++;
+                    applyState(record);
+                }
+                return refreshed;
+            }
             Genesis.VerticalStackManager = Object.freeze({
                 states: STATES,
                 registerStratum(id, root, options) {
                     if (!id || !root) throw new Error('registerStratum requires id and root');
                     const opts = options || {};
                     const state = validStates.has(opts.state) ? opts.state : STATES.UNLOADED;
-                    const record = { id, root, options: Object.assign({}, opts), state, changedAt: now(), hiddenRoots: new Set(), visibilityBeforeHide: new Map() };
+                    const record = { id, root, options: Object.assign({}, opts), state, changedAt: now(), roots: [], hiddenRoots: new Set(), visibilityBeforeHide: new Map() };
+                    record.roots = resolveRoots(record);
                     strata.set(id, record);
                     if (state === STATES.ACTIVE) {
                         if (activeId && activeId !== id) setRecordState(strata.get(activeId), STATES.SLEEPING);
@@ -1654,9 +1700,11 @@
                 },
                 getActive() { return activeId; },
                 getStratum(id) { const r = strata.get(id); return r ? { id: r.id, root: r.root, state: r.state, options: Object.assign({}, r.options) } : null; },
+                refreshCompanions(id) { return refreshCompanionRoots(id); },
                 setState(id, state) {
                     const record = strata.get(id);
                     if (!record || !validStates.has(state)) return false;
+                    refreshCompanionRoots(id);
                     if (state === STATES.ACTIVE && activeId && activeId !== id) setRecordState(strata.get(activeId), STATES.SLEEPING);
                     if (state === STATES.ACTIVE) activeId = id; else if (activeId === id) activeId = null;
                     return setRecordState(record, state);
@@ -1669,6 +1717,8 @@
                     const sourceId = activeId;
                     const source = sourceId ? strata.get(sourceId) : null;
                     const destination = strata.get(id);
+                    if (source) refreshCompanionRoots(source.id);
+                    refreshCompanionRoots(destination.id);
                     const connector = findConnector(sourceId, id, ctx.connectorId);
                     const previousDestinationState = destination.state;
                     const trace = { from: sourceId, to: id, connector: connector ? connector.id : null, startedAt: now(), destinationVisibleBeforeTransfer: false, completedAt: 0, ok: false };
@@ -1704,14 +1754,18 @@
                     return transitionPromise;
                 },
                 setExteriorVisible(visible) {
-                    exteriorVisible = !!visible;
-                    for (const record of strata.values()) { for (const entry of rootsFor(record)) entry.root.userData.__verticalExteriorHidden = !exteriorVisible; applyState(record); }
+                    const nextVisible = !!visible;
+                    if (nextVisible === exteriorVisible) return false;
+                    exteriorVisible = nextVisible;
+                    for (const record of strata.values()) { record.roots = resolveRoots(record); refreshCount++; for (const entry of rootsFor(record)) entry.root.userData.__verticalExteriorHidden = !exteriorVisible; applyState(record); }
+                    return true;
                 },
                 endpoints() { return connectorSummary(); },
                 summary,
                 tick(context) {
+                    tickCount++;
                     if (context && typeof context.exteriorVisible === 'boolean' && context.exteriorVisible !== exteriorVisible) this.setExteriorVisible(context.exteriorVisible);
-                    else for (const record of strata.values()) applyState(record);
+                    else idleTickCount++;
                     return activeId;
                 }
             });
@@ -1943,16 +1997,31 @@
             l.load = (url, onLoad, onProgress, onError) => {
                 const tierTag = world ? 'world-gltf:' : (lazy ? 'lazy-gltf:' : 'critical-gltf:');
                 const owner = options.owner || (tierTag + String(url || '').split('/').pop());
-                const startLoad = () => directLoad(url, (gltf) => {
+                const handleLoad = (gltf) => {
                     if (gltf && gltf.scene) Genesis.registry.trackObject3D(gltf.scene, { owner, realm: options.realm || null, source: url });
                     if (onLoad) onLoad(gltf);
-                }, onProgress, (err) => {
+                    return gltf && gltf.scene ? gltf.scene : gltf;
+                };
+                const handleError = (err) => {
                     console.warn('[GLTF] failed:', url, err);
                     Genesis.notifyError('gltf: ' + String(url || '').split('/').pop());
                     if (onError) onError(err);
-                });
-                if (lazy || world) enqueueLazyAsset(String(url || '').split('/').pop(), startLoad, world ? 'world' : 'decor');
-                else startLoad();
+                };
+                if (lazy || world) {
+                    const startLoad = () => new Promise((resolve, reject) => {
+                        directLoad(url, (gltf) => {
+                            try { resolve(handleLoad(gltf)); }
+                            catch (error) { reject(error); }
+                        }, onProgress, (err) => {
+                            try { handleError(err); }
+                            catch (callbackError) { reject(callbackError); return; }
+                            reject(err instanceof Error ? err : new Error('GLTF load failed: ' + url));
+                        });
+                    });
+                    enqueueLazyAsset(String(url || '').split('/').pop(), startLoad, world ? 'world' : 'decor', { owner, url });
+                } else {
+                    directLoad(url, handleLoad, onProgress, handleError);
+                }
                 return l;
             };
             return l;
@@ -3943,14 +4012,16 @@ bloomPass.radius = 0.7;
             'https://models.readyplayer.me/65893b0514f9f5f28e61d783.glb',
             (gltf) => {
                 avatar = gltf.scene;
+                avatar.name = 'Surface ReadyPlayerMe Guardian';
                 avatar.scale.set(0.9, 0.9, 0.9);
                 avatar.position.set(-1.8, 0, 2.8);
                 avatar.rotation.y = 0.6;
                 avatar.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
                 scene.add(avatar);
+                registerSurfaceLateRoot(avatar, 'surface-avatar', avatar.name);
             },
             undefined,
-            () => { avatar = createGuardian(); scene.add(avatar); }
+            () => { avatar = createGuardian(); scene.add(avatar); registerSurfaceLateRoot(avatar, 'surface-avatar', 'Surface Procedural Guardian'); }
         );
         
         // ========== NEON SOULS ==========
@@ -6715,6 +6786,18 @@ bloomPass.radius = 0.7;
         const heavenCyanMat = new THREE.MeshStandardMaterial({ color: 0x7df7ff, emissive: 0x20c8e8, emissiveIntensity: 1.15, roughness: 0.32, metalness: 0.38 });
         const heavenGoldMat = new THREE.MeshStandardMaterial({ color: 0xffdb8a, emissive: 0xffa93a, emissiveIntensity: 0.9, roughness: 0.36, metalness: 0.42 });
         const heavenMagentaMat = new THREE.MeshBasicMaterial({ color: 0xff70d8, transparent: true, opacity: 0.72, depthWrite: false });
+        const HEAVEN_PLAYER_COLLISION_MARGIN = 0.75;
+        const heavenCollisionFootprints = [];
+        function addHeavenBoxFootprint(id, category, x, z, width, depth) {
+            const footprint = { id, category, type: 'box', x, z, halfX: width * 0.5 + HEAVEN_PLAYER_COLLISION_MARGIN, halfZ: depth * 0.5 + HEAVEN_PLAYER_COLLISION_MARGIN };
+            heavenCollisionFootprints.push(footprint);
+            return footprint;
+        }
+        function addHeavenCircleFootprint(id, category, x, z, radius) {
+            const footprint = { id, category, type: 'circle', x, z, radius };
+            heavenCollisionFootprints.push(footprint);
+            return footprint;
+        }
 
         const heavenDeck = new THREE.Mesh(new THREE.CylinderGeometry(46, 50, 2.2, 64), heavenDeckMat);
         heavenDeck.name = 'Heaven Sky Plaza Deck';
@@ -6751,13 +6834,16 @@ bloomPass.radius = 0.7;
         for (const x of [-13, 13]) {
             const support = new THREE.Mesh(new THREE.BoxGeometry(2.4, 24, 2.4), heavenDeckMat);
             support.position.set(x, 0, -24);
+            support.name = 'Heaven Upper Plaza Support ' + (x < 0 ? 'West' : 'East');
             heavenStratumRoot.add(support);
+            addHeavenBoxFootprint('support-' + (x < 0 ? 'west' : 'east'), 'support', x, -24, 2.4, 2.4);
         }
 
         // Strong destination landmark: a finite beacon tower visible from every sky plaza.
         const heavenBeacon = new THREE.Group();
         heavenBeacon.name = 'Heaven Northstar Beacon';
         heavenBeacon.position.set(0, 0.8, -14);
+        addHeavenCircleFootprint('northstar-beacon', 'beacon', 0, -14, 5.6);
         const beaconShaft = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 4.2, 30, 12), heavenDeckMat);
         beaconShaft.position.y = 15;
         heavenBeacon.add(beaconShaft);
@@ -6793,6 +6879,7 @@ bloomPass.radius = 0.7;
             skyTowerScale.set(2.1 + (i % 2), h, 2.1 + ((i + 1) % 2));
             skyTowerMatrix.compose(skyTowerPos, skyTowerQuat, skyTowerScale);
             skyTowerInstances.setMatrixAt(i, skyTowerMatrix);
+            addHeavenBoxFootprint('tower-' + (i + 1), 'tower', skyTowerPos.x, skyTowerPos.z, skyTowerScale.x, skyTowerScale.z);
         }
         skyTowerInstances.instanceMatrix.needsUpdate = true;
         heavenStratumRoot.add(skyTowerInstances);
@@ -7276,6 +7363,35 @@ bloomPass.radius = 0.7;
         const HEAVEN_BEACON_COLLISION_RADIUS = 5.6;
         const _heavenMoveLocal = new THREE.Vector3();
         const _heavenMoveWorld = new THREE.Vector3();
+        function pushOutHeavenFootprint(point, footprint) {
+            const dx = point.x - footprint.x;
+            const dz = point.z - footprint.z;
+            if (footprint.type === 'circle') {
+                const distance = Math.hypot(dx, dz);
+                if (distance >= footprint.radius) return false;
+                if (distance < 0.001) {
+                    point.x = footprint.x;
+                    point.z = footprint.z + footprint.radius;
+                } else {
+                    point.x = footprint.x + (dx / distance) * footprint.radius;
+                    point.z = footprint.z + (dz / distance) * footprint.radius;
+                }
+                return true;
+            }
+            if (Math.abs(dx) >= footprint.halfX || Math.abs(dz) >= footprint.halfZ) return false;
+            const pushX = footprint.halfX - Math.abs(dx);
+            const pushZ = footprint.halfZ - Math.abs(dz);
+            if (pushX < pushZ) point.x += dx >= 0 ? pushX : -pushX;
+            else point.z += dz >= 0 ? pushZ : -pushZ;
+            return true;
+        }
+        function isInsideHeavenFootprint(point, footprint) {
+            const dx = point.x - footprint.x;
+            const dz = point.z - footprint.z;
+            return footprint.type === 'circle'
+                ? Math.hypot(dx, dz) < footprint.radius - 0.001
+                : Math.abs(dx) < footprint.halfX - 0.001 && Math.abs(dz) < footprint.halfZ - 0.001;
+        }
         function enforcePrototypeHeavenMovement() {
             if (!isStratumActive('heaven')) return false;
             _heavenMoveLocal.copy(playerNPC.position);
@@ -7286,17 +7402,12 @@ bloomPass.radius = 0.7;
                 _heavenMoveLocal.x *= scale;
                 _heavenMoveLocal.z *= scale;
             }
-            const beaconDx = _heavenMoveLocal.x;
-            const beaconDz = _heavenMoveLocal.z + 14;
-            const beaconDistance = Math.hypot(beaconDx, beaconDz);
-            if (beaconDistance < HEAVEN_BEACON_COLLISION_RADIUS) {
-                if (beaconDistance < 0.001) {
-                    _heavenMoveLocal.x = 0;
-                    _heavenMoveLocal.z = -14 + HEAVEN_BEACON_COLLISION_RADIUS;
-                } else {
-                    _heavenMoveLocal.x = (beaconDx / beaconDistance) * HEAVEN_BEACON_COLLISION_RADIUS;
-                    _heavenMoveLocal.z = -14 + (beaconDz / beaconDistance) * HEAVEN_BEACON_COLLISION_RADIUS;
-                }
+            for (const footprint of heavenCollisionFootprints) pushOutHeavenFootprint(_heavenMoveLocal, footprint);
+            const constrainedRadial = Math.hypot(_heavenMoveLocal.x, _heavenMoveLocal.z);
+            if (constrainedRadial > HEAVEN_MAIN_DECK_RADIUS) {
+                const scale = HEAVEN_MAIN_DECK_RADIUS / constrainedRadial;
+                _heavenMoveLocal.x *= scale;
+                _heavenMoveLocal.z *= scale;
             }
             const floorWorldY = heavenStratumRoot.localToWorld(_heavenMoveWorld.set(0, 0.38, 0)).y;
             playerFloorY = floorWorldY;
@@ -7844,10 +7955,7 @@ bloomPass.radius = 0.7;
             if (_qkRenderer) roots.push({ root: _qkRenderer, role: 'surface-particles' });
             if (avatar) roots.push({ root: avatar, role: 'surface-avatar' });
             for (const spawned of avatars) roots.push({ root: spawned, role: 'surface-avatar' });
-            if (window.__gskAvatar && window.__gskAvatar.group) roots.push({ root: window.__gskAvatar.group, role: 'surface-gsk-body' });
-            if (window.__memoryBuildings && window.__memoryBuildings.group) roots.push({ root: window.__memoryBuildings.group, role: 'surface-gsk-memory' });
-            if (window.__subagentNPCs && window.__subagentNPCs.group) roots.push({ root: window.__subagentNPCs.group, role: 'surface-gsk-subagents' });
-            if (window.__realmPortalGroups) for (const root of window.__realmPortalGroups) roots.push({ root, role: 'surface-realm-portals' });
+            for (const entry of surfaceLateRoots) roots.push(entry);
             return roots;
         };
         Genesis.VerticalStackManager.registerStratum('surface', cityGroup, { order: 0, state: 'ACTIVE', floorY: 0, role: 'surface-city', contentType: 'surface-with-legacy-compatibility', companionRoots: surfaceCompanionRoots });
@@ -7888,6 +7996,32 @@ bloomPass.radius = 0.7;
                 enforcePrototypeHeavenMovement();
                 const local = heavenStratumRoot.worldToLocal(playerNPC.position.clone());
                 return { applied: true, localPosition: local.toArray(), radius: Math.hypot(local.x, local.z), beaconDistance: Math.hypot(local.x, local.z + 14), floorY: playerFloorY };
+            },
+            attemptHeavenObstacle: (category, index) => {
+                if (!isStratumActive('heaven')) return { applied: false, activeStratum: getActiveStratum() };
+                const matches = heavenCollisionFootprints.filter((footprint) => footprint.category === category);
+                const footprint = matches[Math.max(0, Number(index) || 0)];
+                if (!footprint) return { applied: false, category, count: matches.length };
+                const attempted = heavenStratumRoot.localToWorld(new THREE.Vector3(footprint.x, 0.38, footprint.z));
+                playerNPC.position.copy(attempted);
+                enforcePrototypeHeavenMovement();
+                const local = heavenStratumRoot.worldToLocal(playerNPC.position.clone());
+                return { applied: true, id: footprint.id, category: footprint.category, type: footprint.type, localPosition: local.toArray(), pushedOut: !isInsideHeavenFootprint(local, footprint), floorY: playerFloorY };
+            },
+            exerciseDuplicateStreaming: async () => {
+                const label = 'probe-duplicate-label.glb';
+                let callbacks = 0;
+                const callback = () => { callbacks++; };
+                for (let i = 0; i < 3; i++) {
+                    enqueueLazyAsset(label, () => Promise.resolve().then(() => { callback(); return { duplicateProbe: i + 1 }; }), 'world', { owner: 'probe-duplicate-owner', priority: 31 + i });
+                }
+                const deadline = performance.now() + 3000;
+                let requests = [];
+                do {
+                    await new Promise((resolve) => setTimeout(resolve, 25));
+                    requests = Object.values(Genesis.StreamingManager.summary().requests).filter((request) => request.label === label);
+                } while ((requests.length < 3 || requests.some((request) => request.state !== 'loaded')) && performance.now() < deadline);
+                return { label, callbacks, requests, uniqueRequestIds: new Set(requests.map((request) => request.requestId)).size };
             }
         }) : null;
         const verticalStackDiagnostics = Object.freeze({
@@ -7923,7 +8057,7 @@ bloomPass.radius = 0.7;
                 inside: isInside,
                 realm: currentRealm()
             }),
-            movementContract: () => ({ deckRadius: HEAVEN_MAIN_DECK_RADIUS, beaconCollisionRadius: HEAVEN_BEACON_COLLISION_RADIUS, floorY: HEAVEN_STRATUM_Y + 0.38 }),
+            movementContract: () => ({ deckRadius: HEAVEN_MAIN_DECK_RADIUS, beaconCollisionRadius: HEAVEN_BEACON_COLLISION_RADIUS, floorY: HEAVEN_STRATUM_Y + 0.38, obstacles: { total: heavenCollisionFootprints.length, supports: heavenCollisionFootprints.filter((f) => f.category === 'support').length, towers: heavenCollisionFootprints.filter((f) => f.category === 'tower').length, beacons: heavenCollisionFootprints.filter((f) => f.category === 'beacon').length }, elevatedPlazas: 'visual-only-no-walkable-collision' }),
             test: verticalStackTestFacade
         });
         Object.defineProperty(window, '__verticalStack', { value: verticalStackDiagnostics, writable: false, configurable: false });
@@ -8508,6 +8642,7 @@ bloomPass.radius = 0.7;
             scheduleGlbNpcBody(avatarGroup, taskBodyKind, null, avatarGroup.children.slice());
 
             scene.add(avatarGroup);
+            registerSurfaceLateRoot(avatarGroup, 'surface-avatar', 'Surface Spawned Avatar — ' + String(name || 'Unnamed'));
             avatars.push(avatarGroup);
             draggables.push(avatarGroup);
 
@@ -8877,16 +9012,12 @@ bloomPass.radius = 0.7;
         const interiorCamPos = new THREE.Vector3(0, 1.2, 2.3);
         const interiorTarget = new THREE.Vector3(0, 1, 0);
         function setPyramidExteriorVisible(visible) {
-            if (Genesis.VerticalStackManager && Genesis.VerticalStackManager.setExteriorVisible) Genesis.VerticalStackManager.setExteriorVisible(visible);
+            if (Genesis.VerticalStackManager && Genesis.VerticalStackManager.setExteriorVisible) {
+                Genesis.VerticalStackManager.setExteriorVisible(visible);
+                return;
+            }
             [cityGroup, skyLayer, heavenStratumRoot, platform, capstone, edges, legacyGroup].forEach((obj) => { if (obj) obj.visible = visible; });
-            if (window.__gskAvatar && window.__gskAvatar.group) window.__gskAvatar.group.visible = visible;
-            if (window.__memoryBuildings && window.__memoryBuildings.group) window.__memoryBuildings.group.visible = visible;
-            if (window.__subagentNPCs && window.__subagentNPCs.group) window.__subagentNPCs.group.visible = visible;
-            if (window.__realmPortalGroups) window.__realmPortalGroups.forEach((obj) => { if (obj) obj.visible = visible; });
-            if (typeof chamberSockets !== 'undefined' && chamberSockets.length && chamberSockets[0].mesh.parent) chamberSockets[0].mesh.parent.visible = visible;
-            if (typeof godWorlds !== 'undefined') godWorlds.forEach((g) => { if (g.grp) g.grp.visible = visible; });
-            if (typeof dockingPads !== 'undefined') dockingPads.forEach((obj) => { if (obj) obj.visible = visible; });
-            if (typeof portalCaretaker !== 'undefined' && portalCaretaker && portalCaretaker.grp) portalCaretaker.grp.visible = visible;
+            surfaceLateRoots.forEach((entry) => { if (entry.root) entry.root.visible = visible; });
         }
         
         function enterPyramid() {
@@ -9020,6 +9151,7 @@ bloomPass.radius = 0.7;
             group.position.set(0, 2.2, 2.8);
             group.scale.set(0, 0, 0);
             scene.add(group);
+            registerSurfaceLateRoot(group, 'surface-open-book', 'Surface Open Book Reader');
             return group;
         }
         
@@ -10205,6 +10337,7 @@ bloomPass.radius = 0.7;
                 this.clickMesh = this.core;
                 this.group.add(this.core, this.ring1, this.ring2, this.light);
                 scene.add(this.group);
+                registerSurfaceLateRoot(this.group, 'surface-gsk-body', 'Surface GSK Consciousness Body');
                 this.baseY = this.group.position.y;
                 this.targetColor = new THREE.Color(0x88ffff);
                 this.orbitAngle = 0;
@@ -10279,6 +10412,7 @@ bloomPass.radius = 0.7;
             constructor() {
                 this.group = new THREE.Group();
                 scene.add(this.group);
+                registerSurfaceLateRoot(this.group, 'surface-gsk-memory', 'Surface GSK Memory Buildings');
                 this.items = new Map(); // id -> { group, memory, targetScale }
                 this.pollTimer = null;
                 this.districtRadius = 52;
@@ -10435,6 +10569,7 @@ bloomPass.radius = 0.7;
             constructor() {
                 this.group = new THREE.Group();
                 scene.add(this.group);
+                registerSurfaceLateRoot(this.group, 'surface-gsk-subagents', 'Surface GSK Subagent Citizens');
                 this.items = new Map(); // id -> { group, soul, target, speed }
                 this.pollTimer = null;
                 this.innerRadius = 34;
@@ -10578,6 +10713,7 @@ bloomPass.radius = 0.7;
                 this.particles = [];
                 this.group = new THREE.Group();
                 scene.add(this.group);
+                registerSurfaceLateRoot(this.group, 'surface-thought-stream', 'Surface GSK Thought Stream');
                 this.glowTex = this._makeGlowTexture();
                 this.ws = null;
                 this.reconnectDelay = 1000;
@@ -11025,6 +11161,7 @@ bloomPass.radius = 0.7;
             const ringRadius = 150, ringY = 14;
             const ringGroup = new THREE.Group();
             scene.add(ringGroup);
+            registerSurfaceLateRoot(ringGroup, 'surface-chamber-portal-ring', 'Surface Chamber Portal Ring — 36 Sockets');
             const ringTorus = new THREE.Mesh(
                 new THREE.TorusGeometry(ringRadius, 0.6, 8, 128),
                 new THREE.MeshBasicMaterial({ color: 0x2a6cff, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })
@@ -11076,6 +11213,7 @@ bloomPass.radius = 0.7;
                 grp.add(halo);
                 grp.add(new THREE.PointLight(g.color, 1.2, 0, 2));
                 scene.add(grp);
+                registerSurfaceLateRoot(grp, 'surface-god-world', 'Surface God World — ' + g.name);
                 godWorlds.push({ grp, core, halo, def: g });
             }
 
@@ -11086,10 +11224,12 @@ bloomPass.radius = 0.7;
             padRing.rotation.x = -Math.PI / 2;
             padRing.position.set(sy.x, sy.y + 0.7, sy.z);
             scene.add(padRing);
+            registerSurfaceLateRoot(padRing, 'surface-docking-ring', 'Surface Shipyard Docking Ring — Outer');
             const padRing2 = new THREE.Mesh(new THREE.RingGeometry(14, 15, 48), padMat.clone());
             padRing2.rotation.x = -Math.PI / 2;
             padRing2.position.set(sy.x, sy.y + 0.7, sy.z);
             scene.add(padRing2);
+            registerSurfaceLateRoot(padRing2, 'surface-docking-ring', 'Surface Shipyard Docking Ring — Inner');
             for (let i = 0; i < 6; i++) {
                 const a = (i / 6) * Math.PI * 2;
                 const b = new THREE.Mesh(
@@ -11098,6 +11238,7 @@ bloomPass.radius = 0.7;
                 );
                 b.position.set(sy.x + Math.cos(a) * 24, sy.y + 1.6, sy.z + Math.sin(a) * 24);
                 scene.add(b);
+                registerSurfaceLateRoot(b, 'surface-docking-beacon', 'Surface Shipyard Docking Beacon ' + (i + 1));
                 dockingPads.push(b);
             }
         }
@@ -11137,6 +11278,7 @@ bloomPass.radius = 0.7;
             g.traverse(o => { if (o.isMesh) { o.userData.caretaker = true; caretakerTargets.push(o); } });
             g.position.set(0, 6, 50);
             scene.add(g);
+            registerSurfaceLateRoot(g, 'surface-portal-caretaker', 'Surface Portal Caretaker');
             portalCaretaker = { grp: g, orbs: orbs };
         }
         buildPortalCaretaker();
@@ -11206,6 +11348,7 @@ bloomPass.radius = 0.7;
                 g.traverse(o => { if (o.isMesh) { o.userData.realmPortal = dest; o.userData.realmPortalLabel = label; realmPortalTargets.push(o); } });
                 if (opts.shipUrl) addPortModel(g, opts.shipUrl, opts.shipSize || 7, opts.shipPos || new THREE.Vector3(0, 3.3, -3.6), opts.shipRot || 0, dest, label);
                 scene.add(g);
+                registerSurfaceLateRoot(g, 'surface-realm-portal', 'Surface Realm Portal — ' + label);
                 realmPortalGroups.push(g);
             };
             make(14, 10, 0x3aa0ff, 'builder', "BUILDER'S WORKSHOP", {
@@ -11225,6 +11368,7 @@ bloomPass.radius = 0.7;
             station.add(stationDock);
             addPortModel(station, 'assets/recent/cosmos/space_station_4.glb', 18, new THREE.Vector3(0, 0.4, 0), 0.2, null, 'SPACEPORT');
             scene.add(station);
+            registerSurfaceLateRoot(station, 'surface-realm-portal', 'Surface Realm Portal — Spaceport');
             realmPortalGroups.push(station);
         }
         buildRealmPortals();
@@ -12669,6 +12813,7 @@ bloomPass.radius = 0.7;
             const hubDome = new THREE.Mesh(new THREE.SphereGeometry(260, 24, 16),
                 new THREE.MeshBasicMaterial({ color: 0x3a6ea5, side: THREE.BackSide, transparent: true, opacity: 0.06, depthWrite: false, fog: false }));
             hubDome.position.set(0, 60, 0); scene.add(hubDome);
+            registerSurfaceLateRoot(hubDome, 'surface-hub-atmosphere', 'Surface Hub Atmosphere Dome');
             if (typeof gskAvatar !== 'undefined' && gskAvatar) addPOI(gskAvatar.group, 0x66ffff, 0, 3.2, 0);
         }
         function buildCityAtmosphere() {
@@ -12761,6 +12906,7 @@ bloomPass.radius = 0.7;
             });
         })();
         try { buildRealmAtmospheres(); buildCityAtmosphere(); } catch (e) { console.warn('[Phase1] atmospheres failed', e); }
+        if (Genesis.VerticalStackManager && Genesis.VerticalStackManager.refreshCompanions) Genesis.VerticalStackManager.refreshCompanions('surface');
 
         // ========== ANIMATION ==========
         let time = 0, lastTime = 0, _frameCount = 0, _uiTick = 0, _hintCache = '', _genesisTick = 0;
