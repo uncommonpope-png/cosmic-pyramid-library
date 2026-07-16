@@ -13,14 +13,18 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
   const _sphere = new THREE.Sphere();
   const _position = new THREE.Vector3();
 
-  function _inFrustum(root) {
+  function _prepareFrustum() {
     if (!camera) return true;
-    root.updateWorldMatrix(true, false);
+    _projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    _frustum.setFromProjectionMatrix(_projScreen);
+    return true;
+  }
+
+  function _boundsInFrustum(root) {
+    if (!camera) return true;
     _box.setFromObject(root);
     if (_box.isEmpty()) return true;
     _box.getBoundingSphere(_sphere);
-    _projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-    _frustum.setFromProjectionMatrix(_projScreen);
     return _frustum.intersectsSphere(_sphere);
   }
 
@@ -33,11 +37,17 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
     return true;
   }
 
-  function _measure(entry) {
+  function _measure(entry, stateOwned) {
     entry.root.updateWorldMatrix(true, false);
     _position.setFromMatrixPosition(entry.root.matrixWorld);
     entry.inRange = !camera || camera.position.distanceToSquared(_position) <= entry.maxDistance * entry.maxDistance;
-    entry.inFrustum = _inFrustum(entry.root);
+    if (stateOwned) {
+      entry.inFrustum = !camera || _frustum.containsPoint(_position);
+      entry.metricKind = 'root-origin-point';
+    } else {
+      entry.inFrustum = _boundsInFrustum(entry.root);
+      entry.metricKind = 'bounds-sphere';
+    }
   }
 
   function register(id, root, opts = {}) {
@@ -50,7 +60,8 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
       managedExternally: !!opts.stateOwned,
       visible: true,
       inRange: true,
-      inFrustum: true
+      inFrustum: true,
+      metricKind: opts.stateOwned ? 'root-origin-point' : 'bounds-sphere'
     });
   }
 
@@ -61,10 +72,11 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
   }
 
   function tick() {
+    _prepareFrustum();
     for (const [id, e] of entries) {
       const stateOwned = e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner);
       e.managedExternally = stateOwned;
-      _measure(e);
+      _measure(e, stateOwned);
       if (stateOwned) {
         e.visible = _visibleInTree(e.root);
         continue;
@@ -93,6 +105,8 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
       priority: e.priority,
       stateOwned: e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner),
       managedExternally: e.managedExternally,
+      metricKind: e.metricKind,
+      distanceMetric: 'root-origin',
       owner: e.owner
     };
     return out;

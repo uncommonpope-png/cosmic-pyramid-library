@@ -17,8 +17,12 @@ export function createVerticalStackManager(ctx = {}) {
   let transitionPromise = null;
   let exteriorVisible = true;
   let lastTransition = null;
+  let applyCount = 0;
+  let refreshCount = 0;
+  let tickCount = 0;
+  let idleTickCount = 0;
 
-  function rootsFor(record) {
+  function resolveRoots(record) {
     if (!record || !record.root) return [];
     let companions = record.options.companionRoots || [];
     if (typeof companions === 'function') {
@@ -37,6 +41,10 @@ export function createVerticalStackManager(ctx = {}) {
     });
   }
 
+  function rootsFor(record) {
+    return record && Array.isArray(record.roots) ? record.roots : [];
+  }
+
   function visibleInTree(root) {
     let node = root;
     while (node) {
@@ -48,6 +56,7 @@ export function createVerticalStackManager(ctx = {}) {
 
   function applyState(record) {
     if (!record || !record.root) return;
+    applyCount++;
     const stateVisible = record.state === STRATUM_STATES.ACTIVE || record.state === STRATUM_STATES.LOADED;
     for (const entry of rootsFor(record)) {
       const root = entry.root;
@@ -83,7 +92,8 @@ export function createVerticalStackManager(ctx = {}) {
   function registerStratum(id, root, options = {}) {
     if (!id || !root) throw new Error('registerStratum requires id and root');
     const state = VALID_STATES.has(options.state) ? options.state : STRATUM_STATES.UNLOADED;
-    const record = { id, root, options: { ...options }, state, changedAt: now(), hiddenRoots: new Set(), visibilityBeforeHide: new Map() };
+    const record = { id, root, options: { ...options }, state, changedAt: now(), roots: [], hiddenRoots: new Set(), visibilityBeforeHide: new Map() };
+    record.roots = resolveRoots(record);
     strata.set(id, record);
     if (state === STRATUM_STATES.ACTIVE) {
       if (activeId && activeId !== id) setRecordState(strata.get(activeId), STRATUM_STATES.SLEEPING);
@@ -106,9 +116,23 @@ export function createVerticalStackManager(ctx = {}) {
     return record ? { id: record.id, root: record.root, state: record.state, options: { ...record.options } } : null;
   }
 
+  function refreshCompanions(id) {
+    const records = id ? [strata.get(id)] : [...strata.values()];
+    let refreshed = 0;
+    for (const record of records) {
+      if (!record) continue;
+      record.roots = resolveRoots(record);
+      refreshCount++;
+      refreshed++;
+      applyState(record);
+    }
+    return refreshed;
+  }
+
   function setState(id, state) {
     const record = strata.get(id);
     if (!record || !VALID_STATES.has(state)) return false;
+    refreshCompanions(id);
     if (state === STRATUM_STATES.ACTIVE && activeId && activeId !== id) {
       setRecordState(strata.get(activeId), STRATUM_STATES.SLEEPING);
     }
@@ -141,6 +165,8 @@ export function createVerticalStackManager(ctx = {}) {
     const sourceId = activeId;
     const source = sourceId ? strata.get(sourceId) : null;
     const destination = strata.get(id);
+    if (source) refreshCompanions(source.id);
+    refreshCompanions(destination.id);
     const connector = findConnector(sourceId, id, context.connectorId);
     const previousDestinationState = destination.state;
     const trace = {
@@ -192,11 +218,16 @@ export function createVerticalStackManager(ctx = {}) {
   }
 
   function setExteriorVisible(visible) {
-    exteriorVisible = !!visible;
+    const nextVisible = !!visible;
+    if (nextVisible === exteriorVisible) return false;
+    exteriorVisible = nextVisible;
     for (const record of strata.values()) {
+      record.roots = resolveRoots(record);
+      refreshCount++;
       for (const entry of rootsFor(record)) entry.root.userData.__verticalExteriorHidden = !exteriorVisible;
       applyState(record);
     }
+    return true;
   }
 
   function connectorSummary() {
@@ -235,15 +266,17 @@ export function createVerticalStackManager(ctx = {}) {
       exteriorVisible,
       strata: stratumSummary,
       connectors: connectorSummary(),
-      lastTransition: lastTransition ? { ...lastTransition } : null
+      lastTransition: lastTransition ? { ...lastTransition } : null,
+      performance: { applyCount, refreshCount, tickCount, idleTickCount, applyPolicy: 'state-or-refresh-only' }
     };
   }
 
   function tick(context = {}) {
+    tickCount++;
     if (typeof context.exteriorVisible === 'boolean' && context.exteriorVisible !== exteriorVisible) {
       setExteriorVisible(context.exteriorVisible);
     } else {
-      for (const record of strata.values()) applyState(record);
+      idleTickCount++;
     }
     return activeId;
   }
@@ -257,6 +290,7 @@ export function createVerticalStackManager(ctx = {}) {
     transitionTo,
     setState,
     setExteriorVisible,
+    refreshCompanions,
     endpoints: connectorSummary,
     summary,
     tick
