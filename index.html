@@ -2204,8 +2204,10 @@ renderer.toneMappingExposure = 0.75;
         scene.add(genesisFallbackGroup);
 
         // ========== EXTENDED GRID FLOOR (alive-on-boot survival surface) ==========
-        // A large dark reflective plane + a wide grid so the world has ground under the whole
-        // city (not just the 26x26 fallback). Sits just below the fallback grid; never removed.
+        // A small solid shadow-catcher under the core (so the city casts onto something real),
+        // PLUS the INFINITE camera-locked shader grid (Fyrestar InfiniteGridHelper pattern):
+        // one quad pinned to controls.target every frame, anti-aliased via fwidth, fading to
+        // the horizon by distance. This is the "way bigger" floor — truly endless, 1 draw call.
         const gridFloorMat = new THREE.MeshStandardMaterial({
             color: 0x05070d, roughness: 0.85, metalness: 0.2,
             emissive: 0x03040a, emissiveIntensity: 0.4
@@ -2214,16 +2216,69 @@ renderer.toneMappingExposure = 0.75;
         gridFloor.rotation.x = -Math.PI / 2;
         gridFloor.position.y = -0.06;
         gridFloor.receiveShadow = true;
-        gridFloor.name = 'Genesis Grid Floor';
+        gridFloor.name = 'Genesis Grid Floor (core shadow catch)';
         scene.add(gridFloor);
         Genesis.registry.trackObject3D(gridFloor, { owner: 'genesis-grid-floor', sector: 'survival', priority: 10 });
-        const gridFloorLines = new THREE.GridHelper(400, 200, 0x2244aa, 0x0a1430);
-        if (gridFloorLines.material) {
-            gridFloorLines.material.transparent = true;
-            gridFloorLines.material.opacity = 0.18;
-        }
-        gridFloorLines.position.y = -0.04;
-        scene.add(gridFloorLines);
+
+        // --- Infinite camera-locked grid (shader) ---
+        const _infGridUniforms = {
+            uSize1: { value: 1.0 },          // minor cell (1u)
+            uSize2: { value: 10.0 },         // major cell (10u)
+            uColor: { value: new THREE.Color(0x2a6cff) }, // PLT cyan
+            uColor2: { value: new THREE.Color(0xff3df0) }, // PLT magenta (major)
+            uDistance: { value: 2200.0 }     // fade radius (matches unlocked camera)
+        };
+        const infGridMat = new THREE.ShaderMaterial({
+            transparent: true,
+            depthWrite: false,
+            uniforms: _infGridUniforms,
+            vertexShader: `
+                varying vec3 vWorld;
+                uniform float uDistance;
+                void main() {
+                    vec3 pos = position.xzy * uDistance;
+                    pos.xz += cameraPosition.xz;
+                    vWorld = pos;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vWorld;
+                uniform float uSize1;
+                uniform float uSize2;
+                uniform vec3 uColor;
+                uniform vec3 uColor2;
+                uniform float uDistance;
+                float gridFactor(float size) {
+                    vec2 r = vWorld.xz / size;
+                    vec2 g = abs(fract(r - 0.5) - 0.5) / fwidth(r);
+                    float line = min(g.x, g.y);
+                    return 1.0 - min(line, 1.0);
+                }
+                void main() {
+                    float d = 1.0 - min(distance(cameraPosition.xz, vWorld.xz) / uDistance, 1.0);
+                    float g1 = gridFactor(uSize1);
+                    float g2 = gridFactor(uSize2);
+                    vec3 col = mix(uColor, uColor2, g2);
+                    float a = max(g1, g2 * 0.9) * pow(d, 2.2);
+                    if (a <= 0.001) discard;
+                    gl_FragColor = vec4(col, a * 0.9);
+                }
+            `
+        });
+        const infGrid = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), infGridMat);
+        infGrid.rotation.x = -Math.PI / 2;
+        infGrid.position.y = -0.03;
+        infGrid.renderOrder = -1;
+        infGrid.name = 'Infinite Grid';
+        infGrid.frustumCulled = false;
+        scene.add(infGrid);
+        Genesis.registry.trackObject3D(infGrid, { owner: 'infinite-grid', sector: 'survival', priority: 10 });
+        // Pin the infinite grid to the camera target every frame so it is truly endless.
+        // (Hooked into animate() below — Genesis.lifecycle has no onFrame; we use window.__genesisFrameCb.)
+        window.__genesisInfGrid = infGrid;
+        window.__genesisFrameCb = window.__genesisFrameCb || [];
+        window.__genesisFrameCb.push(() => { try { infGrid.position.set(controls.target.x, -0.03, controls.target.z); } catch (e) {} });
         Genesis.registry.trackObject3D(genesisFallbackGroup, { owner: 'genesis-survival', source: 'fallback-scene' });
         Genesis.boot.fallbackGroup = genesisFallbackGroup;
         Genesis.boot.fallbackVisible = true;
@@ -2717,12 +2772,18 @@ bloomPass.radius = 0.7;
         controls.enableDamping = true;
         controls.enableZoom = true;
         controls.enableRotate = true;
+        controls.enablePan = true; // WASD/edge sail across districts
         controls.dampingFactor = 0.06;
         controls.zoomSpeed = 0.8;
         controls.rotateSpeed = 0.6;
+        controls.panSpeed = 1.4;
+        controls.screenSpacePanning = false; // keep horizon level while panning
         controls.minDistance = 3;
-        controls.maxDistance = 200;
+        controls.maxDistance = 2200; // unlocked: see the whole expanded world
         controls.target.set(0, 2, 0);
+        // Far plane opened so distant districts + endless grid stay rendered.
+        camera.far = 6000;
+        camera.updateProjectionMatrix();
         
         // ========== HEMISPHERE + NEON LIGHTING ==========
         const hemiLight = new THREE.HemisphereLight(0x445577, 0x222244, 1.1);
@@ -4652,48 +4713,13 @@ bloomPass.radius = 0.7;
             }
         }
 
-        // ========== CITY PACK 3 — skin the CPL buildings with real city facade textures ==========
-        // Craig: wrap the buildings in the downloaded city texture pack. We extract the pack's
-        // diffuse (baseColor) maps and clone one per building so each tower gets its own facade,
-        // tiled to read as windows/facade. The procedural neon + window-glow strips stay on top.
-        (function applyCityPack() {
-            const loader = new GLTFLoader(criticalManager);
-            loader.setMeshoptDecoder(MeshoptDecoder);
-            loader.load('assets/city/city_pack_3.glb', (gltf) => {
-                const pool = [];
-                gltf.scene.traverse((o) => {
-                    if (o.isMesh && o.material && o.material.map && o.material.map.isTexture) {
-                        if (pool.indexOf(o.material.map) === -1) pool.push(o.material.map);
-                    }
-                });
-                if (!pool.length) { console.warn('[CityPack] no facade textures found'); return; }
-                const winColors = [0x33ddff, 0xff66cc, 0xffcc55, 0x66ffaa];
-                buildings.forEach((b, i) => {
-                    const facadeMat = b.parts && b.parts[0] && b.parts[0].material;
-                    if (!facadeMat) return;
-                    const src = pool[i % pool.length];
-                    const t = src.clone();
-                    t.needsUpdate = true;
-                    t.wrapS = THREE.RepeatWrapping;
-                    t.wrapT = THREE.RepeatWrapping;
-                    // Tile by floor-count so the facade reads as windows, not one stretched image.
-                    const floors = Math.max(2, Math.round((b.h || 6) / 1.6));
-                    const cols = Math.max(2, Math.round((b.w || 3) / 1.1));
-                    t.repeat.set(cols, floors);
-                    facadeMat.map = t;
-                    facadeMat.color.set(0xdfeaff);
-                    facadeMat.roughness = 0.62;
-                    facadeMat.metalness = 0.18;
-                    // Per-building emissive window glow so the city reads as alive at night.
-                    const wc = winColors[i % winColors.length];
-                    facadeMat.emissive = new THREE.Color(wc);
-                    facadeMat.emissiveIntensity = 0.10 + (i % 3) * 0.04;
-                    facadeMat.emissiveMap = t;
-                    facadeMat.needsUpdate = true;
-                });
-                console.log('[CityPack] skinned ' + buildings.length + ' buildings with ' + pool.length + ' city textures');
-            }, undefined, (e) => console.warn('[CityPack] load failed', e));
-        })();
+        // ========== BUILDING SKIN — PROCEDURAL ONLY (city_pack_3.glb REMOVED) ==========
+        // Craig (2026-07-16): "take the skin OFF the buildings, it sucks." The city_pack_3.glb
+        // whole-building images, tiled, looked stretched/flat. The buildings already carry a good
+        // procedural facade via getFacadeTexture() (canvas gradient + window rows + lit windows +
+        // shop/office labels) plus the per-building neon spines + window-glow strips. We KEEP
+        // that and DROP the glb overlay entirely. No external texture dependency for the towers.
+        console.log('[Buildings] skin = procedural facade only (city_pack_3.glb overlay removed per Craig)');
 
         // ========== P7 CITY EXPANSION — OUTER-RING DISTRICTS (D-Phase, manager-governed) ==========
         // Cheaper satellite rings far out. No new lights (billboards stay emissive+bloom). Lit only
@@ -11855,6 +11881,7 @@ bloomPass.radius = 0.7;
             if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager && Genesis.SectorManager.tick) Genesis.SectorManager.tick();
             if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility && Genesis.Visibility.tick) Genesis.Visibility.tick();
             if (window.__GENESIS_ANIM_SCHEDULER !== false && Genesis.AnimationScheduler && Genesis.AnimationScheduler.tick) Genesis.AnimationScheduler.tick(dt);
+            if (window.__genesisFrameCb) { for (let _fi = 0; _fi < window.__genesisFrameCb.length; _fi++) { try { window.__genesisFrameCb[_fi](dt); } catch (e) {} } }
             if (window.__GENESIS_LIGHTING_MANAGER !== false && Genesis.LightingManager && Genesis.LightingManager.tick) Genesis.LightingManager.tick();
             if (window.__GENESIS_STREAMING_MANAGER !== false && Genesis.StreamingManager && Genesis.StreamingManager.tick) Genesis.StreamingManager.tick();
             if (!Genesis.boot.firstFrameAt) {
