@@ -1063,10 +1063,10 @@
                 dispose(owner) { let n = 0; for (const e of [...registry]) { if (e.owner !== owner) continue; try { if (e.type === 'geometry' && e.res.dispose) e.res.dispose(); else if (e.type === 'material') { if (e.res.map && e.res.map.dispose) e.res.map.dispose(); if (e.res.dispose) e.res.dispose(); } else if (e.type === 'texture' && e.res.dispose) e.res.dispose(); else if (e.type === 'rt' && e.res.dispose) e.res.dispose(); } catch (_) {} registry.delete(e); n++; } return n; },
                 summary() { const byOwner = {}; for (const e of registry) byOwner[e.owner] = (byOwner[e.owner] || 0) + 1; return { total: registry.size, byOwner, audit: this.audit() }; }
             };
-            // Prove the P8 static ES-module split is viable: load the extracted module and adopt it.
+            // Prove the P8 static ES-module split is viable without replacing live inline state.
             import('./src/genesis/resource-manager.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, renderer);
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Resource Manager loaded from module (src/genesis/resource-manager.js)');
+                if (!Genesis.ResourceManager && typeof m.install === 'function') m.install(window.Genesis, THREE, renderer);
+                if (typeof console !== 'undefined') console.log('[Genesis] Resource Manager module validated (inline manager remains authoritative)');
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Resource Manager module load skipped:', e && e.message); });
         })();
 
@@ -1113,8 +1113,8 @@
                 summary() { const out = {}; for (const [id, s] of sectors) out[id] = { state: s.state, maxDistance: s.maxDistance, disposed: !!s.disposed }; return out; }
             };
             import('./src/genesis/sector-manager.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, camera, Genesis.ResourceManager);
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Sector Manager loaded from module (src/genesis/sector-manager.js)');
+                if (!Genesis.SectorManager && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, Genesis.ResourceManager);
+                if (typeof console !== 'undefined') console.log('[Genesis] Sector Manager module validated (inline manager remains authoritative)');
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Sector Manager module load skipped:', e && e.message); });
         })();
 
@@ -1156,8 +1156,8 @@
                 }
             };
             import('./src/genesis/visibility-system.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, camera, Genesis.SectorManager);
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Visibility System loaded from module (src/genesis/visibility-system.js)');
+                if (!Genesis.Visibility && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, Genesis.SectorManager);
+                if (typeof console !== 'undefined') console.log('[Genesis] Visibility module validated (inline manager remains authoritative)');
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Visibility System module load skipped:', e && e.message); });
         })();
 
@@ -1193,8 +1193,8 @@
                 summary() { return Genesis.ResourceManager && Genesis.ResourceManager.summary ? Genesis.ResourceManager.summary() : { total: 0 }; }
             };
             import('./src/genesis/memory-manager.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, renderer, camera, scene, _baseDispose);
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Memory Manager loaded from module (src/genesis/memory-manager.js)');
+                if (!Genesis.MemoryManager && typeof m.install === 'function') m.install(window.Genesis, THREE, renderer, camera, scene, _baseDispose);
+                if (typeof console !== 'undefined') console.log('[Genesis] Memory Manager module validated (inline manager remains authoritative)');
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Memory Manager module load skipped:', e && e.message); });
         })();
 
@@ -1241,8 +1241,8 @@
                 Genesis.lifecycle.registerMixer = function (mixer, meta) { const r = _origReg(mixer, meta); Genesis.AnimationScheduler.registerMixer(mixer, meta); return r; };
             }
             import('./src/genesis/animation-scheduler.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, camera, scene);
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Animation Scheduler loaded from module (src/genesis/animation-scheduler.js)');
+                if (!Genesis.AnimationScheduler && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene);
+                if (typeof console !== 'undefined') console.log('[Genesis] Animation Scheduler module validated (inline manager remains authoritative)');
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Animation Scheduler module load skipped:', e && e.message); });
         })();
 
@@ -1286,8 +1286,8 @@
                 } catch (e) { if (typeof console !== 'undefined') console.warn('[Genesis] Lighting observe deferred:', e && e.message); }
             });
             import('./src/genesis/lighting-manager.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, camera, scene);
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Lighting Manager loaded from module (src/genesis/lighting-manager.js)');
+                if (!Genesis.LightingManager && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene);
+                if (typeof console !== 'undefined') console.log('[Genesis] Lighting Manager module validated (inline manager remains authoritative)');
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Lighting Manager module load skipped:', e && e.message); });
         })();
 
@@ -1320,8 +1320,8 @@
                 summary() { return { registered: _videos.size }; }
             };
             import('./src/genesis/video-manager.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, camera, scene);
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Video Manager loaded from module (src/genesis/video-manager.js)');
+                if (!Genesis.VideoManager && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene);
+                if (typeof console !== 'undefined') console.log('[Genesis] Video Manager module validated (inline manager remains authoritative)');
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Video Manager module load skipped:', e && e.message); });
         })();
 
@@ -1375,8 +1375,8 @@
                 try { enqueueLazyAsset = function (label, fn) { Genesis.StreamingManager.register('lazy:' + label, fn, { owner: 'lazy:' + label, sector: (typeof currentSectorId !== 'undefined') ? currentSectorId : null }); return _orig(label, fn); }; } catch (e) {}
             }
             import('./src/genesis/streaming-manager.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, camera, scene);
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Streaming Manager loaded from module (src/genesis/streaming-manager.js)');
+                if (!Genesis.StreamingManager && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene);
+                if (typeof console !== 'undefined') console.log('[Genesis] Streaming Manager module validated (inline manager remains authoritative)');
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Streaming Manager module load skipped:', e && e.message); });
         })();
 
@@ -1390,17 +1390,23 @@
             if (window.__GENESIS_RENDER_GRAPH === false) { Genesis.RenderGraph = { addPass(){}, setResolutionScale(){}, compose(){return false;}, tick(){}, getResolutionScale(){return 1;}, summary(){return{passes:0};} }; return; }
             const _passes = new Map();
             let _resolutionScale = 1.0;
-            const _getBaseDPR = () => ((typeof renderer !== 'undefined' && renderer && renderer.getPixelRatio) ? renderer.getPixelRatio() : 1);
-            const _MIN = 0.5, _MAX = 1.0;
+            const _baseDPR = (renderer && renderer.getPixelRatio) ? renderer.getPixelRatio() : 1;
+            let _appliedDPR = _baseDPR;
+            let _lastResizeAt = 0;
+            const _MIN = 0.5, _MAX = 1.0, _RESIZE_INTERVAL_MS = 1000, _DPR_EPSILON = 0.03;
             function _setResolutionScale(scale) {
                 _resolutionScale = Math.max(_MIN, Math.min(_MAX, scale));
-                const dpr = Math.max(0.5, Math.min(2, _getBaseDPR() * _resolutionScale));
+                const dpr = Math.max(0.5, Math.min(2, _baseDPR * _resolutionScale));
+                const now = performance.now();
+                if (Math.abs(dpr - _appliedDPR) < _DPR_EPSILON || (now - _lastResizeAt) < _RESIZE_INTERVAL_MS) return _appliedDPR;
                 try { renderer.setPixelRatio(dpr); } catch (e) {}
-                if (typeof effectComposer !== 'undefined') {
+                if (effectComposer) {
                     if (effectComposer.setPixelRatio) { try { effectComposer.setPixelRatio(dpr); } catch (e) {} }
                     if (effectComposer.setSize) { try { effectComposer.setSize(window.innerWidth, window.innerHeight); } catch (e) {} }
                 }
-                return dpr;
+                _appliedDPR = dpr;
+                _lastResizeAt = now;
+                return _appliedDPR;
             }
             Genesis.RenderGraph = {
                 addPass(pass, meta) {
@@ -1416,11 +1422,11 @@
                 },
                 tick() {},
                 getResolutionScale() { return _resolutionScale; },
-                summary() { return { passes: _passes.size, resolutionScale: _resolutionScale, baseDPR: _getBaseDPR() }; }
+                summary() { return { passes: _passes.size, resolutionScale: _resolutionScale, baseDPR: _baseDPR }; }
             };
             import('./src/genesis/render-graph.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, renderer, camera, scene, (typeof effectComposer !== 'undefined') ? effectComposer : null, _getBaseDPR());
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Render Graph loaded from module (src/genesis/render-graph.js)');
+                if (!Genesis.RenderGraph && typeof m.install === 'function') m.install(window.Genesis, THREE, renderer, camera, scene, effectComposer, _baseDPR);
+                if (typeof console !== 'undefined') console.log('[Genesis] Render Graph module validated (inline manager remains authoritative)');
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Render Graph module load skipped:', e && e.message); });
         })();
 
@@ -1488,8 +1494,8 @@
                 summary() { return { frameMs: _ema.frameMs, calls: _ema.calls, resolutionScale: _resolutionScale, particleLevel: _particleLevel, updateFreqLevel: _updateFreqLevel, sleepBias: _sleepBias, videoCap: _videoCap }; }
             };
             import('./src/genesis/performance-governor.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, renderer, camera, scene);
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Performance Governor v2 loaded from module (src/genesis/performance-governor.js)');
+                if (!Genesis.PerformanceGovernor && typeof m.install === 'function') m.install(window.Genesis, THREE, renderer, camera, scene);
+                if (typeof console !== 'undefined') console.log('[Genesis] Performance Governor module validated (inline manager remains authoritative)');
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Performance Governor v2 module load skipped:', e && e.message); });
         })();
         }

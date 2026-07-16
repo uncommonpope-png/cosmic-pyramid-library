@@ -10,8 +10,12 @@ export function createRenderGraph(ctx) {
   const { renderer, effectComposer, basePixelRatio } = ctx;
   const passes = new Map();
   let resolutionScale = 1.0;
+  let appliedDPR = renderer && renderer.getPixelRatio ? renderer.getPixelRatio() : 1;
+  let lastResizeAt = 0;
   const baseDPR = (typeof basePixelRatio === 'number' && basePixelRatio > 0) ? basePixelRatio : 1;
   const MIN_SCALE = 0.5, MAX_SCALE = 1.0;
+  const RESIZE_INTERVAL_MS = 1000;
+  const DPR_EPSILON = 0.03;
 
   function addPass(pass, meta = {}) {
     if (!pass) return;
@@ -23,12 +27,16 @@ export function createRenderGraph(ctx) {
   function setResolutionScale(scale) {
     resolutionScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
     const dpr = Math.max(0.5, Math.min(2, baseDPR * resolutionScale));
+    const now = performance.now();
+    if (Math.abs(dpr - appliedDPR) < DPR_EPSILON || (now - lastResizeAt) < RESIZE_INTERVAL_MS) return appliedDPR;
     try {
       renderer.setPixelRatio(dpr);
       if (effectComposer && typeof effectComposer.setPixelRatio === 'function') effectComposer.setPixelRatio(dpr);
       if (effectComposer && typeof effectComposer.setSize === 'function') effectComposer.setSize(window.innerWidth, window.innerHeight);
+      appliedDPR = dpr;
+      lastResizeAt = now;
     } catch (e) {}
-    return dpr;
+    return appliedDPR;
   }
   function compose() {
     if (effectComposer && typeof effectComposer.render === 'function') { try { effectComposer.render(); return true; } catch (e) {} }
