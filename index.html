@@ -1368,6 +1368,50 @@
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Streaming Manager module load skipped:', e && e.message); });
         })();
 
+        // ========== GENESIS RENDER GRAPH (Phase B3 — manager #3) ==========
+        // Owns post-processing composition as a governor-adjustable pass.
+        // addPass(pass, meta); setResolutionScale(scale) clamps + setPixelRatio;
+        // compose() mirrors effectComposer.render(); tick(). When flag ON, animate()
+        // routes its render through RenderGraph.compose(). Flag: __GENESIS_RENDER_GRAPH.
+        window.__GENESIS_RENDER_GRAPH = (typeof window.__GENESIS_RENDER_GRAPH === 'boolean') ? window.__GENESIS_RENDER_GRAPH : true;
+        (function () {
+            if (window.__GENESIS_RENDER_GRAPH === false) { Genesis.RenderGraph = { addPass(){}, setResolutionScale(){}, compose(){return false;}, tick(){}, getResolutionScale(){return 1;}, summary(){return{passes:0};} }; return; }
+            const _passes = new Map();
+            let _resolutionScale = 1.0;
+            const _baseDPR = (typeof perf !== 'undefined' && perf.getEffectivePixelRatio) ? perf.getEffectivePixelRatio() : (renderer.getPixelRatio ? renderer.getPixelRatio() : 1);
+            const _MIN = 0.5, _MAX = 1.0;
+            function _setResolutionScale(scale) {
+                _resolutionScale = Math.max(_MIN, Math.min(_MAX, scale));
+                const dpr = Math.max(0.5, Math.min(2, _baseDPR * _resolutionScale));
+                try { renderer.setPixelRatio(dpr); } catch (e) {}
+                if (typeof effectComposer !== 'undefined') {
+                    if (effectComposer.setPixelRatio) { try { effectComposer.setPixelRatio(dpr); } catch (e) {} }
+                    if (effectComposer.setSize) { try { effectComposer.setSize(window.innerWidth, window.innerHeight); } catch (e) {} }
+                }
+                return dpr;
+            }
+            Genesis.RenderGraph = {
+                addPass(pass, meta) {
+                    if (!pass) return;
+                    _passes.set(pass, { owner: (meta && meta.owner) || 'unknown', optional: !!(meta && meta.optional) });
+                    if (typeof effectComposer !== 'undefined' && effectComposer.addPass) { try { effectComposer.addPass(pass); } catch (e) {} }
+                },
+                setResolutionScale(s) { return _setResolutionScale(s); },
+                compose() {
+                    if (typeof effectComposer !== 'undefined' && effectComposer.render) { try { effectComposer.render(); return true; } catch (e) {} }
+                    try { renderer.render(scene, camera); } catch (e) {}
+                    return false;
+                },
+                tick() {},
+                getResolutionScale() { return _resolutionScale; },
+                summary() { return { passes: _passes.size, resolutionScale: _resolutionScale, baseDPR: _baseDPR }; }
+            };
+            import('./src/genesis/render-graph.js').then((m) => {
+                const ext = m.install(window.Genesis, THREE, renderer, camera, scene, (typeof effectComposer !== 'undefined') ? effectComposer : null, _baseDPR);
+                if (ext && typeof console !== 'undefined') console.log('[Genesis] Render Graph loaded from module (src/genesis/render-graph.js)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Render Graph module load skipped:', e && e.message); });
+        })();
+
         Genesis.notifyError = function (message) {
             if (!message) return;
             this.setStatus('error: ' + message, 'err');
@@ -11899,7 +11943,8 @@ bloomPass.radius = 0.7;
             updatePlayerNPC(dt);
             if (cameraMode === 'orbit') controls.update();
             perf.beginGpu();
-            if (genesisRenderSchedule.composerReady) effectComposer.render();
+            if (window.__GENESIS_RENDER_GRAPH !== false && Genesis.RenderGraph && Genesis.RenderGraph.compose && genesisRenderSchedule.composerReady) Genesis.RenderGraph.compose();
+            else if (genesisRenderSchedule.composerReady) effectComposer.render();
             else renderer.render(scene, camera);
             perf.endGpu();
             perf.pollGpu();
