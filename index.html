@@ -4578,56 +4578,6 @@ bloomPass.radius = 0.7;
             }, undefined, (e) => console.warn('[CityPack] load failed', e));
         })();
 
-        // ========== P7 CITY EXPANSION — OUTER-RING DISTRICTS (D-Phase, manager-governed) ==========
-        // Cheaper satellite rings far out. No new lights (billboards stay emissive+bloom). Lit only
-        // by ambient/directional/hemisphere + emissive materials. Governed by SectorManager (sleeps
-        // when far) + Visibility (frustum-culls when off-screen, low priority = wakes last).
-        if (window.__GENESIS_P7_CITY !== false) {
-            const outerCity = new THREE.Group();
-            outerCity.name = 'outerCity';
-            cityGroup.add(outerCity);
-
-            // Cheap-builder: routes through makeBuilding (cost already declared), then lowers the
-            // cost of every part so outer rings are cheaper and sleep by distance.
-            function makeCheapBuilding(x, z, type) {
-                const b = makeBuilding(x, z, type);
-                if (b && b.parts && window.__GENESIS_COST_CONTRACT !== false) {
-                    for (const p of b.parts) {
-                        Genesis.declareCost(p, { cpu: 0.5, gpu: 1, memory: 0.3, updateFreq: 0, priority: 1, sector: 'city-outer', sleep: 'distance' });
-                    }
-                }
-                return b;
-            }
-
-            // 2–3 sparser rings at radius 90–160, larger step, higher skip chance for performance.
-            const ringDefs = [
-                { r: 95, count: 28, skip: 0.45, types: ['Apartment', 'House'] },
-                { r: 125, count: 34, skip: 0.55, types: ['Apartment', 'House'] },
-                { r: 158, count: 40, skip: 0.65, types: ['House', 'Apartment'] }
-            ];
-            for (const ring of ringDefs) {
-                for (let i = 0; i < ring.count; i++) {
-                    if (Math.random() < ring.skip) continue;
-                    const ang = (Math.PI * 2 * i) / ring.count + Math.random() * 0.12;
-                    const rad = ring.r + (Math.random() - 0.5) * 12;
-                    const x = Math.cos(ang) * rad;
-                    const z = Math.sin(ang) * rad;
-                    // keep outer content out of the central library footprint
-                    if (Math.abs(x) < 38 && Math.abs(z) < 38) continue;
-                    const type = ring.types[Math.floor(Math.random() * ring.types.length)];
-                    makeCheapBuilding(x, z, type);
-                }
-            }
-
-            if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
-                Genesis.SectorManager.register('city-outer', outerCity, { maxDistance: 400, autoSleep: true });
-            }
-            if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) {
-                Genesis.Visibility.register('city-outer', outerCity, { priority: 2, maxDistance: 400 });
-            }
-            console.log('[P7] outer-ring districts spawned (' + outerCity.children.length + ' groups)');
-        }
-
         // Satellite districts
         function makeDistrict(cx, cz, name, accent, shapeBias) {
             const plazaMat = new THREE.MeshStandardMaterial({
