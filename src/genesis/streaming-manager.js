@@ -55,7 +55,18 @@ export function createStreamingManager(ctx) {
     }
   }
 
-  function summary() { return { registered: assets.size, loaded: [...assets.values()].filter((a) => a.loaded).length }; }
+  function summary() {
+    const byTier = {};
+    const requests = {};
+    let loaded = 0;
+    for (const [key, asset] of assets) {
+      if (asset.loaded) loaded++;
+      const tier = asset.meta.tier || 'decor';
+      byTier[tier] = (byTier[tier] || 0) + 1;
+      requests[key] = { loaded: asset.loaded, tier, priority: asset.meta.priority || 0, sector: asset.meta.sector || null };
+    }
+    return { registered: assets.size, loaded, byTier, requests };
+  }
 
   return { register, ensureLoaded, unload, tick, summary };
 }
