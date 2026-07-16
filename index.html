@@ -1856,12 +1856,23 @@
         };
         criticalManager.onError = (url) => { console.warn('[Loader] error:', url); showGenesisFailure('critical asset failed: ' + String(url || '').split('/').pop()); };
         loadingManager.onError = (url) => { console.warn('[LazyAssets] error:', url); Genesis.setStatus('lazy asset failed: ' + String(url || '').split('/').pop(), 'warn'); };
-        // Safety: never claim safe entry before a first frame exists.
+        // Safety: the world is alive once a frame has rendered AND the backstop released.
+        // We must NOT depend solely on criticalManager.onLoad firing (a single deferred
+        // world-GLB or poster can leave itemsTotal>itemsLoaded forever and lock the
+        // city behind the enter screen). If the frame is up, claim ready.
         setTimeout(() => {
             if (window.__cplReady) return;
-            if (window.__genesisFirstFrameSeen) showGenesisFailure('Critical load still pending — survival mode active.');
-            else __genesisSetLoaderText('Startup stalled before first frame — open console / refresh.', 'CPL — NEEDS ATTENTION');
-        }, 12000);
+            if (window.__genesisFirstFrameSeen && window.__genesisBackstopReleased) {
+                console.log('[Genesis] readiness resolved by first-frame + backstop (not criticalManager.onLoad).');
+                window.__cplReady = true;
+                if (typeof window.__genesisReleaseLoader === 'function') window.__genesisReleaseLoader('readiness resolved by frame');
+                Genesis.boot.criticalLoadedAt = Genesis.boot.criticalLoadedAt || performance.now();
+            } else if (window.__genesisFirstFrameSeen) {
+                showGenesisFailure('Critical load still pending — survival mode active.');
+            } else {
+                __genesisSetLoaderText('Startup stalled before first frame — open console / refresh.', 'CPL — NEEDS ATTENTION');
+            }
+        }, 9000);
 
         // Service Worker: cache-first for assets (repeat visits load instantly)
         if ('serviceWorker' in navigator) {
@@ -4926,6 +4937,8 @@ bloomPass.radius = 0.7;
                 tex.colorSpace = THREE.SRGBColorSpace;
                 tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
                 fx.videoTex = tex;
+                // Feed the Shang Tsung soul shader so the DayZ clip wears samsy's form.
+                if (fx.soul && fx.soul.uniforms) { fx.soul.uniforms.uTex.value = tex; fx.soul.needsUpdate = true; }
                 if (fx._near && video.paused) { try { video.play().catch(() => {}); } catch (e) {} }
             }, { once: true });
             video.addEventListener('error', () => console.warn('[Billboard] video failed:', vidUrl));
@@ -4933,6 +4946,69 @@ bloomPass.radius = 0.7;
             if (window.__GENESIS_VIDEO_MANAGER !== false && Genesis.VideoManager && Genesis.VideoManager.register) Genesis.VideoManager.register(video, plane, { owner: 'billboard', cost: 4 });
             if (window.__GENESIS_COST_CONTRACT !== false && plane && plane.userData) Genesis.declareCost(plane, { cpu: 1, gpu: 3, memory: 4, updateFreq: 30, priority: 5, sector: 'city-core', sleep: 'offscreen' });
         }
+        // ===== SHANG TSUNG SOUL-STEAL: samsy.ninja billboard aesthetic grafted onto CPL =====
+        // Craig (2026-07-16): northstar for billboards is https://samsy.ninja/ — a Three.js +
+        // GSAP + GLSL rig with signature RGB-split glitch, noise displacement, holographic
+        // scanlines, particle edge. We STEAL that soul: a self-contained ShaderMaterial that
+        // takes the same billboard texture (poster/video) and wears samsy's form.
+        function makeBillboardSoulMaterial(accent) {
+            const mat = new THREE.ShaderMaterial({
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                uniforms: {
+                    uTex: { value: null },
+                    uTime: { value: 0 },
+                    uAccent: { value: new THREE.Color(accent) },
+                    uGlitch: { value: 0.0 }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    precision highp float;
+                    varying vec2 vUv;
+                    uniform sampler2D uTex;
+                    uniform float uTime;
+                    uniform vec3 uAccent;
+                    uniform float uGlitch;
+                    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+                    float noise(vec2 p){
+                        vec2 i=floor(p), f=fract(p);
+                        float a=hash(i), b=hash(i+vec2(1.,0.)), c=hash(i+vec2(0.,1.)), d=hash(i+vec2(1.,1.));
+                        vec2 u=f*f*(3.-2.*f);
+                        return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);
+                    }
+                    void main(){
+                        vec2 uv = vUv;
+                        float g = uGlitch * (0.5 + 0.5*sin(uTime*9.0 + uv.y*40.0));
+                        float slice = step(0.985, hash(vec2(floor(uv.y*36.0), floor(uTime*12.0))));
+                        float shift = (slice*0.04 + g*0.02);
+                        float r = texture2D(uTex, uv + vec2( shift, 0.0)).r;
+                        float gr= texture2D(uTex, uv).g;
+                        float b = texture2D(uTex, uv + vec2(-shift, 0.0)).b;
+                        vec3 col = vec3(r, gr, b);
+                        float n = noise(uv*18.0 + uTime*0.6);
+                        col += (n-0.5) * 0.06;
+                        float scan = 0.85 + 0.15*sin(uv.y*900.0 - uTime*6.0);
+                        col *= scan;
+                        float lum = dot(col, vec3(0.299,0.587,0.114));
+                        col = mix(col, col + uAccent*0.35, (1.0-lum)*0.4);
+                        vec2 c = abs(uv-0.5);
+                        float vig = smoothstep(0.62, 0.42, max(c.x,c.y));
+                        col *= mix(0.55, 1.0, vig);
+                        float a = mix(0.92, 1.0, vig);
+                        gl_FragColor = vec4(col, a);
+                    }
+                `
+            });
+            return mat;
+        }
+
         function makeBillboard(spot, idx) {
             const w = spot.w || 5.8;
             const h = spot.h || 5.8;
@@ -4952,7 +5028,9 @@ bloomPass.radius = 0.7;
             back.position.set(0, y, -0.08);
             group.add(back);
 
-            const plane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), imageMat);
+            // Shang Tsung soul-steal: the visible plane wears samsy.ninja's shader form.
+            const soulMat = makeBillboardSoulMaterial(accent);
+            const plane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), soulMat);
             plane.position.set(0, y, 0.04);
             group.add(plane);
 
@@ -5011,7 +5089,7 @@ bloomPass.radius = 0.7;
             const pmat = new THREE.PointsMaterial({ color: accent, size: 0.12, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
             const pts = new THREE.Points(pg, pmat); group.add(pts);
 
-            const fx = { group, sweep, halo, neon: neonMat, rim, pts, mat: imageMat, base: y, h, w, phase: Math.random() * Math.PI * 2 };
+            const fx = { group, sweep, halo, neon: neonMat, rim, pts, mat: soulMat, soul: soulMat, base: y, h, w, phase: Math.random() * Math.PI * 2 };
             _billboardFx.push(fx);
 
             const imgUrl = DAYZ_POSTERS[idx % DAYZ_POSTERS.length];
@@ -5021,9 +5099,8 @@ bloomPass.radius = 0.7;
                 tex.colorSpace = THREE.SRGBColorSpace;
                 tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
                 fx.posterTex = tex;
-                imageMat.map = tex; imageMat.emissiveMap = tex;
-                imageMat.emissive = new THREE.Color(0xffffff); imageMat.emissiveIntensity = 0.72;
-                imageMat.needsUpdate = true;
+                // Feed the Shang Tsung soul shader (poster = first frame before video plays).
+                if (soulMat.uniforms) { soulMat.uniforms.uTex.value = tex; soulMat.needsUpdate = true; }
             }, undefined, (err) => { console.warn('[Billboard] image failed:', posterUrl, err); });
             // Craig (2026-07-16): the billboards are TRASH — they show wrong stills and never
             // the real DayZ videos. FIX: videos are PRIMARY (play on load, muted loop), the
@@ -5055,6 +5132,11 @@ bloomPass.radius = 0.7;
                 fx.mat.emissiveIntensity = 0.58 + 0.24 * p;
                 if (fx.rim && fx.rim.material) fx.rim.material.opacity = 0.05 + 0.05 * p;
                 fx.pts.rotation.y = time * 0.2;
+                // Shang Tsung soul: drive the samsy shader (RGB glitch breathes with the sweep).
+                if (fx.soul && fx.soul.uniforms) {
+                    fx.soul.uniforms.uTime.value = time;
+                    fx.soul.uniforms.uGlitch.value = 0.25 + 0.35 * Math.max(0, Math.sin(time * 1.2 + fx.phase));
+                }
             }
         }
         const VIDEO_PLAY_DISTANCE = 130, MAX_ACTIVE_VIDEOS = 6;
