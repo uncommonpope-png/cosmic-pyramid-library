@@ -1159,27 +1159,36 @@
                 _frustum.setFromProjectionMatrix(_projScreen);
                 return _frustum.intersectsSphere(_sphere);
             }
+            function _visibleInTree(root) {
+                let node = root;
+                while (node) { if (node.visible === false) return false; node = node.parent; }
+                return true;
+            }
+            function _measureVisibility(entry) {
+                entry.root.updateWorldMatrix(true, false);
+                _visibilityPosition.setFromMatrixPosition(entry.root.matrixWorld);
+                entry.inRange = !camera || camera.position.distanceToSquared(_visibilityPosition) <= entry.maxDistance * entry.maxDistance;
+                entry.inFrustum = _inFrustum(entry.root);
+            }
             Genesis.Visibility = {
-                register(id, root, opts) { entries.set(id, { root, priority: (opts && opts.priority != null) ? opts.priority : 5, maxDistance: (opts && opts.maxDistance) || 260, stateOwned: !!(opts && opts.stateOwned), owner: (opts && opts.owner) || null, visible: true, inRange: true, inFrustum: true }); },
+                register(id, root, opts) { entries.set(id, { root, priority: (opts && opts.priority != null) ? opts.priority : 5, maxDistance: (opts && opts.maxDistance) || 260, stateOwned: !!(opts && opts.stateOwned), owner: (opts && opts.owner) || null, managedExternally: !!(opts && opts.stateOwned), visible: true, inRange: true, inFrustum: true }); },
                 isVisible(id) { const e = entries.get(id); return !!e && e.visible; },
                 wakeOrder() { return [...entries.entries()].sort((a, b) => b[1].priority - a[1].priority).map(([id]) => id); },
                 tick() {
                     for (const [id, e] of entries) {
                         const stateOwned = e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner);
-                        if (stateOwned) { e.inRange = true; e.inFrustum = true; e.visible = e.root.visible !== false; continue; }
+                        e.managedExternally = stateOwned;
+                        _measureVisibility(e);
+                        if (stateOwned) { e.visible = _visibleInTree(e.root); continue; }
                         let never = false;
                         e.root.traverse((o) => { if (o.userData && o.userData.cost && o.userData.cost.sleep === 'never') never = true; });
-                        if (never) { e.inRange = true; e.inFrustum = true; e.visible = true; if (e.root.visible === false) e.root.visible = true; continue; }
-                        e.root.updateWorldMatrix(true, false);
-                        _visibilityPosition.setFromMatrixPosition(e.root.matrixWorld);
-                        e.inRange = !camera || camera.position.distanceToSquared(_visibilityPosition) <= e.maxDistance * e.maxDistance;
-                        e.inFrustum = e.inRange && _inFrustum(e.root);
+                        if (never) { e.visible = true; if (e.root.visible === false) e.root.visible = true; continue; }
                         const inView = e.inRange && e.inFrustum;
                         e.visible = inView;
                         if (e.root.visible !== inView) e.root.visible = inView;
                     }
                 },
-                summary() { const out = {}; for (const [id, e] of entries) out[id] = { visible: e.visible, inRange: e.inRange, inFrustum: e.inFrustum, maxDistance: e.maxDistance, priority: e.priority, stateOwned: e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner), owner: e.owner }; return out; }
+                summary() { const out = {}; for (const [id, e] of entries) out[id] = { visible: e.visible, inRange: e.inRange, inFrustum: e.inFrustum, maxDistance: e.maxDistance, priority: e.priority, stateOwned: e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner), managedExternally: e.managedExternally, owner: e.owner }; return out; }
             };
             import('./src/genesis/visibility-system.js').then((m) => {
                 if (!Genesis.Visibility && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, Genesis.SectorManager);
@@ -1358,29 +1367,45 @@
         // unloads assets whose sector is no longer awake. Flag: __GENESIS_STREAMING_MANAGER.
         window.__GENESIS_STREAMING_MANAGER = (typeof window.__GENESIS_STREAMING_MANAGER === 'boolean') ? window.__GENESIS_STREAMING_MANAGER : true;
         (function () {
-            if (window.__GENESIS_STREAMING_MANAGER === false) { Genesis.StreamingManager = { register(){}, ensureLoaded(){return null;}, unload(){return false;}, tick(){}, summary(){return{registered:0,loaded:0,byTier:{},requests:{}};} }; return; }
+            if (window.__GENESIS_STREAMING_MANAGER === false) { Genesis.StreamingManager = { register(){}, ensureLoaded(){return null;}, unload(){return false;}, tick(){}, summary(){return{registered:0,loaded:0,states:{},byTier:{},requests:{}};} }; return; }
             const _assets = new Map();
+            const _streamNow = () => performance.now();
             Genesis.StreamingManager = {
                 register(assetKey, loaderFn, meta) {
                     if (!assetKey || typeof loaderFn !== 'function') return;
                     if (_assets.has(assetKey) && (meta && meta.loadOnce) !== false) return;
-                    _assets.set(assetKey, { loaderFn, meta: meta || {}, loaded: false, object: null });
+                    _assets.set(assetKey, { loaderFn, meta: meta || {}, state: 'queued', loaded: false, object: null, queuedAt: _streamNow(), invokedAt: 0, completedAt: 0, error: null, promise: null });
                 },
                 ensureLoaded(key) {
                     const a = _assets.get(key);
                     if (!a) return null;
-                    if (a.loaded) return a.object;
-                    const obj = a.loaderFn();
-                    a.loaded = true; a.object = obj || null;
-                    if (obj && Genesis.ResourceManager && typeof Genesis.ResourceManager.track === 'function' && obj.userData) Genesis.ResourceManager.track(obj, (a.meta && a.meta.owner) || key, obj);
-                    return obj;
+                    if (a.state !== 'queued') return a.promise || a.object;
+                    a.state = 'loading'; a.invokedAt = _streamNow();
+                    try {
+                        const result = a.loaderFn();
+                        if (result && typeof result.then === 'function') {
+                            a.promise = Promise.resolve(result).then((obj) => {
+                                a.object = obj || null; a.loaded = true; a.state = 'loaded'; a.completedAt = _streamNow();
+                                if (obj && Genesis.ResourceManager && typeof Genesis.ResourceManager.track === 'function' && obj.userData) Genesis.ResourceManager.track(obj, (a.meta && a.meta.owner) || key, obj);
+                                return obj;
+                            }).catch((error) => { a.state = 'error'; a.error = error && error.message ? error.message : String(error); a.completedAt = _streamNow(); throw error; });
+                            return a.promise;
+                        }
+                        if (result != null) {
+                            a.object = result; a.loaded = true; a.state = 'loaded'; a.completedAt = _streamNow();
+                            if (Genesis.ResourceManager && typeof Genesis.ResourceManager.track === 'function' && result.userData) Genesis.ResourceManager.track(result, (a.meta && a.meta.owner) || key, result);
+                        } else a.state = 'invoked';
+                        return result || null;
+                    } catch (error) {
+                        a.state = 'error'; a.error = error && error.message ? error.message : String(error); a.completedAt = _streamNow(); throw error;
+                    }
                 },
                 unload(key) {
                     const a = _assets.get(key);
                     if (!a || !a.loaded) return false;
                     if (a.object && Genesis.MemoryManager && typeof Genesis.MemoryManager.deepDispose === 'function') { try { Genesis.MemoryManager.deepDispose(a.object, (a.meta && a.meta.owner) || key); } catch (e) {} }
                     else if (a.object && Genesis.ResourceManager && typeof Genesis.ResourceManager.dispose === 'function') { try { Genesis.ResourceManager.dispose((a.meta && a.meta.owner) || key); } catch (e) {} }
-                    a.loaded = false; a.object = null;
+                    a.loaded = false; a.object = null; a.promise = null; a.state = 'queued'; a.queuedAt = _streamNow(); a.invokedAt = 0; a.completedAt = 0; a.error = null;
                     return true;
                 },
                 tick() {
@@ -1392,13 +1417,13 @@
                         }
                     }
                 },
-                summary() { const byTier = {}, requests = {}; let loaded = 0; for (const [key, a] of _assets) { if (a.loaded) loaded++; const tier = (a.meta && a.meta.tier) || 'decor'; byTier[tier] = (byTier[tier] || 0) + 1; requests[key] = { loaded: a.loaded, tier, priority: (a.meta && a.meta.priority) || 0, sector: (a.meta && a.meta.sector) || null }; } return { registered: _assets.size, loaded, byTier, requests }; }
+                summary() { const byTier = {}, requests = {}, states = {}; let loaded = 0; for (const [key, a] of _assets) { if (a.loaded) loaded++; states[a.state] = (states[a.state] || 0) + 1; const tier = (a.meta && a.meta.tier) || 'decor'; byTier[tier] = (byTier[tier] || 0) + 1; requests[key] = { state: a.state, loaded: a.loaded, invoked: a.invokedAt > 0, tier, priority: (a.meta && a.meta.priority) || 0, sector: (a.meta && a.meta.sector) || null, error: a.error }; } return { registered: _assets.size, loaded, states, byTier, requests }; }
             };
             // Observe the existing lazy queue: wrap enqueueLazyAsset so queued tasks register.
             if (typeof enqueueLazyAsset === 'function') {
                 const _orig = enqueueLazyAsset;
                 // enqueueLazyAsset is a function declaration; rebind reference used later.
-                try { enqueueLazyAsset = function (label, fn, tier) { const resolvedTier = tier || 'decor'; Genesis.StreamingManager.register('lazy:' + label, fn, { owner: 'lazy:' + label, sector: (typeof currentSectorId !== 'undefined') ? currentSectorId : null, tier: resolvedTier, priority: resolvedTier === 'world' ? 100 : 10 }); return _orig(label, fn, tier); }; } catch (e) {}
+                try { enqueueLazyAsset = function (label, fn, tier) { const resolvedTier = tier || 'decor'; const key = 'lazy:' + label; Genesis.StreamingManager.register(key, fn, { owner: key, sector: (typeof currentSectorId !== 'undefined') ? currentSectorId : null, tier: resolvedTier, priority: resolvedTier === 'world' ? 100 : 10 }); return _orig(label, () => Genesis.StreamingManager.ensureLoaded(key), tier); }; } catch (e) {}
             }
             import('./src/genesis/streaming-manager.js').then((m) => {
                 if (!Genesis.StreamingManager && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene);
@@ -1540,14 +1565,44 @@
             let exteriorVisible = true;
             let lastTransition = null;
             const now = () => performance.now();
+            function rootsFor(record) {
+                if (!record || !record.root) return [];
+                let companions = record.options.companionRoots || [];
+                if (typeof companions === 'function') { try { companions = companions() || []; } catch (e) { companions = []; } }
+                const seen = new Set();
+                const entries = [{ root: record.root, role: record.options.role || record.id }];
+                for (const entry of Array.isArray(companions) ? companions : []) {
+                    const root = entry && entry.root ? entry.root : entry;
+                    if (root) entries.push({ root, role: (entry && entry.root && entry.role) || 'companion' });
+                }
+                return entries.filter((entry) => { if (!entry.root || seen.has(entry.root)) return false; seen.add(entry.root); return true; });
+            }
+            function visibleInTree(root) {
+                let node = root;
+                while (node) { if (node.visible === false) return false; node = node.parent; }
+                return true;
+            }
             function applyState(record) {
                 if (!record || !record.root) return;
                 const stateVisible = record.state === STATES.ACTIVE || record.state === STATES.LOADED;
-                record.root.userData.__genesisVisibilityOwner = 'vertical-stack';
-                record.root.userData.verticalStratumId = record.id;
-                record.root.userData.verticalState = record.state;
-                record.root.userData.verticalSimulationActive = record.state === STATES.ACTIVE;
-                record.root.visible = exteriorVisible && !record.root.userData.__verticalExteriorHidden && stateVisible;
+                for (const entry of rootsFor(record)) {
+                    const root = entry.root;
+                    root.userData.__genesisVisibilityOwner = 'vertical-stack';
+                    root.userData.verticalStratumId = record.id;
+                    root.userData.verticalStratumRole = entry.role;
+                    root.userData.verticalState = record.state;
+                    root.userData.verticalSimulationActive = record.state === STATES.ACTIVE;
+                    const shouldShow = exteriorVisible && !root.userData.__verticalExteriorHidden && stateVisible;
+                    if (!shouldShow) {
+                        if (!record.hiddenRoots.has(root)) record.visibilityBeforeHide.set(root, root.visible !== false);
+                        record.hiddenRoots.add(root);
+                        root.visible = false;
+                    } else if (record.hiddenRoots.has(root)) {
+                        root.visible = record.visibilityBeforeHide.get(root) !== false;
+                        record.hiddenRoots.delete(root);
+                        record.visibilityBeforeHide.delete(root);
+                    }
+                }
             }
             function setRecordState(record, state) {
                 if (!record || !validStates.has(state)) return false;
@@ -1562,7 +1617,10 @@
             }
             function summary() {
                 const out = {};
-                for (const [id, record] of strata) out[id] = { state: record.state, visible: !!record.root.visible, simulationActive: record.state === STATES.ACTIVE, rootName: record.root.name || '', parentType: record.root.parent ? record.root.parent.type : null, order: record.options.order == null ? 0 : record.options.order };
+                for (const [id, record] of strata) {
+                    const roots = rootsFor(record);
+                    out[id] = { state: record.state, visible: visibleInTree(record.root), simulationActive: record.state === STATES.ACTIVE, rootName: record.root.name || '', contentType: record.options.contentType || id, parentType: record.root.parent ? record.root.parent.type : null, order: record.options.order == null ? 0 : record.options.order, roots: roots.map((entry) => ({ role: entry.role, name: entry.root.name || '', visible: visibleInTree(entry.root), directSceneChild: entry.root.parent === scene })) };
+                }
                 return { active: activeId, transitioning: !!transitionPromise, exteriorVisible, strata: out, connectors: connectorSummary(), lastTransition: lastTransition ? Object.assign({}, lastTransition) : null };
             }
             function findConnector(from, to, connectorId) {
@@ -1580,7 +1638,7 @@
                     if (!id || !root) throw new Error('registerStratum requires id and root');
                     const opts = options || {};
                     const state = validStates.has(opts.state) ? opts.state : STATES.UNLOADED;
-                    const record = { id, root, options: Object.assign({}, opts), state, changedAt: now() };
+                    const record = { id, root, options: Object.assign({}, opts), state, changedAt: now(), hiddenRoots: new Set(), visibilityBeforeHide: new Map() };
                     strata.set(id, record);
                     if (state === STATES.ACTIVE) {
                         if (activeId && activeId !== id) setRecordState(strata.get(activeId), STATES.SLEEPING);
@@ -1647,7 +1705,7 @@
                 },
                 setExteriorVisible(visible) {
                     exteriorVisible = !!visible;
-                    for (const record of strata.values()) { record.root.userData.__verticalExteriorHidden = !exteriorVisible; applyState(record); }
+                    for (const record of strata.values()) { for (const entry of rootsFor(record)) entry.root.userData.__verticalExteriorHidden = !exteriorVisible; applyState(record); }
                 },
                 endpoints() { return connectorSummary(); },
                 summary,
@@ -1816,7 +1874,10 @@
             }
             function isSectorActive(root, meta = {}) {
                 if (!root) return true;
-                if (!meta.allowWhenHidden && root.visible === false) return false;
+                if (!meta.allowWhenHidden) {
+                    let node = root;
+                    while (node) { if (node.visible === false) return false; node = node.parent; }
+                }
                 if (meta.sleepWhenDetached !== false && !root.parent) return false;
                 if (!meta.sleepWhenFar || !camera) return true;
                 root.updateWorldMatrix(true, false);
@@ -3212,6 +3273,7 @@ bloomPass.radius = 0.7;
             roughness: 0.9, metalness: 0.0
         });
         const groundDisc = new THREE.Mesh(groundGeo, groundMat);
+        groundDisc.name = 'Surface Core Ground Disc';
         groundDisc.rotation.x = -Math.PI / 2;
         groundDisc.position.y = -0.05;
         groundDisc.receiveShadow = true;
@@ -3226,6 +3288,7 @@ bloomPass.radius = 0.7;
             side: THREE.DoubleSide
         });
         const largeGround = new THREE.Mesh(largeGroundGeo, largeGroundMat);
+        largeGround.name = 'Surface Core Ground Plane';
         largeGround.rotation.x = -Math.PI / 2;
         largeGround.position.y = -0.1;
         largeGround.receiveShadow = true;
@@ -3511,6 +3574,7 @@ bloomPass.radius = 0.7;
         
         // ========== THE PYRAMID ==========
         const platform = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.25, 4.2), new THREE.MeshStandardMaterial({ color: 0x4a2a1a, roughness: 0.5, metalness: 0.3 }));
+        platform.name = 'Surface Pyramid Platform';
         platform.position.set(0, -0.15, 0); platform.receiveShadow = true; scene.add(platform);
         
         const pyramidTex = (() => {
@@ -3536,16 +3600,20 @@ bloomPass.radius = 0.7;
         })();
         const pyramidMat = new THREE.MeshStandardMaterial({ map: pyramidTex, color: 0xaa8855, roughness: 0.2, metalness: 0.8, emissive: 0x553300, emissiveIntensity: 0.3 });
         const pyramid = new THREE.Mesh(new THREE.CylinderGeometry(0, 2.4, 2.8, 4, 1), pyramidMat);
+        pyramid.name = 'Surface Pyramid';
         pyramid.position.set(0, 1.1, 0); pyramid.castShadow = true; pyramid.receiveShadow = true; scene.add(pyramid);
         
         const capstone = new THREE.Mesh(new THREE.ConeGeometry(0.45, 0.6, 8), new THREE.MeshStandardMaterial({ color: 0xffcc66, metalness: 1.0, emissive: 0xff8822, emissiveIntensity: 0.6 }));
+        capstone.name = 'Surface Pyramid Capstone';
         capstone.position.set(0, 2.55, 0); capstone.castShadow = true; scene.add(capstone);
         
         const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0, 2.4, 2.8, 4, 1)), new THREE.LineBasicMaterial({ color: 0xff8844 }));
+        edges.name = 'Surface Pyramid Edges';
         edges.position.copy(pyramid.position); scene.add(edges);
         
         // ========== EGYPTIAN DOORWAY ==========
         const doorGroup = new THREE.Group();
+        doorGroup.name = 'Surface Pyramid Door';
         
         // Ripple shader for portal
         const portalUniforms = {
@@ -5459,7 +5527,7 @@ bloomPass.radius = 0.7;
         // first click/key. Gated off on the 'low' perf tier to protect weak PCs. No audio assets
         // required: drones are synthesized procedurally into AudioBuffers.
         const CPL_AUDIO = (() => {
-            let listener = null, enabled = true, started = false;
+            let listener = null, enabled = true, started = false, surfaceActive = true;
             const sources = [];
             function ensure() {
                 if (listener || !THREE.AudioListener) return;
@@ -5506,7 +5574,7 @@ bloomPass.radius = 0.7;
                 if (!listener) return;
                 const ctx = listener.context;
                 if (ctx.state === 'suspended') ctx.resume();
-                if (enabled && !(perf && perf.tier === 'low')) {
+                if (enabled && surfaceActive && !(perf && perf.tier === 'low')) {
                     sources.forEach(s => { if (!s.sound.isPlaying) { try { s.sound.play(); } catch (e) {} } });
                 }
                 started = true;
@@ -5523,6 +5591,18 @@ bloomPass.radius = 0.7;
                 if (!listener) return;
                 sources.forEach(s => {
                     try { if (m) { if (s.sound.isPlaying) s.sound.pause(); } else { if (!s.sound.isPlaying) s.sound.play(); } } catch (e) {}
+                });
+            }
+            function setSurfaceActive(active) {
+                const next = !!active;
+                if (next === surfaceActive) return;
+                surfaceActive = next;
+                if (!listener) return;
+                sources.forEach((source) => {
+                    try {
+                        if (!surfaceActive && source.sound.isPlaying) source.sound.pause();
+                        else if (surfaceActive && started && enabled && !source.sound.isPlaying) source.sound.play();
+                    } catch (e) {}
                 });
             }
             // GSK mood/phase modulates brightness (playbackRate) + presence (volume)
@@ -5549,7 +5629,7 @@ bloomPass.radius = 0.7;
                 // heaven shimmer (heaven group exposed at window.__heaven)
                 if (window.__heaven) addSource(window.__heaven, { freq: 220, ref: 20, rolloff: 1.4, vol: 0.3 });
             }
-            return { init: ensure, attachGesture, seed, update, setMuted, addSource, get started() { return started; } };
+            return { init: ensure, attachGesture, seed, update, setMuted, setSurfaceActive, addSource, get started() { return started; }, get activeSourceCount() { return sources.filter((source) => source.sound.isPlaying).length; } };
         })();
         CPL_AUDIO.init();
         CPL_AUDIO.attachGesture();
@@ -5812,11 +5892,11 @@ bloomPass.radius = 0.7;
         }
         initRapier();
 
-        function updateBillboardVideoPlayback() {
+        function updateBillboardVideoPlayback(surfaceActive = true) {
             let active = 0;
             for (const fx of _billboardFx) {
                 if (!fx.video || !fx.mat) continue;
-                if (perf && perf.tier === 'low') {
+                if (!surfaceActive || (perf && perf.tier === 'low')) {
                     if (!fx.video.paused) fx.video.pause();
                     if (fx.videoTex && fx.mat.map === fx.videoTex && fx.posterTex) { fx.mat.map = fx.posterTex; fx.mat.needsUpdate = true; }
                     continue;
@@ -6350,6 +6430,8 @@ bloomPass.radius = 0.7;
         // ========== HEAVEN (angels' own floating city) ==========
         // A separate sky realm far from the main city. Angels orbit + bob above a glowing platform.
         const heaven = new THREE.Group();
+        heaven.name = 'Legacy Surface Heaven City';
+        heaven.userData.verticalContentType = 'legacy-surface-heaven';
         heaven.position.set(0, 40, -95);
         cityGroup.add(heaven);
 
@@ -6624,6 +6706,7 @@ bloomPass.radius = 0.7;
         const HEAVEN_STRATUM_Y = 640;
         const heavenStratumRoot = new THREE.Group();
         heavenStratumRoot.name = 'heavenStratumRoot';
+        heavenStratumRoot.userData.verticalContentType = 'prototype-heaven';
         heavenStratumRoot.position.set(0, HEAVEN_STRATUM_Y, -52);
         scene.add(heavenStratumRoot);
 
@@ -7124,6 +7207,105 @@ bloomPass.radius = 0.7;
             return Genesis.VerticalStackManager && Genesis.VerticalStackManager.getActive ? (Genesis.VerticalStackManager.getActive() || 'surface') : 'surface';
         }
         function isStratumActive(id) { return getActiveStratum() === id; }
+        function isWorldObjectVisibleInTree(object) {
+            let node = object;
+            while (node) { if (node.visible === false) return false; node = node.parent; }
+            return true;
+        }
+        function objectStratumId(object) {
+            let node = object;
+            while (node && node !== scene) {
+                if (node.userData && node.userData.verticalStratumId) return node.userData.verticalStratumId;
+                node = node.parent;
+            }
+            return null;
+        }
+        function isInteractionEligible(object) {
+            if (!object || !isWorldObjectVisibleInTree(object)) return false;
+            const owner = objectStratumId(object);
+            if (owner && owner !== getActiveStratum()) return false;
+            if (getActiveStratum() !== 'surface') {
+                let node = object;
+                while (node && node !== scene) {
+                    if (node.userData && node.userData.verticalConnector) return true;
+                    node = node.parent;
+                }
+                return false;
+            }
+            return true;
+        }
+        function filterInteractionTargets(targets) {
+            return [...new Set(targets)].filter(isInteractionEligible);
+        }
+        function surfaceWorldActionsAllowed() {
+            return getActiveStratum() === 'surface';
+        }
+        let _surfaceReturnSnapshot = null;
+        function captureSurfaceReturnState(kind) {
+            if (!surfaceWorldActionsAllowed()) return false;
+            _surfaceReturnSnapshot = {
+                kind: kind || 'surface-action',
+                activeStratum: getActiveStratum(),
+                floorY: playerFloorY,
+                position: playerNPC.position.clone(),
+                yaw: playerYaw,
+                flying: playerFlying,
+                grounded: playerGrounded,
+                cameraMode
+            };
+            _hubPlayerPos = _surfaceReturnSnapshot.position.clone();
+            _hubPlayerYaw = _surfaceReturnSnapshot.yaw;
+            return true;
+        }
+        function restoreSurfaceReturnState() {
+            const saved = _surfaceReturnSnapshot;
+            if (!saved) return false;
+            if (Genesis.VerticalStackManager && Genesis.VerticalStackManager.getActive && Genesis.VerticalStackManager.getActive() !== saved.activeStratum) Genesis.VerticalStackManager.setState(saved.activeStratum, Genesis.VerticalStackManager.states.ACTIVE);
+            playerNPC.position.copy(saved.position);
+            playerYaw = saved.yaw;
+            playerFloorY = saved.floorY;
+            playerFlying = !!saved.flying;
+            playerGrounded = !!saved.grounded;
+            playerVelY = 0;
+            _surfaceReturnSnapshot = null;
+            setCameraMode(saved.cameraMode || 'npc');
+            return true;
+        }
+
+        const HEAVEN_MAIN_DECK_RADIUS = 42;
+        const HEAVEN_BEACON_COLLISION_RADIUS = 5.6;
+        const _heavenMoveLocal = new THREE.Vector3();
+        const _heavenMoveWorld = new THREE.Vector3();
+        function enforcePrototypeHeavenMovement() {
+            if (!isStratumActive('heaven')) return false;
+            _heavenMoveLocal.copy(playerNPC.position);
+            heavenStratumRoot.worldToLocal(_heavenMoveLocal);
+            const radial = Math.hypot(_heavenMoveLocal.x, _heavenMoveLocal.z);
+            if (radial > HEAVEN_MAIN_DECK_RADIUS) {
+                const scale = HEAVEN_MAIN_DECK_RADIUS / radial;
+                _heavenMoveLocal.x *= scale;
+                _heavenMoveLocal.z *= scale;
+            }
+            const beaconDx = _heavenMoveLocal.x;
+            const beaconDz = _heavenMoveLocal.z + 14;
+            const beaconDistance = Math.hypot(beaconDx, beaconDz);
+            if (beaconDistance < HEAVEN_BEACON_COLLISION_RADIUS) {
+                if (beaconDistance < 0.001) {
+                    _heavenMoveLocal.x = 0;
+                    _heavenMoveLocal.z = -14 + HEAVEN_BEACON_COLLISION_RADIUS;
+                } else {
+                    _heavenMoveLocal.x = (beaconDx / beaconDistance) * HEAVEN_BEACON_COLLISION_RADIUS;
+                    _heavenMoveLocal.z = -14 + (beaconDz / beaconDistance) * HEAVEN_BEACON_COLLISION_RADIUS;
+                }
+            }
+            const floorWorldY = heavenStratumRoot.localToWorld(_heavenMoveWorld.set(0, 0.38, 0)).y;
+            playerFloorY = floorWorldY;
+            _heavenMoveLocal.y = Math.max(0.38, _heavenMoveLocal.y);
+            heavenStratumRoot.localToWorld(_heavenMoveLocal);
+            playerNPC.position.copy(_heavenMoveLocal);
+            if (playerNPC.position.y <= playerFloorY) { playerNPC.position.y = playerFloorY; playerVelY = 0; playerGrounded = true; }
+            return true;
+        }
 
         function updatePlayerNPC(dt) {
             if (loaderActive) return; // scroll-world loader owns the camera during initial load
@@ -7147,6 +7329,7 @@ bloomPass.radius = 0.7;
                 playerNPC.position.y += playerVelY * dt;
                 if (playerNPC.position.y <= playerFloorY) { playerNPC.position.y = playerFloorY; playerVelY = 0; playerGrounded = true; }
             }
+            enforcePrototypeHeavenMovement();
             // Collision: keep the character out of building footprints (all realms)
             if (isStratumActive('surface') && !_commandCenter && typeof buildings !== 'undefined' && buildings && buildings.length) {
                 for (const b of buildings) {
@@ -7195,7 +7378,7 @@ bloomPass.radius = 0.7;
             playerVelY = 0;
             playerFlying = false;
             playerGrounded = true;
-            playerYaw = stratumId === 'heaven' ? Math.PI : 0;
+            playerYaw = Math.PI;
             setCameraMode('npc');
             const eye = arrival.clone().add(new THREE.Vector3(0, 1.6, 0));
             const look = new THREE.Vector3(Math.sin(playerYaw), 0, Math.cos(playerYaw));
@@ -7213,26 +7396,27 @@ bloomPass.radius = 0.7;
         }
 
         function teleportPlayerToHeaven() {
+            if (!surfaceWorldActionsAllowed()) return Promise.resolve(false);
             return transitionPlayerStratum('heaven');
         }
 
         function activateVerticalConnector(target) {
             const meta = target && target.userData ? target.userData.verticalConnector : null;
-            if (!meta) return false;
+            if (!meta || !isInteractionEligible(target)) return Promise.resolve(false);
             const expected = meta.endpoint === 'heaven' ? 'heaven' : 'surface';
-            if (!isStratumActive(expected)) return true;
+            if (!isStratumActive(expected)) return Promise.resolve(false);
             const endpointPosition = new THREE.Vector3();
             target.getWorldPosition(endpointPosition);
             if (playerNPC.position.distanceTo(endpointPosition) > 11) {
                 spawnWhisper(endpointPosition, 'Move closer to the lift to travel.');
-                return true;
+                return Promise.resolve(false);
             }
             const destination = expected === 'surface' ? 'heaven' : 'surface';
-            transitionPlayerStratum(destination).catch((error) => {
+            return transitionPlayerStratum(destination).then(() => true).catch((error) => {
                 console.warn('[VerticalStack] transition failed', error);
                 spawnWhisper(endpointPosition, 'The vertical route is stabilizing. Try again.');
+                return false;
             });
-            return true;
         }
 
         function talkToNPC(target) {
@@ -7346,6 +7530,8 @@ bloomPass.radius = 0.7;
 
         // Heaven layer above (clouds, temples, seraphs)
         const heavenGroup = new THREE.Group();
+        heavenGroup.name = 'Legacy Surface Heaven Layer';
+        heavenGroup.userData.verticalContentType = 'legacy-surface-heaven';
         scene.add(heavenGroup);
         
         const heavenCloudMat = new THREE.MeshStandardMaterial({
@@ -7451,6 +7637,7 @@ bloomPass.radius = 0.7;
         // ========== SKY LAYER — clouds, worlds, galaxies, sky-cities above the plates ==========
         // Populates the dome above the city plates, radiating from the central library.
         const skyLayer = new THREE.Group();
+        skyLayer.name = 'Surface Sky Layer';
         scene.add(skyLayer);
 
         // --- SKY CLOUDS: drifting cloud clusters in a dome over the city ---
@@ -7630,8 +7817,41 @@ bloomPass.radius = 0.7;
 
         // Register the vertical dimension stack only after both authored roots and player
         // transfer state exist. Legacy heaven groups stay exactly where they were.
-        Genesis.VerticalStackManager.registerStratum('surface', cityGroup, { order: 0, state: 'ACTIVE', floorY: 0 });
-        Genesis.VerticalStackManager.registerStratum('heaven', heavenStratumRoot, { order: 1, state: 'LOADED', floorY: HEAVEN_STRATUM_Y + 0.38 });
+        const surfaceCompanionRoots = () => {
+            const roots = [
+                { root: skyLayer, role: 'surface-sky' },
+                { root: heavenGroup, role: 'legacy-surface-heaven' },
+                { root: legacyGroup, role: 'surface-world-legacy' },
+                { root: gridFloor, role: 'surface-core-shadow-catcher' },
+                { root: groundDisc, role: 'surface-core-ground' },
+                { root: largeGround, role: 'surface-core-ground' },
+                { root: platform, role: 'surface-pyramid' },
+                { root: pyramid, role: 'surface-pyramid' },
+                { root: capstone, role: 'surface-pyramid' },
+                { root: edges, role: 'surface-pyramid' },
+                { root: doorGroup, role: 'surface-pyramid' },
+                { root: wisps, role: 'surface-particles' },
+                { root: dust, role: 'surface-particles' },
+                { root: embers, role: 'surface-particles' }
+            ];
+            for (const orb of orbs) roots.push({ root: orb, role: 'surface-particles' });
+            for (const page of pages) roots.push({ root: page.mesh, role: 'surface-pages' });
+            for (const book of books) roots.push({ root: book, role: 'surface-books' });
+            for (const rune of runes) roots.push({ root: rune, role: 'surface-books' });
+            for (const soul of souls) roots.push({ root: soul.obj, role: 'surface-souls' });
+            for (const shard of _rapShards) roots.push({ root: shard.mesh, role: 'surface-physics' });
+            if (_qkSys && _qkSys.emitter) roots.push({ root: _qkSys.emitter, role: 'surface-particles' });
+            if (_qkRenderer) roots.push({ root: _qkRenderer, role: 'surface-particles' });
+            if (avatar) roots.push({ root: avatar, role: 'surface-avatar' });
+            for (const spawned of avatars) roots.push({ root: spawned, role: 'surface-avatar' });
+            if (window.__gskAvatar && window.__gskAvatar.group) roots.push({ root: window.__gskAvatar.group, role: 'surface-gsk-body' });
+            if (window.__memoryBuildings && window.__memoryBuildings.group) roots.push({ root: window.__memoryBuildings.group, role: 'surface-gsk-memory' });
+            if (window.__subagentNPCs && window.__subagentNPCs.group) roots.push({ root: window.__subagentNPCs.group, role: 'surface-gsk-subagents' });
+            if (window.__realmPortalGroups) for (const root of window.__realmPortalGroups) roots.push({ root, role: 'surface-realm-portals' });
+            return roots;
+        };
+        Genesis.VerticalStackManager.registerStratum('surface', cityGroup, { order: 0, state: 'ACTIVE', floorY: 0, role: 'surface-city', contentType: 'surface-with-legacy-compatibility', companionRoots: surfaceCompanionRoots });
+        Genesis.VerticalStackManager.registerStratum('heaven', heavenStratumRoot, { order: 1, state: 'LOADED', floorY: HEAVEN_STRATUM_Y + 0.38, role: 'prototype-heaven', contentType: 'prototype-heaven' });
         Genesis.VerticalStackManager.registerConnector('surface-heaven', {
             from: 'surface',
             to: 'heaven',
@@ -7645,8 +7865,32 @@ bloomPass.radius = 0.7;
         if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('heaven-prototype', heavenStratumRoot, { priority: 9, maxDistance: 1600, stateOwned: true, owner: 'vertical-stack' });
         Genesis.VerticalStackManager.tick({ exteriorVisible: true });
 
+        const verticalStackDebugEnabled = new URLSearchParams(location.search).get('genesisDebug') === '1' || new URLSearchParams(location.search).get('genesisTest') === '1';
+        const verticalStackTestFacade = verticalStackDebugEnabled ? Object.freeze({
+            activateConnector: async (options) => {
+                const endpoint = getActiveStratum() === 'heaven' ? returnBase : liftBase;
+                if (options && options.placeNear) {
+                    const near = new THREE.Vector3();
+                    endpoint.getWorldPosition(near);
+                    playerNPC.position.copy(near).add(new THREE.Vector3(0, 0, 5));
+                    playerFloorY = playerNPC.position.y;
+                }
+                return activateVerticalConnector(endpoint);
+            },
+            attemptSurfacePortal: () => {
+                const accepted = dispatchSurfacePyramidPortal(portalPlane);
+                return { accepted, activeStratum: getActiveStratum(), floorY: playerFloorY, inside: isInside };
+            },
+            attemptHeavenBoundary: (x, z) => {
+                if (!isStratumActive('heaven')) return { applied: false, activeStratum: getActiveStratum() };
+                const attempted = heavenStratumRoot.localToWorld(new THREE.Vector3(Number(x) || 0, 0.38, Number(z) || 0));
+                playerNPC.position.copy(attempted);
+                enforcePrototypeHeavenMovement();
+                const local = heavenStratumRoot.worldToLocal(playerNPC.position.clone());
+                return { applied: true, localPosition: local.toArray(), radius: Math.hypot(local.x, local.z), beaconDistance: Math.hypot(local.x, local.z + 14), floorY: playerFloorY };
+            }
+        }) : null;
         const verticalStackDiagnostics = Object.freeze({
-            manager: Genesis.VerticalStackManager,
             summary: () => Genesis.VerticalStackManager.summary(),
             endpoints: () => Genesis.VerticalStackManager.endpoints(),
             getActive: () => Genesis.VerticalStackManager.getActive(),
@@ -7662,7 +7906,25 @@ bloomPass.radius = 0.7;
             sampleSurfaceActors: () => ({
                 car: cars.length ? cars[0].group.position.toArray() : null,
                 citizen: citizens.length ? citizens[0].group.position.toArray() : null
-            })
+            }),
+            sampleSurfaceSystems: () => ({
+                ticks: Object.assign({}, surfaceSystemTicks),
+                billboardSweepY: _billboardFx.length ? _billboardFx[0].sweep.position.y : null,
+                legacySurfaceHeavenRotation: heavenDetails.length ? heavenDetails[0].obj.rotation[heavenDetails[0].axis] : null,
+                legacyDirectHeavenCrownRotation: crown.rotation.z,
+                skyCloudY: skyClouds.length ? skyClouds[0].obj.position.y : null,
+                activeVideos: _billboardFx.filter((fx) => fx.video && !fx.video.paused).length,
+                activeAudioSources: CPL_AUDIO.activeSourceCount
+            }),
+            interactionState: () => ({
+                activeStratum: getActiveStratum(),
+                surfacePortalVisible: isWorldObjectVisibleInTree(portalPlane),
+                surfacePortalEligible: isInteractionEligible(portalPlane),
+                inside: isInside,
+                realm: currentRealm()
+            }),
+            movementContract: () => ({ deckRadius: HEAVEN_MAIN_DECK_RADIUS, beaconCollisionRadius: HEAVEN_BEACON_COLLISION_RADIUS, floorY: HEAVEN_STRATUM_Y + 0.38 }),
+            test: verticalStackTestFacade
         });
         Object.defineProperty(window, '__verticalStack', { value: verticalStackDiagnostics, writable: false, configurable: false });
         Object.defineProperty(window, 'activeStratum', { get: () => Genesis.VerticalStackManager.getActive(), configurable: false });
@@ -8615,8 +8877,8 @@ bloomPass.radius = 0.7;
         const interiorCamPos = new THREE.Vector3(0, 1.2, 2.3);
         const interiorTarget = new THREE.Vector3(0, 1, 0);
         function setPyramidExteriorVisible(visible) {
-            [cityGroup, skyLayer, heavenStratumRoot, platform, capstone, edges, legacyGroup].forEach((obj) => { if (obj) obj.visible = visible; });
             if (Genesis.VerticalStackManager && Genesis.VerticalStackManager.setExteriorVisible) Genesis.VerticalStackManager.setExteriorVisible(visible);
+            [cityGroup, skyLayer, heavenStratumRoot, platform, capstone, edges, legacyGroup].forEach((obj) => { if (obj) obj.visible = visible; });
             if (window.__gskAvatar && window.__gskAvatar.group) window.__gskAvatar.group.visible = visible;
             if (window.__memoryBuildings && window.__memoryBuildings.group) window.__memoryBuildings.group.visible = visible;
             if (window.__subagentNPCs && window.__subagentNPCs.group) window.__subagentNPCs.group.visible = visible;
@@ -8628,7 +8890,7 @@ bloomPass.radius = 0.7;
         }
         
         function enterPyramid() {
-            if (isInside || readingState !== 'idle') return;
+            if (isInside || readingState !== 'idle' || !captureSurfaceReturnState('pyramid')) return;
             isInside = true;
             interiorGroup.visible = true;
             setPyramidExteriorVisible(false);
@@ -8636,8 +8898,6 @@ bloomPass.radius = 0.7;
             doorGroup.visible = false;
             souls.forEach(s => s.obj.visible = false);
             if (cameraMode === 'npc') {
-                _hubPlayerPos = playerNPC.position.clone();
-                _hubPlayerYaw = playerYaw;
                 _commandCenter = true;
                 _camDistInside = camDist; camDist = 1.8;
                 playerNPC.position.set(0, 0, 0.3);
@@ -8672,10 +8932,7 @@ bloomPass.radius = 0.7;
             souls.forEach(s => s.obj.visible = true);
             if (cameraMode === 'npc' && _commandCenter) {
                 camDist = _camDistInside;
-                playerNPC.position.copy(_hubPlayerPos || new THREE.Vector3(0, 0, 12));
-                playerFloorY = _hubPlayerPos ? _hubPlayerPos.y : 0;
-                playerYaw = _hubPlayerYaw;
-                playerFlying = false; playerVelY = 0; playerGrounded = true;
+                restoreSurfaceReturnState();
                 _commandCenter = false;
             } else {
                 controls.enabled = false;
@@ -8692,6 +8949,7 @@ bloomPass.radius = 0.7;
                 }
                 requestAnimationFrame(animExit);
             }
+            if (_surfaceReturnSnapshot) restoreSurfaceReturnState();
             if (typeof exitBtn !== 'undefined') exitBtn.style.display = 'none';
             if (typeof gskCmdConsole !== 'undefined' && gskCmdConsole) gskCmdConsole.classList.remove('active');
         }
@@ -8934,17 +9192,17 @@ bloomPass.radius = 0.7;
         const _moveIntersect = new THREE.Vector3();
         
         function getClickTargets() {
-            if (inScribe) return [...scribeClickTargets, ...(scribeRealm._memBooks || [])];
-            if (inMerchant) return [...merchantClickTargets];
-            if (inBuilder) return [...builderClickTargets];
-            if (inProphet) return [...prophetClickTargets];
+            if (inScribe) return filterInteractionTargets([...scribeClickTargets, ...(scribeRealm._memBooks || [])]);
+            if (inMerchant) return filterInteractionTargets([...merchantClickTargets]);
+            if (inBuilder) return filterInteractionTargets([...builderClickTargets]);
+            if (inProphet) return filterInteractionTargets([...prophetClickTargets]);
             const targets = [...books, ..._soulMeshes, ...avatars, ...npcTalkTargets, ...heavenGateTargets];
             if (!isInside) { targets.push(portalPlane); targets.push(...shipPortalTargets); targets.push(...realmPortalTargets); targets.push(...chamberSocketTargets); targets.push(...godWorldClickTargets); targets.push(...caretakerTargets); }
             if (avatar && !isInside) targets.push(avatar);
             if (window.__gskAvatar && window.__gskAvatar.clickMesh) targets.push(window.__gskAvatar.clickMesh);
             if (window.__memoryBuildings) targets.push(...window.__memoryBuildings.getClickMeshes());
             if (window.__subagentNPCs) targets.push(...window.__subagentNPCs.getClickMeshes());
-            return targets;
+            return filterInteractionTargets(targets);
         }
 
         function resolveInteractionTarget(obj) {
@@ -8994,7 +9252,7 @@ bloomPass.radius = 0.7;
             _portalOverlay._title = t;
         }
         function triggerShipPortal(dest, label) {
-            if (_portalBusy) return;
+            if (_portalBusy || !surfaceWorldActionsAllowed()) return false;
             _portalBusy = true;
             ensurePortalOverlay();
             _portalOverlay._title.textContent = 'ENTERING ' + (label || String(dest).toUpperCase());
@@ -9010,6 +9268,7 @@ bloomPass.radius = 0.7;
                     setTimeout(() => { _portalBusy = false; }, 650);
                 }, (dest === 'scribe' || dest === 'merchant' || dest === 'builder' || dest === 'prophet' || dest === 'chamber') ? 250 : 1700);
             }, 600);
+            return true;
         }
         
         const allInteriorHits = () => {
@@ -9017,8 +9276,14 @@ bloomPass.radius = 0.7;
             interiorGroup.traverse(c => {
                 if (c.isMesh) list.push(c);
             });
-            return list;
+            return filterInteractionTargets(list);
         };
+
+        function dispatchSurfacePyramidPortal(target) {
+            if (target !== portalPlane || !surfaceWorldActionsAllowed() || !isInteractionEligible(target)) return false;
+            enterPyramid();
+            return isInside;
+        }
         
         renderer.domElement.addEventListener('pointerdown', (e) => {
             mouseDownPos2.x = e.clientX;
@@ -9030,13 +9295,14 @@ bloomPass.radius = 0.7;
             raycaster.setFromCamera(pointer, camera);
             const targets = isInside ? allInteriorHits() : getClickTargets();
             const hits = raycaster.intersectObjects(targets, true);
-            mouseDownTarget = hits.length > 0 ? resolveInteractionTarget(hits[0].object) : null;
+            const eligibleHit = hits.find((hit) => isInteractionEligible(hit.object));
+            mouseDownTarget = eligibleHit ? resolveInteractionTarget(eligibleHit.object) : null;
         });
         
         renderer.domElement.addEventListener('pointerup', (e) => {
             const dist = Math.hypot(e.clientX - mouseDownPos2.x, e.clientY - mouseDownPos2.y);
             if (dist > 5) { interactionDragging = true; return; }
-            if (interactionDragging || !mouseDownTarget) return;
+            if (interactionDragging || !mouseDownTarget || !isInteractionEligible(mouseDownTarget)) return;
             if (inScribe) { handleScribeClick(mouseDownTarget); return; }
             if (inMerchant) { handleMerchantClick(mouseDownTarget); return; }
             if (inBuilder) { handleBuilderClick(mouseDownTarget); return; }
@@ -9062,7 +9328,7 @@ bloomPass.radius = 0.7;
                 return;
             }
             if (mouseDownTarget === portalPlane) {
-                enterPyramid();
+                dispatchSurfacePyramidPortal(mouseDownTarget);
                 return;
             }
             if (mouseDownTarget.userData && mouseDownTarget.userData.verticalConnector) {
@@ -9168,13 +9434,8 @@ bloomPass.radius = 0.7;
             pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
             pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
             raycaster.setFromCamera(pointer, camera);
-            const bookHits = raycaster.intersectObjects(books, false);
-            const soulHits = raycaster.intersectObjects(_soulMeshes, false);
-            const npcHits = raycaster.intersectObjects(npcTalkTargets, true);
-            const heavenHits = raycaster.intersectObjects(heavenGateTargets, false);
-            let avatarHits = { length: 0 };
-            if (avatar) avatarHits = raycaster.intersectObject(avatar, true);
-            const cursor = (bookHits.length > 0 || npcHits.length > 0 || heavenHits.length > 0) ? 'pointer' : (soulHits.length > 0 || avatarHits.length > 0) ? 'grab' : 'default';
+            const hoverHits = raycaster.intersectObjects(getClickTargets(), true).filter((hit) => isInteractionEligible(hit.object));
+            const cursor = hoverHits.length ? 'pointer' : 'default';
             renderer.domElement.style.cursor = cursor;
             
             // update mouse world position for soul proximity
@@ -11336,10 +11597,8 @@ bloomPass.radius = 0.7;
         try { connectGskJournalStream(); } catch (e) {}
 
         function enterScribeRealm() {
-            if (inScribe) return;
+            if (inScribe || !captureSurfaceReturnState('scribe')) return;
             inScribe = true;
-            _hubPlayerPos = playerNPC.position.clone();
-            _hubPlayerYaw = playerYaw;
             playerNPC.position.set(scribeBase.x, scribeBase.y + 2, scribeBase.z + 40);
             playerFloorY = scribeBase.y;
             playerYaw = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
@@ -11351,10 +11610,7 @@ bloomPass.radius = 0.7;
         function exitScribeRealm() {
             if (!inScribe) return;
             inScribe = false;
-            if (_hubPlayerPos) playerNPC.position.copy(_hubPlayerPos); else playerNPC.position.set(0, 0, 12);
-            playerYaw = _hubPlayerYaw;
-            playerFloorY = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
-            setCameraMode('npc');
+            restoreSurfaceReturnState();
         }
         function exitScribeRealmFade() {
             if (!inScribe) return;
@@ -11526,10 +11782,8 @@ bloomPass.radius = 0.7;
         buildMerchantRealm();
 
         function enterMerchantRealm() {
-            if (inMerchant) return;
+            if (inMerchant || !captureSurfaceReturnState('merchant')) return;
             inMerchant = true;
-            _hubPlayerPos = playerNPC.position.clone();
-            _hubPlayerYaw = playerYaw;
             playerNPC.position.set(merchantBase.x, merchantBase.y + 2, merchantBase.z + 50);
             playerFloorY = merchantBase.y;
             playerYaw = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
@@ -11539,10 +11793,7 @@ bloomPass.radius = 0.7;
         function exitMerchantRealm() {
             if (!inMerchant) return;
             inMerchant = false;
-            if (_hubPlayerPos) playerNPC.position.copy(_hubPlayerPos); else playerNPC.position.set(0, 0, 12);
-            playerYaw = _hubPlayerYaw;
-            playerFloorY = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
-            setCameraMode('npc');
+            restoreSurfaceReturnState();
         }
         function exitMerchantRealmFade() {
             if (!inMerchant) return;
@@ -11749,10 +12000,8 @@ bloomPass.radius = 0.7;
         buildBuilderRealm();
 
         function enterBuilderRealm() {
-            if (inBuilder) return;
+            if (inBuilder || !captureSurfaceReturnState('builder')) return;
             inBuilder = true;
-            _hubPlayerPos = playerNPC.position.clone();
-            _hubPlayerYaw = playerYaw;
             playerNPC.position.set(builderBase.x, builderBase.y + 2, builderBase.z + 60);
             playerFloorY = builderBase.y;
             playerYaw = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
@@ -11766,10 +12015,7 @@ bloomPass.radius = 0.7;
         function exitBuilderRealm() {
             if (!inBuilder) return;
             inBuilder = false;
-            if (_hubPlayerPos) playerNPC.position.copy(_hubPlayerPos); else playerNPC.position.set(0, 0, 12);
-            playerYaw = _hubPlayerYaw;
-            playerFloorY = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
-            setCameraMode('npc');
+            restoreSurfaceReturnState();
             controls.update();
         }
         function exitBuilderRealmFade() {
@@ -12017,10 +12263,8 @@ bloomPass.radius = 0.7;
         buildProphetRealm();
 
         function enterProphetRealm() {
-            if (inProphet) return;
+            if (inProphet || !captureSurfaceReturnState('prophet')) return;
             inProphet = true;
-            _hubPlayerPos = playerNPC.position.clone();
-            _hubPlayerYaw = playerYaw;
             playerNPC.position.set(prophetBase.x, prophetBase.y + 2, prophetBase.z + 56);
             playerFloorY = prophetBase.y;
             playerYaw = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
@@ -12034,10 +12278,7 @@ bloomPass.radius = 0.7;
         function exitProphetRealm() {
             if (!inProphet) return;
             inProphet = false;
-            if (_hubPlayerPos) playerNPC.position.copy(_hubPlayerPos); else playerNPC.position.set(0, 0, 12);
-            playerYaw = _hubPlayerYaw;
-            playerFloorY = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
-            setCameraMode('npc');
+            restoreSurfaceReturnState();
         }
         function exitProphetRealmFade() {
             if (!inProphet) return;
@@ -12274,14 +12515,14 @@ bloomPass.radius = 0.7;
         }
 
         function enterChamber(index) {
+            if (!surfaceWorldActionsAllowed()) return;
             if (inChamber) exitChamber();
+            if (!captureSurfaceReturnState('chamber')) return;
             const chamberIndex = Math.max(0, Math.min(35, index | 0));
             const chamberWorld = ensureChamberWorld(chamberIndex);
             const chamberSession = chamberWorld.session || (chamberWorld.session = { visits: 0, lifecycle: 'idle', lastEnteredAt: 0 });
             inChamber = true;
             currentChamber = chamberIndex;
-            _hubPlayerPos = playerNPC.position.clone();
-            _hubPlayerYaw = playerYaw;
             buildChamberInto(chamberRoot, chamberIndex);
             chamberWorld.discovered = true;
             chamberSession.visits = (chamberSession.visits || 0) + 1;
@@ -12308,10 +12549,7 @@ bloomPass.radius = 0.7;
             chamberRoot.userData.chamberLifecycleState = 'exit';
             clearChamberTransient(chamberRoot);
             if (chamberSession) chamberSession.lifecycle = 'idle';
-            if (_hubPlayerPos) playerNPC.position.copy(_hubPlayerPos); else playerNPC.position.set(0, 0, 12);
-            playerYaw = _hubPlayerYaw;
-            playerFloorY = 0; playerFlying = false; playerVelY = 0; playerGrounded = true;
-            setCameraMode('npc');
+            restoreSurfaceReturnState();
         }
         function exitChamberFade() {
             if (!inChamber) return;
@@ -12526,6 +12764,7 @@ bloomPass.radius = 0.7;
 
         // ========== ANIMATION ==========
         let time = 0, lastTime = 0, _frameCount = 0, _uiTick = 0, _hintCache = '', _genesisTick = 0;
+        const surfaceSystemTicks = { billboards: 0, videos: 0, particles: 0, physics: 0, audio: 0, souls: 0, legacyAngels: 0, sky: 0 };
         
         function animate() {
             if (!_perfRunning) return; // tab hidden -> stop the loop entirely
@@ -12534,6 +12773,11 @@ bloomPass.radius = 0.7;
             const dt = Math.min(0.033, (now - lastTime) / 1000);
             lastTime = now;
             time += dt;
+            const activeStratum = getActiveStratum();
+            const surfaceStratumActive = activeStratum === 'surface';
+            const hubActive = !isInside && !inScribe && !inMerchant && !inBuilder && !inProphet && !inChamber;
+            const hubSurfaceActive = hubActive && surfaceStratumActive;
+            const prototypeHeavenActive = hubActive && activeStratum === 'heaven';
             genesisRenderSchedule.update(now);
             if (window.__GENESIS_VERTICAL_STACK !== false && Genesis.VerticalStackManager && Genesis.VerticalStackManager.tick) Genesis.VerticalStackManager.tick({ exteriorVisible: !isInside });
             if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager && Genesis.SectorManager.tick) Genesis.SectorManager.tick();
@@ -12543,18 +12787,16 @@ bloomPass.radius = 0.7;
             if (window.__GENESIS_LIGHTING_MANAGER !== false && Genesis.LightingManager && Genesis.LightingManager.tick) Genesis.LightingManager.tick();
             if (window.__GENESIS_STREAMING_MANAGER !== false && Genesis.StreamingManager && Genesis.StreamingManager.tick) Genesis.StreamingManager.tick();
             if (loaderActive) ScrollWorldLoader.update(dt);
-            updateRealmAtmospheres(time);
+            if (surfaceStratumActive) updateRealmAtmospheres(time);
             if (!_audioSeeded) { _audioSeeded = true; CPL_AUDIO.seed(); }
-            CPL_AUDIO.update(time);
-            updateQuarks(dt);
-            updateRapier();
-            updateBillboards(time);
-            updateBillboardVideoPlayback();
+            CPL_AUDIO.setSurfaceActive(hubSurfaceActive);
+            if (hubSurfaceActive) { CPL_AUDIO.update(time); surfaceSystemTicks.audio++; }
+            if (hubSurfaceActive) { updateQuarks(dt); surfaceSystemTicks.particles++; }
+            if (hubSurfaceActive) { updateRapier(); surfaceSystemTicks.physics++; }
+            if (hubSurfaceActive) { updateBillboards(time); surfaceSystemTicks.billboards++; }
+            updateBillboardVideoPlayback(hubSurfaceActive);
+            if (hubSurfaceActive) surfaceSystemTicks.videos++;
             const _slow = (_frameCount++ & 1) === 0; // half-rate for cosmetic-only systems (Gun H)
-            const hubActive = !isInside && !inScribe && !inMerchant && !inBuilder && !inProphet && !inChamber;
-            const activeStratum = getActiveStratum();
-            const hubSurfaceActive = hubActive && activeStratum === 'surface';
-            const prototypeHeavenActive = hubActive && activeStratum === 'heaven';
             // ========== GENESIS TIER 1 / SHARD B: world sector sleeping foundation ==========
             const hubCityActive = hubSurfaceActive && Genesis.lifecycle.isSectorActive(cityGroup, { root: cityGroup, maxDistance: 260, sleepWhenFar: true });
             const skySectorActive = hubSurfaceActive && Genesis.lifecycle.isSectorActive(skyLayer, { root: skyLayer, maxDistance: 560, sleepWhenFar: true });
@@ -12599,9 +12841,10 @@ bloomPass.radius = 0.7;
                 const sc = 1 + Math.sin(time * 2.5 + s.angle) * 0.08;
                 s.obj.children[0].scale.set(sc, sc, sc);
             });
+            if (_slow && hubSurfaceActive) surfaceSystemTicks.souls++;
             
             // --- alive angels: flight + social conversation (GSK-aware) ---
-            if (hubSurfaceActive) updateAngelLife(dt, time);
+            if (hubSurfaceActive) { updateAngelLife(dt, time); surfaceSystemTicks.legacyAngels++; }
             if (prototypeHeavenActive) updateHeavenPrototype(dt);
 
             if (hubSurfaceActive) {
@@ -12669,6 +12912,7 @@ bloomPass.radius = 0.7;
 
             // --- sky layer: clouds, worlds, galaxies, sky-cities ---
             if (skySectorActive) {
+                surfaceSystemTicks.sky++;
                 for (const c of skyClouds) {
                     c.obj.position.y = c.baseY + Math.sin(time * 0.3 + c.phase) * (1 + c.drift);
                     c.obj.rotation.y += 0.0008 * c.drift;
@@ -12705,14 +12949,14 @@ bloomPass.radius = 0.7;
             }
             
             // --- rotate nebulae ---
-            nebulae.forEach(n => {
+            if (hubSurfaceActive) nebulae.forEach(n => {
                 n.sprite.material.rotation += n.rotSpeed;
             });
             
             // --- embers are GPU-animated via emberUniforms.uTime (no per-frame CPU work) ---
             
             // --- floating pages (half-rate: cosmetic) ---
-            if (_slow) pages.forEach(p => {
+            if (_slow && hubSurfaceActive) pages.forEach(p => {
                 p.mesh.position.x += p.speedX;
                 p.mesh.position.y += Math.sin(time * 1.2) * 0.002;
                 p.mesh.position.z += p.speedZ;
@@ -12723,7 +12967,7 @@ bloomPass.radius = 0.7;
             });
             
             // --- orbs drift (half-rate: cosmetic) ---
-            if (_slow) orbs.forEach((orb, i) => {
+            if (_slow && hubSurfaceActive) orbs.forEach((orb, i) => {
                 orb.position.x += Math.sin(time * 0.6 + i) * 0.002;
                 orb.position.y += Math.cos(time * 0.5 + i) * 0.002;
             });
@@ -12863,7 +13107,7 @@ bloomPass.radius = 0.7;
             }
             
             // --- book reading animation ---
-            updateBookReading();
+            if (surfaceStratumActive) updateBookReading();
 
             // --- avatar system ---
             if (hubSurfaceActive) {
@@ -12898,9 +13142,9 @@ bloomPass.radius = 0.7;
             });
             
             // --- portal ripple animation ---
-            if (portalUniforms) portalUniforms.uTime.value = time;
-            if (floatDustUniforms) floatDustUniforms.uTime.value = time;
-            if (emberUniforms) emberUniforms.uTime.value = time;
+            if (hubSurfaceActive && portalUniforms) portalUniforms.uTime.value = time;
+            if (hubSurfaceActive && floatDustUniforms) floatDustUniforms.uTime.value = time;
+            if (hubSurfaceActive && emberUniforms) emberUniforms.uTime.value = time;
             if (skySectorActive || heavenSectorActive) updateHubExtensions(time);
             if (inScribe) updateScribeRealm(time, dt);
             if (inMerchant) updateMerchantRealm(time, dt);

@@ -24,6 +24,22 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
     return _frustum.intersectsSphere(_sphere);
   }
 
+  function _visibleInTree(root) {
+    let node = root;
+    while (node) {
+      if (node.visible === false) return false;
+      node = node.parent;
+    }
+    return true;
+  }
+
+  function _measure(entry) {
+    entry.root.updateWorldMatrix(true, false);
+    _position.setFromMatrixPosition(entry.root.matrixWorld);
+    entry.inRange = !camera || camera.position.distanceToSquared(_position) <= entry.maxDistance * entry.maxDistance;
+    entry.inFrustum = _inFrustum(entry.root);
+  }
+
   function register(id, root, opts = {}) {
     entries.set(id, {
       root,
@@ -31,6 +47,7 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
       maxDistance: opts.maxDistance || 260,
       stateOwned: !!opts.stateOwned,
       owner: opts.owner || null,
+      managedExternally: !!opts.stateOwned,
       visible: true,
       inRange: true,
       inFrustum: true
@@ -46,20 +63,16 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
   function tick() {
     for (const [id, e] of entries) {
       const stateOwned = e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner);
+      e.managedExternally = stateOwned;
+      _measure(e);
       if (stateOwned) {
-        e.inRange = true;
-        e.inFrustum = true;
-        e.visible = e.root.visible !== false;
+        e.visible = _visibleInTree(e.root);
         continue;
       }
       // sleep:'never' objects always visible
       let never = false;
       e.root.traverse((o) => { if (o.userData && o.userData.cost && o.userData.cost.sleep === 'never') never = true; });
-      if (never) { e.inRange = true; e.inFrustum = true; e.visible = true; if (e.root.visible === false) e.root.visible = true; continue; }
-      e.root.updateWorldMatrix(true, false);
-      _position.setFromMatrixPosition(e.root.matrixWorld);
-      e.inRange = !camera || camera.position.distanceToSquared(_position) <= e.maxDistance * e.maxDistance;
-      e.inFrustum = e.inRange && _inFrustum(e.root);
+      if (never) { e.visible = true; if (e.root.visible === false) e.root.visible = true; continue; }
       const inView = e.inRange && e.inFrustum;
       const wasVisible = e.visible;
       e.visible = inView;
@@ -79,6 +92,7 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
       maxDistance: e.maxDistance,
       priority: e.priority,
       stateOwned: e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner),
+      managedExternally: e.managedExternally,
       owner: e.owner
     };
     return out;
