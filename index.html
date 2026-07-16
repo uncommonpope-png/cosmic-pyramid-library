@@ -5824,7 +5824,7 @@ bloomPass.radius = 0.7;
         // VIDEO SWAP: when you make videos, add an entry to BILLBOARD_VIDEOS[slot] pointing at the
         // file (e.g. 'assets/billboards/billboard-01.mp4'). That board then plays a looping muted
         // VideoTexture instead of the still image. No other code change needed.
-        const BILLBOARD_ASSET_VERSION = '329f1b2';
+        const BILLBOARD_ASSET_VERSION = 'a1b2c3d';
         const billboardImages = [
             'assets/billboards/billboard-01.jpg', 'assets/billboards/billboard-02.jpg',
             'assets/billboards/billboard-03.jpg', 'assets/billboards/billboard-04.jpg',
@@ -5832,9 +5832,7 @@ bloomPass.radius = 0.7;
             'assets/billboards/billboard-07.jpg', 'assets/billboards/billboard-08.jpg',
             'assets/billboards/billboard-09.jpg', 'assets/billboards/billboard-10.jpg',
             'assets/billboards/billboard-11.jpg', 'assets/billboards/billboard-12.jpg',
-            'assets/billboards/billboard-13.jpg',
-            'covers/brasi.png', 'covers/plt-complete-doctrine.png',
-            'covers/the-build.png', 'covers/the-frequency.png', 'covers/the-soul-economy.png'
+            'assets/billboards/billboard-13.jpg'
         ];
         // slot index -> video url. Local ffmpeg Ken-Burns clips (generated from the stills).
         // Swap any entry for a cloud-GPU AI-generated clip later; no other code change needed.
@@ -5852,35 +5850,33 @@ bloomPass.radius = 0.7;
             10: 'assets/billboards/billboard-11.mp4',
             11: 'assets/billboards/billboard-12.mp4',
             12: 'assets/billboards/billboard-13.mp4',
-            13: 'covers/brasi.mp4',
-            14: 'covers/plt-complete-doctrine.mp4',
-            15: 'covers/the-build.mp4',
-            16: 'covers/the-frequency.mp4',
-            17: 'covers/the-soul-economy.mp4',
             18: 'assets/billboards/billboard-01.mp4',
             19: 'assets/billboards/billboard-02.mp4',
             20: 'assets/billboards/billboard-03.mp4'
         };
-        // Craig (2026-07-16): poster stills are YOUR art from ChatGPT (DayZ set + the Downloads stash
-        // he pointed me to). Copied into assets/downloads-art/ so the boards show REAL pics, not junk JPGs.
+        // Craig (2026-07-16): the billboard posters are HIS art pulled from his Windows Downloads —
+        // the "PROFIT PICS" series + the DayZ set. Copied into assets/profit-pics/ (no PLT covers;
+        // those were removed per his order). These are stills; the samsy soul shader animates them.
         const DAYZ_POSTERS = [
-            'assets/recent/dayz/dayz zz.png', 'assets/recent/dayz/dayz 3.png', 'assets/recent/dayz/dayz 6.png',
-            'assets/recent/dayz/dayz 66.png', 'assets/recent/dayz/dayz 6666.png', 'assets/recent/dayz/dayz cc.png',
-            'assets/recent/dayz/dayz ss.png', 'assets/recent/dayz/dayz x.png', 'assets/recent/dayz/dayz.png',
-            'assets/recent/dayz/pink dayz.jpg',
-            'assets/downloads-art/brasi.png', 'assets/downloads-art/plt_the_complete_doctrine.png',
-            'assets/downloads-art/the_build.png', 'assets/downloads-art/the_frequency.png', 'assets/downloads-art/the_soul_economy.png',
-            'assets/downloads-art/for_allie_1.png', 'assets/downloads-art/for_allie_k.png', 'assets/downloads-art/for_allie_kk.png',
-            'assets/downloads-art/for_allie_vw.png', 'assets/downloads-art/for_allie3.png', 'assets/downloads-art/for_allie8.png',
-            'assets/downloads-art/download__1_.png', 'assets/downloads-art/download__2_.png', 'assets/downloads-art/download__3_.png',
-            'assets/downloads-art/download__4_.png', 'assets/downloads-art/download__5_.png', 'assets/downloads-art/download__7_.png',
-            'assets/downloads-art/download__8_.png', 'assets/downloads-art/download__9_.png',
-            'assets/downloads-art/ChatGPT_Image_Jun_21__2026__06_04_03_PM__1_.png',
-            'assets/downloads-art/ChatGPT_Image_Jun_21__2026__06_31_42_PM.png',
-            'assets/downloads-art/ChatGPT_Image_Jun_21__2026__07_14_34_PM.png',
-            'assets/downloads-art/ChatGPT_Image_Jun_21__2026__08_02_39_PM.png',
-            'assets/downloads-art/ChatGPT_Image_Jun_22__2026__10_28_35_PM.png',
-            'assets/downloads-art/Generated_Image_May_21__2026_-_6_32PM.png'
+            // === PROFIT PICS (from Downloads) ===
+            'assets/profit-pics/PROFIT PICS.png',
+            'assets/profit-pics/PROFIT PICS 2.png',
+            'assets/profit-pics/PROFIT PICS 4.png',
+            'assets/profit-pics/PROFIT PICS 44.png',
+            'assets/profit-pics/PROFIT PICS  5.jpg',
+            'assets/profit-pics/PROFIT PICS 6.jpg',
+            'assets/profit-pics/PROFIT PICS 77.jpg',
+            'assets/profit-pics/PROFIT PICS D.jpg',
+            'assets/profit-pics/PROFIT PICS 5555.jfif',
+            'assets/profit-pics/PROFIT PICS 556.webp',
+            'assets/profit-pics/PROFIT PICS 7777.jfif',
+            'assets/profit-pics/PROFIT PICS99.jfif',
+            'assets/profit-pics/PROFIT PICSS.jfif',
+            // === DayZ set (from Downloads) ===
+            'assets/profit-pics/dayz zz.png', 'assets/profit-pics/dayz 3.png', 'assets/profit-pics/dayz 6.png',
+            'assets/profit-pics/dayz 66.png', 'assets/profit-pics/dayz 6666.png', 'assets/profit-pics/dayz cc.png',
+            'assets/profit-pics/dayz ss.png', 'assets/profit-pics/dayz x.png', 'assets/profit-pics/dayz.png',
+            'assets/profit-pics/pink dayz.jpg'
         ];
         const billboardSpots = [
             { x: -28, z: -43, rot: 0, accent: 0xff33aa },
