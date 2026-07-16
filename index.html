@@ -1279,40 +1279,6 @@
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Lighting Manager module load skipped:', e && e.message); });
         })();
 
-        // ========== GENESIS VIDEO MANAGER (Phase B9 — manager #9) ==========
-        // Governs billboard videos: registers (videoEl, plane, meta), counts active
-        // playbacks, and can pause videos beyond a cap. Observes creation in
-        // applyBillboardVideo. Flag: __GENESIS_VIDEO_MANAGER.
-        window.__GENESIS_VIDEO_MANAGER = (typeof window.__GENESIS_VIDEO_MANAGER === 'boolean') ? window.__GENESIS_VIDEO_MANAGER : true;
-        (function () {
-            if (window.__GENESIS_VIDEO_MANAGER === false) { Genesis.VideoManager = { register(){}, unregister(){}, activeCount(){return 0;}, capCheck(){return 0;}, tick(){}, summary(){return{registered:0};} }; return; }
-            const _videos = new Map();
-            Genesis.VideoManager = {
-                register(videoEl, plane, meta) {
-                    if (!videoEl) return;
-                    _videos.set(videoEl, { plane: plane || null, meta: meta || {}, active: true });
-                },
-                unregister(videoEl) { _videos.delete(videoEl); },
-                activeCount() { return _videos.size; },
-                capCheck(maxActive) {
-                    const cap = (typeof maxActive === 'number') ? maxActive : 4;
-                    const list = [..._videos.entries()];
-                    let paused = 0;
-                    for (let i = cap; i < list.length; i++) {
-                        const v = list[i][0], rec = list[i][1];
-                        if (rec.active) { try { v.pause(); } catch (e) {} if (rec.plane) rec.plane.visible = false; rec.active = false; paused++; }
-                    }
-                    return paused;
-                },
-                tick() {},
-                summary() { return { registered: _videos.size }; }
-            };
-            import('./src/genesis/video-manager.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, camera, scene);
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Video Manager loaded from module (src/genesis/video-manager.js)');
-            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Video Manager module load skipped:', e && e.message); });
-        })();
-
         Genesis.notifyError = function (message) {
             if (!message) return;
             this.setStatus('error: ' + message, 'err');
@@ -4546,7 +4512,6 @@ bloomPass.radius = 0.7;
             }, { once: true });
             video.addEventListener('error', () => console.warn('[Billboard] video failed:', vidUrl));
             fx.video = video; fx.videoUrl = vidUrl;
-            if (window.__GENESIS_VIDEO_MANAGER !== false && Genesis.VideoManager && Genesis.VideoManager.register) Genesis.VideoManager.register(video, plane, { owner: 'billboard', cost: 4 });
             if (window.__GENESIS_COST_CONTRACT !== false && plane && plane.userData) Genesis.declareCost(plane, { cpu: 1, gpu: 3, memory: 4, updateFreq: 30, priority: 5, sector: 'city-core', sleep: 'offscreen' });
         }
         function makeBillboard(spot, idx) {
