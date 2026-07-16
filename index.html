@@ -1412,75 +1412,6 @@
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Render Graph module load skipped:', e && e.message); });
         })();
 
-        // ========== GENESIS PERFORMANCE GOVERNOR v2 (Phase C — manager #10) ==========
-        // CONTINUOUS, pre-emptive loop. Replaces the discrete tier switch with a
-        // self-correcting analog controller that nudges levers EVERY frame BEFORE
-        // the frame rate struggles, and recovers when metrics improve. Keeps the
-        // OLD setQuality as fallback when this flag is OFF. Flag: __GENESIS_PERFORMANCE_GOVERNOR.
-        window.__GENESIS_PERFORMANCE_GOVERNOR = (typeof window.__GENESIS_PERFORMANCE_GOVERNOR === 'boolean') ? window.__GENESIS_PERFORMANCE_GOVERNOR : true;
-        (function () {
-            if (window.__GENESIS_PERFORMANCE_GOVERNOR === false) { Genesis.PerformanceGovernor = { sample(){}, setQuality(t){return t;}, summary(){return{};} }; return; }
-            const _ema = { frameMs: 16.7, calls: 200, geo: 0, tex: 0, video: 0 };
-            let _resolutionScale = 1.0, _particleLevel = 0, _updateFreqLevel = 0, _sleepBias = 0, _decorativeOn = true, _optionalPaused = false, _videoCap = 6;
-            function _clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-            function _applyLevers() {
-                if (typeof window !== 'undefined') {
-                    window.__genesisReduceParticles = _particleLevel > 0.5;
-                    window.__genesisLowerUpdateFreq = _updateFreqLevel > 0.5;
-                    window.__genesisSleepBias = _sleepBias;
-                }
-                if (Genesis.RenderGraph && Genesis.RenderGraph.setResolutionScale) { try { Genesis.RenderGraph.setResolutionScale(_resolutionScale); } catch (e) {} }
-                if (Genesis.LightingManager && Genesis.LightingManager.setDecorativeEnabled) {
-                    const want = _sleepBias < 0.5;
-                    if (_decorativeOn !== want) { _decorativeOn = want; try { Genesis.LightingManager.setDecorativeEnabled(want); } catch (e) {} }
-                }
-                if (Genesis.AnimationScheduler && Genesis.AnimationScheduler.setOptionalPaused) {
-                    const want = _updateFreqLevel > 0.6;
-                    if (_optionalPaused !== want) { _optionalPaused = want; try { Genesis.AnimationScheduler.setOptionalPaused(want); } catch (e) {} }
-                }
-                if (Genesis.VideoManager && Genesis.VideoManager.capCheck) { try { Genesis.VideoManager.capCheck(_videoCap); } catch (e) {} }
-                if (_sleepBias > 0.5 && Genesis.SectorManager && Genesis.SectorManager.tick) { try { Genesis.SectorManager.tick(); } catch (e) {} }
-            }
-            function _sample(info) {
-                if (!info) return;
-                const a = 0.08;
-                _ema.frameMs = _ema.frameMs * (1 - a) + (info.frameMs || 16.7) * a;
-                _ema.calls = _ema.calls * (1 - a) + (info.calls || _ema.calls) * a;
-                _ema.geo = _ema.geo * (1 - a) + (info.geometries || 0) * a;
-                _ema.tex = _ema.tex * (1 - a) + (info.textures || 0) * a;
-                _ema.video = _ema.video * (1 - a) + (info.videos || 0) * a;
-                const frameStress = _clamp((_ema.frameMs - 16.7) / 16.7, 0, 1);
-                const callStress = _clamp((_ema.calls - 250) / 750, 0, 1);
-                const stress = Math.max(frameStress, callStress * 0.8);
-                const step = 0.04;
-                const dir = stress > 0.45 ? 1 : (stress < 0.25 ? -1 : 0);
-                if (dir === 1) {
-                    _particleLevel = _clamp(_particleLevel + step, 0, 1);
-                    _updateFreqLevel = _clamp(_updateFreqLevel + step * 0.7, 0, 1);
-                    _resolutionScale = _clamp(_resolutionScale - step * 0.04, 0.5, 1.0);
-                    _videoCap = _clamp(Math.round(_videoCap - 1), 1, 6);
-                    if (stress > 0.7) _sleepBias = _clamp(_sleepBias + step * 0.5, 0, 1);
-                } else if (dir === -1) {
-                    _particleLevel = _clamp(_particleLevel - step * 0.5, 0, 1);
-                    _updateFreqLevel = _clamp(_updateFreqLevel - step * 0.4, 0, 1);
-                    _resolutionScale = _clamp(_resolutionScale + step * 0.03, 0.5, 1.0);
-                    _videoCap = _clamp(Math.round(_videoCap + 1), 1, 6);
-                    _sleepBias = _clamp(_sleepBias - step * 0.3, 0, 1);
-                }
-                _applyLevers();
-                return { stress, frameMs: _ema.frameMs, calls: _ema.calls, resolutionScale: _resolutionScale };
-            }
-            Genesis.PerformanceGovernor = {
-                sample(info) { return _sample(info); },
-                setQuality(t) { return t; },
-                summary() { return { frameMs: _ema.frameMs, calls: _ema.calls, resolutionScale: _resolutionScale, particleLevel: _particleLevel, updateFreqLevel: _updateFreqLevel, sleepBias: _sleepBias, videoCap: _videoCap }; }
-            };
-            import('./src/genesis/performance-governor.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, renderer, camera, scene);
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Performance Governor v2 loaded from module (src/genesis/performance-governor.js)');
-            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Performance Governor v2 module load skipped:', e && e.message); });
-        })();
-
         Genesis.notifyError = function (message) {
             if (!message) return;
             this.setStatus('error: ' + message, 'err');
@@ -11661,16 +11592,6 @@ bloomPass.radius = 0.7;
             const skySectorActive = hubActive && Genesis.lifecycle.isSectorActive(skyLayer, { root: skyLayer, maxDistance: 560, sleepWhenFar: true });
             const heavenSectorActive = hubActive && Genesis.lifecycle.isSectorActive(heaven, { root: heaven, maxDistance: 420, sleepWhenFar: true });
             perf.sample(dt);
-            if (window.__GENESIS_PERFORMANCE_GOVERNOR !== false && Genesis.PerformanceGovernor && Genesis.PerformanceGovernor.sample) {
-                const _ri = (renderer && renderer.info) ? renderer.info : null;
-                Genesis.PerformanceGovernor.sample({
-                    frameMs: dt * 1000,
-                    calls: _ri && _ri.render ? _ri.render.calls : 0,
-                    geometries: _ri && _ri.memory ? _ri.memory.geometries : 0,
-                    textures: _ri && _ri.memory ? _ri.memory.textures : 0,
-                    videos: (Genesis.VideoManager && Genesis.VideoManager.activeCount) ? Genesis.VideoManager.activeCount() : 0
-                });
-            }
             
             _uiTick += dt;
             if (_uiTick >= 0.08) {
