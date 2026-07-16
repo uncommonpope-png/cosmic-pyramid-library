@@ -1991,6 +1991,13 @@
         // window.__worldEditorEnter()) toggles editor MODE on. Mirrors the CinematicRenderer
         // flag-gate idiom (no-op stub + deferred dynamic import + cpl:ready no-op).
         window.__GENESIS_WORLD_EDITOR = (typeof window.__GENESIS_WORLD_EDITOR === 'boolean') ? window.__GENESIS_WORLD_EDITOR : true;
+        // ========== GENESIS BILLBOARD ALIVE (billboards wear the samsy soul + play DayZ video) ==========
+        // Default ON: the billboards load their DayZ clip immediately (preload='auto') and play
+        // unconditionally (muted-loop autoplay), binding the video into the Shang Tsung soul
+        // shader so the samsy glitch form wears the MOVING clip, visible across the city. This
+        // fixes the "TRASH — wrong stills, never play" complaint (2026-07-16). Set false to
+        // revert to the old frozen-poster behavior (applyBillboardVideo early-returns).
+        window.__GENESIS_BILLBOARD_ALIVE = (typeof window.__GENESIS_BILLBOARD_ALIVE === 'boolean') ? window.__GENESIS_BILLBOARD_ALIVE : true;
         (function () {
             if (window.__GENESIS_WORLD_EDITOR === false) {
                 // No-op stub: never imported, never mutates managers or the world, no listeners.
@@ -5901,9 +5908,11 @@ bloomPass.radius = 0.7;
 
         const _billboardFx = [];
         function applyBillboardVideo(plane, imageMat, vidUrl, fx) {
+            if (window.__GENESIS_BILLBOARD_ALIVE === false) return; // reversible: old frozen-poster behavior
             const video = document.createElement('video');
             video.src = vidUrl; video.loop = true; video.muted = true; video.playsInline = true;
-            video.setAttribute('playsinline', ''); video.setAttribute('webkit-playsinline', ''); video.crossOrigin = 'anonymous'; video.preload = 'none';
+            video.setAttribute('playsinline', ''); video.setAttribute('webkit-playsinline', ''); video.crossOrigin = 'anonymous';
+            video.preload = 'auto'; // FIX (TRASH->alive): load immediately so canplay fires for far-spawned boards
             video.addEventListener('canplay', () => {
                 const tex = new THREE.VideoTexture(video);
                 tex.colorSpace = THREE.SRGBColorSpace;
@@ -5911,7 +5920,9 @@ bloomPass.radius = 0.7;
                 fx.videoTex = tex;
                 // Feed the Shang Tsung soul shader so the DayZ clip wears samsy's form.
                 if (fx.soul && fx.soul.uniforms) { fx.soul.uniforms.uTex.value = tex; fx.soul.uniforms.uHasTex.value = 1; fx.soul.needsUpdate = true; }
-                if (fx._near && video.paused) { try { video.play().catch(() => {}); } catch (e) {} }
+                // FIX: play unconditionally (muted autoplay is allowed) — not gated behind _near, so the
+                // board is alive from spawn and visible across the city, per Craig's 2026-07-16 note.
+                if (video.paused) { try { video.play().catch(() => {}); } catch (e) {} }
             }, { once: true });
             video.addEventListener('error', () => console.warn('[Billboard] video failed:', vidUrl));
             fx.video = video; fx.videoUrl = vidUrl;
@@ -6075,7 +6086,11 @@ bloomPass.radius = 0.7;
             const fx = { group, sweep, halo, neon: neonMat, rim, pts, mat: soulMat, soul: soulMat, base: y, h, w, phase: Math.random() * Math.PI * 2 };
             _billboardFx.push(fx);
 
-            const imgUrl = DAYZ_POSTERS[idx % DAYZ_POSTERS.length];
+            // Craig (2026-07-16): the billboards are TRASH — they show wrong stills and never
+            // the real DayZ videos. FIX: poster = YOUR DayZ art (assets/recent/dayz/*.png); the
+            // video is PRIMARY (plays on load, muted loop, alive from spawn, visible across the
+            // city — not gated behind perf.tier or "near" proximity).
+            const imgUrl = DAYZ_POSTERS[idx % DAYZ_POSTERS.length]; // your DayZ art (dayz zz/3/6..)
             group.userData.billboard = imgUrl;
             const posterUrl = `${imgUrl}?v=${BILLBOARD_ASSET_VERSION}`;
             // Billboards are DECORATIVE — must NOT gate the critical loader (a stuck
@@ -6087,16 +6102,10 @@ bloomPass.radius = 0.7;
                 // Feed the Shang Tsung soul shader (poster = first frame before video plays).
                 if (soulMat.uniforms) { soulMat.uniforms.uTex.value = tex; soulMat.uniforms.uHasTex.value = 1; soulMat.needsUpdate = true; }
             }, undefined, (err) => { console.warn('[Billboard] image failed:', posterUrl, err); });
-            // Craig (2026-07-16): the billboards are TRASH — they show wrong stills and never
-            // the real DayZ videos. FIX: videos are PRIMARY (play on load, muted loop), the
-            // poster is YOUR DayZ art (assets/recent/dayz/*.png), and we no longer gate
-            // playback behind perf.tier or "near" proximity — the board is alive from spawn.
             const vidUrl = BILLBOARD_VIDEOS[idx] || null;
             if (vidUrl) {
                 group.userData.billboard = vidUrl; fx.videoUrl = vidUrl;
-                applyBillboardVideo(plane, imageMat, vidUrl, fx);
-                // Play immediately (not only when _near) so the DayZ clip is visible from across the city.
-                if (fx.video) { try { fx.video.play().catch(() => {}); } catch (e) {} }
+                applyBillboardVideo(plane, imageMat, vidUrl, fx); // plays on canplay (unconditional)
             }
             if (typeof perf !== 'undefined' && perf.tier === 'low') { fx.rim.visible = false; if (fx.pts) fx.pts.visible = false; }
             return group;
@@ -6108,6 +6117,9 @@ bloomPass.radius = 0.7;
         setTimeout(buildBillboards, 450);
         function updateBillboards(time) {
             for (const fx of _billboardFx) {
+                // LOD/sleep: skip decorative sweep + shader breathing when this board's group is
+                // asleep (out of SectorManager range / surface inactive) — costs ~0 far away.
+                if (fx.group && window.Genesis && Genesis.isSimulationActive && !Genesis.isSimulationActive(fx.group)) continue;
                 const p = 0.7 + Math.sin(time * 1.5 + fx.phase) * 0.3;
                 fx.neon.emissiveIntensity = 0.9 * p;
                 const sy = fx.base + (fx.h / 2 - 0.1) * Math.sin(time * 0.6 + fx.phase);
