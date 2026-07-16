@@ -1821,7 +1821,7 @@
         // Builds ONE premium street sector (procedural placeholders for where CC0
         // GLBs drop in later). OFF by default so the live world is byte-identical.
         // Flag-gated by window.__GENESIS_PREMIUM_SLICE (default FALSE; enable to build).
-        window.__GENESIS_PREMIUM_SLICE = (typeof window.__GENESIS_PREMIUM_SLICE === 'boolean') ? window.__GENESIS_PREMIUM_SLICE : false;
+        window.__GENESIS_PREMIUM_SLICE = (typeof window.__GENESIS_PREMIUM_SLICE === 'boolean') ? window.__GENESIS_PREMIUM_SLICE : true;
         (function () {
             if (window.__GENESIS_PREMIUM_SLICE === false) {
                 Genesis.PremiumSlice = { build(){return null;}, summary(){return {enabled:false,childCount:0,registeredWithSector:false,registeredWithVisibility:false,built:false};} };
@@ -1878,7 +1878,7 @@
         // ONE hero NPC: navmesh pathfinding + intention brain + locomotion blend +
         // motion + crowd separation. OFF by default so the live world is byte-identical.
         // When false, the manager is a no-op stub and this module is never imported.
-        window.__GENESIS_POPULATION_ENGINE = (typeof window.__GENESIS_POPULATION_ENGINE === 'boolean') ? window.__GENESIS_POPULATION_ENGINE : false;
+        window.__GENESIS_POPULATION_ENGINE = (typeof window.__GENESIS_POPULATION_ENGINE === 'boolean') ? window.__GENESIS_POPULATION_ENGINE : true;
         (function () {
             if (window.__GENESIS_POPULATION_ENGINE === false) {
                 Genesis.PopulationEngine = { spawnHero(){}, tick(){}, sample(){return {heroPos:[0,0,0],heroMoved:false,brain:'Idle'};}, summary(){return {enabled:false,heroSpawned:false,navmeshReady:false,brainState:'Idle',position:{x:0,y:0,z:0},speed:0,mixerRegistered:false,lodBand:'hero'};}, registerDistantActor(){}, setPopulationLOD(){} };
@@ -1898,7 +1898,7 @@
         // ONE hero car driven by Rapier rigid-body physics. OFF by default so the
         // live world is byte-identical. When false the manager is a no-op stub and
         // the module is never imported. Mirrors the PopulationEngine flag-gate idiom.
-        window.__GENESIS_VEHICLE_CONTROLLER = (typeof window.__GENESIS_VEHICLE_CONTROLLER === 'boolean') ? window.__GENESIS_VEHICLE_CONTROLLER : false;
+        window.__GENESIS_VEHICLE_CONTROLLER = (typeof window.__GENESIS_VEHICLE_CONTROLLER === 'boolean') ? window.__GENESIS_VEHICLE_CONTROLLER : true;
         (function () {
             if (window.__GENESIS_VEHICLE_CONTROLLER === false) {
                 Genesis.VehicleController = { spawnHeroCar(){}, tick(){}, summary(){return {enabled:false,spawned:false,rapierReady:false,mode:'AUTO',speed:0,position:{x:0,y:0,z:0},collisions:0,cameraAttached:false};}, getChaseCameraTarget(){return null;}, setMode(){} };
@@ -1942,7 +1942,7 @@
         // + vignette + decorative-light stratum hint). OFF by default so the live
         // world is byte-identical: the manager is a no-op stub and the module is
         // never imported. Inline decides use. Mirrors the VehicleController idiom.
-        window.__GENESIS_CINEMATIC_RENDERER = (typeof window.__GENESIS_CINEMATIC_RENDERER === 'boolean') ? window.__GENESIS_CINEMATIC_RENDERER : false;
+        window.__GENESIS_CINEMATIC_RENDERER = (typeof window.__GENESIS_CINEMATIC_RENDERER === 'boolean') ? window.__GENESIS_CINEMATIC_RENDERER : true;
         (function () {
             if (window.__GENESIS_CINEMATIC_RENDERER === false) {
                 Genesis.CinematicRenderer = {
@@ -1990,7 +1990,7 @@
         // When flag ON it still stays dormant until an explicit user action (KeyP or
         // window.__worldEditorEnter()) toggles editor MODE on. Mirrors the CinematicRenderer
         // flag-gate idiom (no-op stub + deferred dynamic import + cpl:ready no-op).
-        window.__GENESIS_WORLD_EDITOR = (typeof window.__GENESIS_WORLD_EDITOR === 'boolean') ? window.__GENESIS_WORLD_EDITOR : false;
+        window.__GENESIS_WORLD_EDITOR = (typeof window.__GENESIS_WORLD_EDITOR === 'boolean') ? window.__GENESIS_WORLD_EDITOR : true;
         (function () {
             if (window.__GENESIS_WORLD_EDITOR === false) {
                 // No-op stub: never imported, never mutates managers or the world, no listeners.
@@ -2028,7 +2028,7 @@
         // legacy groundCars/citizens fully visible + untouched. When ON, spawns bounded NEAR/MID/FAR
         // bands (<=9 total mixers) and renders the 28 legacy groundCars as ONE instanced draw call.
         // Mirrors the PopulationEngine / VehicleController flag-gate idiom.
-        window.__GENESIS_SCALE_ENGINE = (typeof window.__GENESIS_SCALE_ENGINE === 'boolean') ? window.__GENESIS_SCALE_ENGINE : false;
+        window.__GENESIS_SCALE_ENGINE = (typeof window.__GENESIS_SCALE_ENGINE === 'boolean') ? window.__GENESIS_SCALE_ENGINE : true;
         (function () {
             if (window.__GENESIS_SCALE_ENGINE !== true) {
                 // No-op stub: never imported, never mutates managers or the world.
