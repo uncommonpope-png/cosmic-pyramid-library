@@ -1824,11 +1824,11 @@
                 if (eng) eng.textContent = '10 managers online · world governed · enter when ready';
             }
             loaderPct.textContent = 'entering the library…';
-            hideLoader();
             window.__cplReady = true;
             Genesis.boot.criticalLoadedAt = performance.now();
             Genesis.boot.backstopReleased = !!window.__genesisBackstopReleased;
             Genesis.setStatus('critical load complete', 'ok');
+            if (typeof window.__genesisReleaseLoader === 'function') window.__genesisReleaseLoader('critical load complete');
             if (Genesis.boot.fallbackGroup) {
                 Genesis.boot.fallbackGroup.visible = false;
                 Genesis.boot.fallbackVisible = false;
@@ -5066,10 +5066,16 @@ bloomPass.radius = 0.7;
                 else if (capEl) capEl.textContent = caption;
             }
             function maybeShowEnter() {
-                if (ready && enterBtn) enterBtn.classList.add('show');
+                const safeReady = !!window.__cplReady && (!!window.__genesisFirstFrameSeen || !!window.__genesisBackstopReleased);
+                if (safeReady && enterBtn) enterBtn.classList.add('show');
             }
             function finish() {
                 if (!loaderActive) return;
+                const safeReady = !!window.__cplReady && (!!window.__genesisFirstFrameSeen || !!window.__genesisBackstopReleased);
+                if (!safeReady) {
+                    if (capEl) capEl.textContent = 'World not yet safe — waiting for first visible frame…';
+                    return;
+                }
                 loaderActive = false;
                 if (el) el.classList.add('hidden');
                 // hand control to the player at the hub spawn (matches the npc camera)
@@ -5088,8 +5094,8 @@ bloomPass.radius = 0.7;
                 if (!el) return;
                 const io = document.getElementById('intro-overlay');
                 if (io) io.style.display = 'none';
-                // Hide the built-in opaque loader so the LIVE world shows through the scroll loader.
-                if (typeof loaderOverlay !== 'undefined' && loaderOverlay) loaderOverlay.classList.add('hidden');
+                // Black-screen protocol: NEVER hide the opaque survival loader here.
+                // Only __genesisReleaseLoader / criticalManager may release it after first visible frame.
                 loaderActive = true;
                 applyCamera();
                 setProgress();
@@ -5101,13 +5107,12 @@ bloomPass.radius = 0.7;
                 }, { passive: true });
                 if (enterBtn) enterBtn.addEventListener('click', finish);
                 window.addEventListener('keydown', (e) => { if (loaderActive && (e.key === 'Enter' || e.code === 'Enter')) finish(); });
-                // Readiness comes from the built-in loader (window.__cplReady), not by overwriting
-                // criticalManager.onLoad. Backstop in case the signal is missed.
-                setTimeout(() => { if (!ready) { ready = true; maybeShowEnter(); } }, 15000);
+                // Readiness comes from the built-in loader + first-frame/backstop only.
+                // Never force ready on a timer; that violates black-screen protocol.
             }
             function update(dt) {
                 if (!loaderActive) return;
-                if (window.__cplReady) { ready = true; maybeShowEnter(); }
+                if (window.__cplReady && (window.__genesisFirstFrameSeen || window.__genesisBackstopReleased)) { ready = true; maybeShowEnter(); }
                 if (t < 1) { t = Math.min(1, t + dt * 0.06); applyCamera(); setProgress(); }
                 maybeShowEnter();
             }
@@ -12095,9 +12100,17 @@ bloomPass.radius = 0.7;
             updatePlayerNPC(dt);
             if (cameraMode === 'orbit') controls.update();
             perf.beginGpu();
-            if (window.__GENESIS_RENDER_GRAPH !== false && Genesis.RenderGraph && Genesis.RenderGraph.compose && genesisRenderSchedule.composerReady) Genesis.RenderGraph.compose();
-            else if (genesisRenderSchedule.composerReady) effectComposer.render();
-            else renderer.render(scene, camera);
+            try {
+                if (window.__GENESIS_RENDER_GRAPH !== false && Genesis.RenderGraph && Genesis.RenderGraph.compose && genesisRenderSchedule.composerReady) Genesis.RenderGraph.compose();
+                else if (genesisRenderSchedule.composerReady) effectComposer.render();
+                else renderer.render(scene, camera);
+            } catch (e) {
+                console.warn('[Genesis] render path failed', e);
+                if (typeof window.__genesisPushError === 'function') window.__genesisPushError('render path failed: ' + ((e && e.message) || e));
+                if (typeof showGenesisFailure === 'function') showGenesisFailure('Render path failed — survival mode active.');
+                if (typeof window.__genesisReleaseLoader === 'function') window.__genesisReleaseLoader('Render path failed — survival mode active.', { force: false });
+                try { renderer.render(scene, camera); } catch (_) {}
+            }
             perf.endGpu();
             perf.pollGpu();
             if (Genesis.recovery && typeof Genesis.recovery.noteFrame === 'function') Genesis.recovery.noteFrame();
