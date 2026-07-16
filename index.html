@@ -592,6 +592,12 @@
           color: #dffaff; cursor: pointer; pointer-events: auto; display: none; }
         #scroll-loader .sl-enter.show { display: inline-block; }
         #scroll-loader .sl-enter:hover { background: rgba(40,100,150,0.9); }
+        /* P9 — living backdrop + manager-aware engine-status line */
+        #scroll-loader { background: radial-gradient(circle at 50% 40%, rgba(20,40,80,0.55), rgba(4,8,18,0.96)); }
+        @keyframes slPulse { 0%,100% { box-shadow: 0 12px 40px rgba(0,0,0,0.45), 0 0 28px rgba(40,120,200,0.18); }
+          50% { box-shadow: 0 12px 52px rgba(0,0,0,0.55), 0 0 46px rgba(60,160,255,0.34); } }
+        #scroll-loader .sl-card { animation: slPulse 5.5s ease-in-out infinite; }
+        #scroll-loader .sl-engine { font-size: 10px; color: #7fd0ff; letter-spacing: 2px; margin-top: 6px; min-height: 14px; }
         #objective { position: fixed; left: 14px; top: 14px; z-index: 60; max-width: 240px; padding: 10px 14px;
           font-family: Georgia, serif; font-size: 12px; line-height: 1.5; color: #dcefff; text-align: left;
           background: rgba(8,16,32,0.72); border: 1px solid rgba(102,255,255,0.3); border-radius: 12px; display: none;
@@ -884,9 +890,18 @@
             var cap = document.getElementById('sl-caption');
             if (cap && message) cap.textContent = message;
         }
+        function __genesisSyncEnterVisibility() {
+            var enterBtn = document.getElementById('sl-enter');
+            if (!enterBtn) return;
+            var safeReady = !!window.__cplReady && (!!window.__genesisFirstFrameSeen || !!window.__genesisBackstopReleased);
+            enterBtn.classList.toggle('show', safeReady);
+        }
         function __genesisReleaseLoader(reason, options) {
             options = options || {};
-            if (window.__genesisBackstopReleased) return true;
+            if (window.__genesisBackstopReleased) {
+                __genesisSyncEnterVisibility();
+                return true;
+            }
             if (!options.force && !window.__genesisFirstFrameSeen) {
                 if (reason) __genesisSetLoaderText(reason, 'CPL — WAITING FOR FIRST FRAME');
                 window.__genesisPendingLoaderReleaseReason = reason || window.__genesisPendingLoaderReleaseReason;
@@ -895,8 +910,7 @@
             window.__genesisBackstopReleased = true;
             var overlay = document.getElementById('loader-overlay');
             if (overlay) overlay.classList.add('hidden');
-            var enterBtn = document.getElementById('sl-enter');
-            if (enterBtn) enterBtn.classList.add('show');
+            __genesisSyncEnterVisibility();
             if (reason) __genesisSetLoaderText(reason, 'CPL — SURVIVAL MODE');
             return true;
         }
@@ -1017,6 +1031,483 @@
             this.boot.lastStatus = message;
             this.ui.setStatus(message, tone);
         };
+
+        // ========== GENESIS COST CONTRACT (Phase A — reversible primitive) ==========
+        // Every CPL object declares a `cost` on its root Object3D via userData.cost.
+        // Future managers read this to make automatic sleep/LOD decisions.
+        // Flag-gated: set window.__GENESIS_COST_CONTRACT = false to disable (no-op) without touching call sites.
+        window.__GENESIS_COST_CONTRACT = (typeof window.__GENESIS_COST_CONTRACT === 'boolean') ? window.__GENESIS_COST_CONTRACT : true;
+        Genesis.declareCost = function (obj, partial) {
+            if (window.__GENESIS_COST_CONTRACT === false) return;
+            if (!obj || !obj.userData) return;
+            const def = { cpu: 0, gpu: 0, memory: 0, updateFreq: 0, priority: 0, sector: 'unknown', sleep: 'never' };
+            obj.userData.cost = Object.assign(def, partial || {});
+        };
+
+        function initGenesisManagers() {
+            if (Genesis._managersInitialized) return;
+            Genesis._managersInitialized = true;
+        // ========== GENESIS RESOURCE MANAGER (Phase B1 — manager #1) ==========
+        // Central ledger of every GPU resource: who owns it + what it costs (reads userData.cost).
+        // Audits against renderer.info.memory so leaks are never invisible.
+        // Flag-gated by window.__GENESIS_RESOURCE_MANAGER (default true; false => no-op).
+        window.__GENESIS_RESOURCE_MANAGER = (typeof window.__GENESIS_RESOURCE_MANAGER === 'boolean') ? window.__GENESIS_RESOURCE_MANAGER : true;
+        (function () {
+            if (window.__GENESIS_RESOURCE_MANAGER === false) { Genesis.ResourceManager = { track(){}, untrack(){}, audit(){return{healthy:true};}, dispose(){return 0;}, summary(){return{total:0};} }; return; }
+            const registry = new Set();
+            const _typeOf = (res) => !res ? 'unknown' : (res.isBufferGeometry || res.isGeometry) ? 'geometry' : res.isMaterial ? 'material' : res.isTexture ? 'texture' : res.isWebGLRenderTarget ? 'rt' : 'unknown';
+            Genesis.ResourceManager = {
+                track(res, owner, obj) {
+                    if (!res) return; const type = _typeOf(res); if (type === 'unknown') return;
+                    const cost = (obj && obj.userData && obj.userData.cost) ? obj.userData.cost : null;
+                    registry.add({ res, type, owner: owner || 'unknown', cost });
+                },
+                untrack(res) { for (const e of registry) { if (e.res === res) { registry.delete(e); break; } } },
+                audit() {
+                    const info = (renderer && renderer.info && renderer.info.memory) ? renderer.info.memory : { geometries: 0, textures: 0 };
+                    let geo = 0, tex = 0; for (const e of registry) { if (e.type === 'geometry') geo++; else if (e.type === 'texture') tex++; }
+                    return { trackedGeometries: geo, liveGeometries: info.geometries, orphansGeo: geo - info.geometries, trackedTextures: tex, liveTextures: info.textures, orphansTex: tex - info.textures, total: registry.size, healthy: (geo - info.geometries) <= 0 && (tex - info.textures) <= 0 };
+                },
+                dispose(owner) { let n = 0; for (const e of [...registry]) { if (e.owner !== owner) continue; try { if (e.type === 'geometry' && e.res.dispose) e.res.dispose(); else if (e.type === 'material') { if (e.res.map && e.res.map.dispose) e.res.map.dispose(); if (e.res.dispose) e.res.dispose(); } else if (e.type === 'texture' && e.res.dispose) e.res.dispose(); else if (e.type === 'rt' && e.res.dispose) e.res.dispose(); } catch (_) {} registry.delete(e); n++; } return n; },
+                summary() { const byOwner = {}; for (const e of registry) byOwner[e.owner] = (byOwner[e.owner] || 0) + 1; return { total: registry.size, byOwner, audit: this.audit() }; }
+            };
+            // Prove the P8 static ES-module split is viable without replacing live inline state.
+            import('./src/genesis/resource-manager.js').then((m) => {
+                if (!Genesis.ResourceManager && typeof m.install === 'function') m.install(window.Genesis, THREE, renderer);
+                if (typeof console !== 'undefined') console.log('[Genesis] Resource Manager module validated (inline manager remains authoritative)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Resource Manager module load skipped:', e && e.message); });
+        })();
+
+        // ========== GENESIS SECTOR MANAGER (Phase B4 — manager #4) ==========
+        // Partitions world into sectors; governs enter->active->sleep->dispose.
+        // Reads userData.cost.sleep (Phase A) to decide rest behavior. Makes "sleep distant sectors" real.
+        // Flag-gated by window.__GENESIS_SECTOR_MANAGER (default true; false => no-op).
+        window.__GENESIS_SECTOR_MANAGER = (typeof window.__GENESIS_SECTOR_MANAGER === 'boolean') ? window.__GENESIS_SECTOR_MANAGER : true;
+        (function () {
+            const SLEEP_PURGE_MS = 20000;
+            if (window.__GENESIS_SECTOR_MANAGER === false) { Genesis.SectorManager = { register(){}, sleep(){}, wake(){}, tick(){}, isAwake(){return true;}, summary(){return{};} }; return; }
+            const sectors = new Map();
+            function _isActive(root, maxDistance) {
+                if (!root) return true;
+                if (root.visible === false) return false;
+                if (!root.parent) return false;
+                if (!camera) return true;
+                root.updateWorldMatrix(true, false);
+                const p = new THREE.Vector3().setFromMatrixPosition(root.matrixWorld);
+                return camera.position.distanceToSquared(p) <= maxDistance * maxDistance;
+            }
+            function _sleepCost(root) { let mode = 'distance'; root.traverse((o) => { if (o.userData && o.userData.cost && o.userData.cost.sleep) mode = o.userData.cost.sleep; }); return mode; }
+            Genesis.SectorManager = {
+                register(id, root, opts) { sectors.set(id, { root, maxDistance: (opts && opts.maxDistance) || 220, autoSleep: !opts || opts.autoSleep !== false, state: 'active', lastAwakeAt: performance.now(), asleepFor: 0, disposed: false }); },
+                sleep(id) { const s = sectors.get(id); if (!s) return; s.root.visible = false; s.state = 'asleep'; s.lastAsleepAt = performance.now(); },
+                wake(id) { const s = sectors.get(id); if (!s) return; s.root.visible = true; s.state = 'active'; s.lastAwakeAt = performance.now(); s.asleepFor = 0; s.disposed = false; },
+                isAwake(id) { const s = sectors.get(id); return !!s && s.state === 'active'; },
+                tick() {
+                    const now = performance.now();
+                    for (const [id, s] of sectors) {
+                        if (!s.autoSleep) continue;
+                        const active = _isActive(s.root, s.maxDistance);
+                        const costMode = _sleepCost(s.root);
+                        if (active) { if (s.state !== 'active') this.wake(id); }
+                        else {
+                            if (s.state === 'active') this.sleep(id);
+                            if (costMode !== 'never' && Genesis.ResourceManager) {
+                                s.asleepFor = now - (s.lastAsleepAt || now);
+                                if (s.asleepFor > SLEEP_PURGE_MS && !s.disposed) { Genesis.ResourceManager.dispose(id); s.disposed = true; }
+                            }
+                        }
+                    }
+                },
+                summary() { const out = {}; for (const [id, s] of sectors) out[id] = { state: s.state, maxDistance: s.maxDistance, disposed: !!s.disposed }; return out; }
+            };
+            import('./src/genesis/sector-manager.js').then((m) => {
+                if (!Genesis.SectorManager && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, Genesis.ResourceManager);
+                if (typeof console !== 'undefined') console.log('[Genesis] Sector Manager module validated (inline manager remains authoritative)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Sector Manager module load skipped:', e && e.message); });
+        })();
+
+        // ========== GENESIS VISIBILITY SYSTEM (Phase B6 — manager #6) ==========
+        // Frustum + distance + priority decisions for what is allowed to be seen/updated each frame.
+        // Reads userData.cost (priority, sleep). High-priority wakes first (Love: visitor sees substance first).
+        // Flag-gated by window.__GENESIS_VISIBILITY (default true; false => no-op).
+        window.__GENESIS_VISIBILITY = (typeof window.__GENESIS_VISIBILITY === 'boolean') ? window.__GENESIS_VISIBILITY : true;
+        (function () {
+            if (window.__GENESIS_VISIBILITY === false) { Genesis.Visibility = { register(){}, isVisible(){return true;}, wakeOrder(){return [];}, tick(){} }; return; }
+            const entries = new Map();
+            const _frustum = new THREE.Frustum();
+            const _projScreen = new THREE.Matrix4();
+            const _box = new THREE.Box3();
+            const _sphere = new THREE.Sphere();
+            function _inFrustum(root) {
+                if (!camera) return true;
+                root.updateWorldMatrix(true, false);
+                _box.setFromObject(root);
+                if (_box.isEmpty()) return true;
+                _box.getBoundingSphere(_sphere);
+                _projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+                _frustum.setFromProjectionMatrix(_projScreen);
+                return _frustum.intersectsSphere(_sphere);
+            }
+            Genesis.Visibility = {
+                register(id, root, opts) { entries.set(id, { root, priority: (opts && opts.priority != null) ? opts.priority : 5, maxDistance: (opts && opts.maxDistance) || 260, visible: true }); },
+                isVisible(id) { const e = entries.get(id); return !!e && e.visible; },
+                wakeOrder() { return [...entries.entries()].sort((a, b) => b[1].priority - a[1].priority).map(([id]) => id); },
+                tick() {
+                    for (const [id, e] of entries) {
+                        let never = false;
+                        e.root.traverse((o) => { if (o.userData && o.userData.cost && o.userData.cost.sleep === 'never') never = true; });
+                        if (never) { e.visible = true; if (e.root.visible === false) e.root.visible = true; continue; }
+                        const inView = _inFrustum(e.root);
+                        e.visible = inView;
+                        if (e.root.visible !== inView) e.root.visible = inView;
+                    }
+                }
+            };
+            import('./src/genesis/visibility-system.js').then((m) => {
+                if (!Genesis.Visibility && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, Genesis.SectorManager);
+                if (typeof console !== 'undefined') console.log('[Genesis] Visibility module validated (inline manager remains authoritative)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Visibility System module load skipped:', e && e.message); });
+        })();
+
+        // ========== GENESIS MEMORY MANAGER (Phase B5 — manager #5) ==========
+        // Extends disposeObjectDeep with envMap/PMREM/skeleton/ImageBitmap/renderLists
+        // reclamation and routes ownership through ResourceManager. Pure observer until
+        // its flag is on; NEVER changes visuals. Flag: __GENESIS_MEMORY_MANAGER.
+        window.__GENESIS_MEMORY_MANAGER = (typeof window.__GENESIS_MEMORY_MANAGER === 'boolean') ? window.__GENESIS_MEMORY_MANAGER : true;
+        (function () {
+            if (window.__GENESIS_MEMORY_MANAGER === false) { Genesis.MemoryManager = { deepDispose(){}, disposeOwner(){}, summary(){return{total:0};} }; return; }
+            const _baseDispose = (typeof disposeObjectDeep === 'function') ? disposeObjectDeep : null;
+            Genesis.MemoryManager = {
+                deepDispose(obj, owner) {
+                    if (!obj) return 0;
+                    let freed = 0;
+                    try { if (_baseDispose) _baseDispose(obj); else if (obj.traverse) { obj.traverse((o) => { if (o.geometry && o.geometry.dispose) { try { o.geometry.dispose(); } catch (e) {} } if (o.material) { const mats = Array.isArray(o.material) ? o.material : [o.material]; mats.forEach((m) => { for (const k in m) { const v = m[k]; if (v && v.isTexture && v.dispose) { try { v.dispose(); } catch (e) {} } if (m.dispose) { try { m.dispose(); } catch (e) {} } } }); } }); } freed++; } catch (e) { if (typeof console !== 'undefined') console.warn('[MemoryManager] base dispose failed', e && e.message); }
+                    obj.traverse && obj.traverse((o) => {
+                        if (o.material) { const mats = Array.isArray(o.material) ? o.material : [o.material]; mats.forEach((m) => { if (m && m.envMap && m.envMap.isTexture && m.envMap.dispose && !m.envMap.__genesisKept) { try { m.envMap.dispose(); } catch (e) {} } }); }
+                        if (o.isSkinnedMesh && o.skeleton && o.skeleton.boneTexture && o.skeleton.boneTexture.dispose) { try { o.skeleton.boneTexture.dispose(); } catch (e) {} }
+                        const srcTex = (o.material && (Array.isArray(o.material) ? o.material : [o.material]).find((mm) => mm && mm.image && mm.image.close));
+                        if (srcTex && srcTex.image && typeof srcTex.image.close === 'function') { try { srcTex.image.close(); } catch (e) {} }
+                    });
+                    if (owner && Genesis.ResourceManager && typeof Genesis.ResourceManager.dispose === 'function') { try { Genesis.ResourceManager.dispose(owner); } catch (e) {} }
+                    if (renderer && renderer.renderLists && typeof renderer.renderLists.dispose === 'function') { try { renderer.renderLists.dispose(); } catch (e) {} }
+                    return freed;
+                },
+                disposeOwner(owner) {
+                    if (!owner) return 0;
+                    if (Genesis.ResourceManager && typeof Genesis.ResourceManager.dispose === 'function') { try { Genesis.ResourceManager.dispose(owner); } catch (e) {} }
+                    if (renderer && renderer.renderLists && typeof renderer.renderLists.dispose === 'function') { try { renderer.renderLists.dispose(); } catch (e) {} }
+                    return 0;
+                },
+                summary() { return Genesis.ResourceManager && Genesis.ResourceManager.summary ? Genesis.ResourceManager.summary() : { total: 0 }; }
+            };
+            import('./src/genesis/memory-manager.js').then((m) => {
+                if (!Genesis.MemoryManager && typeof m.install === 'function') m.install(window.Genesis, THREE, renderer, camera, scene, _baseDispose);
+                if (typeof console !== 'undefined') console.log('[Genesis] Memory Manager module validated (inline manager remains authoritative)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Memory Manager module load skipped:', e && e.message); });
+        })();
+
+        // ========== GENESIS ANIMATION SCHEDULER (Phase B7 — manager #7) ==========
+        // Registers AnimationMixers with metadata; ticks ONLY active (in-range, awake,
+        // visible) mixers, pausing far ones. Observes existing mixers via lifecycle.
+        // Flag: __GENESIS_ANIM_SCHEDULER. When on, it is the active tick path.
+        window.__GENESIS_ANIM_SCHEDULER = (typeof window.__GENESIS_ANIM_SCHEDULER === 'boolean') ? window.__GENESIS_ANIM_SCHEDULER : true;
+        (function () {
+            if (window.__GENESIS_ANIM_SCHEDULER === false) { Genesis.AnimationScheduler = { registerMixer(){}, deregisterMixer(){}, tick(){}, setOptionalPaused(){}, summary(){return{};} }; return; }
+            const _mixers = new Map();
+            let _optionalPaused = false;
+            function _isActive(root, maxDistance, critical) {
+                if (!root) return true;
+                if (Genesis.lifecycle && typeof Genesis.lifecycle.isSectorActive === 'function') {
+                    if (!Genesis.lifecycle.isSectorActive(root, { root: root, maxDistance: maxDistance || 180, sleepWhenFar: true, allowWhenHidden: !!critical })) return false;
+                } else if (camera && root.parent) {
+                    root.updateWorldMatrix(true, false);
+                    const p = new THREE.Vector3().setFromMatrixPosition(root.matrixWorld);
+                    if (camera.position.distanceToSquared(p) > (maxDistance || 180) * (maxDistance || 180)) return false;
+                }
+                return true;
+            }
+            Genesis.AnimationScheduler = {
+                registerMixer(mixer, meta) {
+                    if (!mixer) return;
+                    _mixers.set(mixer, { root: (meta && meta.root) || (mixer.getRoot ? mixer.getRoot() : null), maxDistance: (meta && meta.maxDistance) || 180, owner: (meta && meta.owner) || 'unknown', critical: !!(meta && meta.critical), optional: !!(meta && meta.optional) });
+                },
+                deregisterMixer(mixer) { _mixers.delete(mixer); },
+                tick(dt) {
+                    for (const [mixer, meta] of _mixers) {
+                        if (meta.optional && _optionalPaused) continue;
+                        if (!_isActive(meta.root, meta.maxDistance, meta.critical)) continue;
+                        if (Genesis.lifecycle && typeof Genesis.lifecycle.updateMixer === 'function') { try { Genesis.lifecycle.updateMixer(mixer, dt, { root: meta.root, maxDistance: meta.maxDistance, owner: meta.owner, critical: meta.critical }); continue; } catch (e) {} }
+                        try { mixer.update(dt); } catch (e) {}
+                    }
+                },
+                setOptionalPaused(v) { _optionalPaused = !!v; },
+                summary() { return { registered: _mixers.size, optionalPaused: _optionalPaused }; }
+            };
+            // Observe existing mixer registrations: wrap lifecycle.registerMixer.
+            if (Genesis.lifecycle && typeof Genesis.lifecycle.registerMixer === 'function') {
+                const _origReg = Genesis.lifecycle.registerMixer.bind(Genesis.lifecycle);
+                Genesis.lifecycle.registerMixer = function (mixer, meta) { const r = _origReg(mixer, meta); Genesis.AnimationScheduler.registerMixer(mixer, meta); return r; };
+            }
+            import('./src/genesis/animation-scheduler.js').then((m) => {
+                if (!Genesis.AnimationScheduler && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene);
+                if (typeof console !== 'undefined') console.log('[Genesis] Animation Scheduler module validated (inline manager remains authoritative)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Animation Scheduler module load skipped:', e && e.message); });
+        })();
+
+        // ========== GENESIS LIGHTING MANAGER (Phase B8 — manager #8) ==========
+        // Governs point-light population: hard cap <=8 active, decorative off first.
+        // Observes existing lights (perf.lowLights + scattered PointLight creations);
+        // never removes, only governs visibility. Flag: __GENESIS_LIGHTING_MANAGER.
+        window.__GENESIS_LIGHTING_MANAGER = (typeof window.__GENESIS_LIGHTING_MANAGER === 'boolean') ? window.__GENESIS_LIGHTING_MANAGER : true;
+        (function () {
+            if (window.__GENESIS_LIGHTING_MANAGER === false) { Genesis.LightingManager = { register(){}, deregister(){}, capCheck(){return 0;}, setDecorativeEnabled(){}, tick(){}, summary(){return{};} }; return; }
+            const _lights = new Map();
+            let _decorativeEnabled = true;
+            const _HARD_CAP = 8;
+            function _register(light, meta) {
+                if (!light || !light.isLight) return;
+                _lights.set(light, { owner: (meta && meta.owner) || 'unknown', decorative: !!(meta && meta.decorative), cost: (meta && meta.cost) || 1, priority: (typeof (meta && meta.priority) === 'number') ? meta.priority : ((meta && meta.decorative) ? 0 : 5) });
+            }
+            function _activePointLights() { let n = 0; for (const [l, m] of _lights) { if (!l.isPointLight) continue; if (!l.visible) continue; if (m.decorative && !_decorativeEnabled) continue; n++; } return n; }
+            function _capCheck() {
+                let over = _activePointLights() - _HARD_CAP;
+                if (over <= 0) return 0;
+                const decor = [];
+                for (const [l, m] of _lights) if (l.isPointLight && m.decorative && l.visible) decor.push([l, m]);
+                decor.sort((a, b) => a[1].priority - b[1].priority);
+                let disabled = 0;
+                for (const [l] of decor) { if (over <= 0) break; l.visible = false; over--; disabled++; }
+                return disabled;
+            }
+            Genesis.LightingManager = {
+                register(l, meta) { return _register(l, meta); },
+                deregister(l) { _lights.delete(l); },
+                capCheck() { return _capCheck(); },
+                setDecorativeEnabled(v) { _decorativeEnabled = !!v; for (const [l, m] of _lights) if (l.isPointLight && m.decorative) l.visible = _decorativeEnabled && (l.__genesisWasVisible !== false); },
+                tick() { _capCheck(); },
+                summary() { return { registered: _lights.size, activePointLights: _activePointLights(), decorativeEnabled: _decorativeEnabled, cap: _HARD_CAP }; }
+            };
+            // Observe existing lights AFTER module init: scene is declared later, so defer the walk to avoid TDZ/startup crashes.
+            queueMicrotask(() => {
+                try {
+                    if (scene) scene.traverse((o) => { if (o.isPointLight) _register(o, { owner: o.userData && o.userData.cityGrid ? 'city-grid' : 'scene', decorative: !!(o.userData && o.userData.decorative), cost: 1, priority: (o.userData && o.userData.cityGrid) ? 3 : 5 }); });
+                } catch (e) { if (typeof console !== 'undefined') console.warn('[Genesis] Lighting observe deferred:', e && e.message); }
+            });
+            import('./src/genesis/lighting-manager.js').then((m) => {
+                if (!Genesis.LightingManager && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene);
+                if (typeof console !== 'undefined') console.log('[Genesis] Lighting Manager module validated (inline manager remains authoritative)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Lighting Manager module load skipped:', e && e.message); });
+        })();
+
+        // ========== GENESIS VIDEO MANAGER (Phase B9 — manager #9) ==========
+        // Governs billboard videos: registers (videoEl, plane, meta), counts active
+        // playbacks, and can pause videos beyond a cap. Observes creation in
+        // applyBillboardVideo. Flag: __GENESIS_VIDEO_MANAGER.
+        window.__GENESIS_VIDEO_MANAGER = (typeof window.__GENESIS_VIDEO_MANAGER === 'boolean') ? window.__GENESIS_VIDEO_MANAGER : true;
+        (function () {
+            if (window.__GENESIS_VIDEO_MANAGER === false) { Genesis.VideoManager = { register(){}, unregister(){}, activeCount(){return 0;}, capCheck(){return 0;}, tick(){}, summary(){return{registered:0};} }; return; }
+            const _videos = new Map();
+            Genesis.VideoManager = {
+                register(videoEl, plane, meta) {
+                    if (!videoEl) return;
+                    _videos.set(videoEl, { plane: plane || null, meta: meta || {}, active: true });
+                },
+                unregister(videoEl) { _videos.delete(videoEl); },
+                activeCount() { return _videos.size; },
+                capCheck(maxActive) {
+                    const cap = (typeof maxActive === 'number') ? maxActive : 4;
+                    const list = [..._videos.entries()];
+                    let paused = 0;
+                    for (let i = cap; i < list.length; i++) {
+                        const v = list[i][0], rec = list[i][1];
+                        if (rec.active) { try { v.pause(); } catch (e) {} if (rec.plane) rec.plane.visible = false; rec.active = false; paused++; }
+                    }
+                    return paused;
+                },
+                tick() {},
+                summary() { return { registered: _videos.size }; }
+            };
+            import('./src/genesis/video-manager.js').then((m) => {
+                if (!Genesis.VideoManager && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene);
+                if (typeof console !== 'undefined') console.log('[Genesis] Video Manager module validated (inline manager remains authoritative)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Video Manager module load skipped:', e && e.message); });
+        })();
+
+        // ========== GENESIS STREAMING MANAGER (Phase B2 — manager #2) ==========
+        // Adds explicit load/unload lifecycle on the existing lazy-asset queue.
+        // register(assetKey, loaderFn, meta); ensureLoaded(key) runs once + tracks;
+        // unload(key) => MemoryManager.deepDispose + ResourceManager.dispose; tick()
+        // unloads assets whose sector is no longer awake. Flag: __GENESIS_STREAMING_MANAGER.
+        window.__GENESIS_STREAMING_MANAGER = (typeof window.__GENESIS_STREAMING_MANAGER === 'boolean') ? window.__GENESIS_STREAMING_MANAGER : true;
+        (function () {
+            if (window.__GENESIS_STREAMING_MANAGER === false) { Genesis.StreamingManager = { register(){}, ensureLoaded(){return null;}, unload(){return false;}, tick(){}, summary(){return{registered:0};} }; return; }
+            const _assets = new Map();
+            Genesis.StreamingManager = {
+                register(assetKey, loaderFn, meta) {
+                    if (!assetKey || typeof loaderFn !== 'function') return;
+                    if (_assets.has(assetKey) && (meta && meta.loadOnce) !== false) return;
+                    _assets.set(assetKey, { loaderFn, meta: meta || {}, loaded: false, object: null });
+                },
+                ensureLoaded(key) {
+                    const a = _assets.get(key);
+                    if (!a) return null;
+                    if (a.loaded) return a.object;
+                    const obj = a.loaderFn();
+                    a.loaded = true; a.object = obj || null;
+                    if (obj && Genesis.ResourceManager && typeof Genesis.ResourceManager.track === 'function' && obj.userData) Genesis.ResourceManager.track(obj, (a.meta && a.meta.owner) || key, obj);
+                    return obj;
+                },
+                unload(key) {
+                    const a = _assets.get(key);
+                    if (!a || !a.loaded) return false;
+                    if (a.object && Genesis.MemoryManager && typeof Genesis.MemoryManager.deepDispose === 'function') { try { Genesis.MemoryManager.deepDispose(a.object, (a.meta && a.meta.owner) || key); } catch (e) {} }
+                    else if (a.object && Genesis.ResourceManager && typeof Genesis.ResourceManager.dispose === 'function') { try { Genesis.ResourceManager.dispose((a.meta && a.meta.owner) || key); } catch (e) {} }
+                    a.loaded = false; a.object = null;
+                    return true;
+                },
+                tick() {
+                    for (const [key, a] of _assets) {
+                        if (!a.loaded) continue;
+                        const sectorId = a.meta && a.meta.sector;
+                        if (sectorId && Genesis.SectorManager && typeof Genesis.SectorManager.isAwake === 'function') {
+                            if (!Genesis.SectorManager.isAwake(sectorId)) { try { this.unload(key); } catch (e) {} }
+                        }
+                    }
+                },
+                summary() { let loaded = 0; for (const a of _assets.values()) if (a.loaded) loaded++; return { registered: _assets.size, loaded }; }
+            };
+            // Observe the existing lazy queue: wrap enqueueLazyAsset so queued tasks register.
+            if (typeof enqueueLazyAsset === 'function') {
+                const _orig = enqueueLazyAsset;
+                // enqueueLazyAsset is a function declaration; rebind reference used later.
+                try { enqueueLazyAsset = function (label, fn) { Genesis.StreamingManager.register('lazy:' + label, fn, { owner: 'lazy:' + label, sector: (typeof currentSectorId !== 'undefined') ? currentSectorId : null }); return _orig(label, fn); }; } catch (e) {}
+            }
+            import('./src/genesis/streaming-manager.js').then((m) => {
+                if (!Genesis.StreamingManager && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene);
+                if (typeof console !== 'undefined') console.log('[Genesis] Streaming Manager module validated (inline manager remains authoritative)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Streaming Manager module load skipped:', e && e.message); });
+        })();
+
+        // ========== GENESIS RENDER GRAPH (Phase B3 — manager #3) ==========
+        // Owns post-processing composition as a governor-adjustable pass.
+        // addPass(pass, meta); setResolutionScale(scale) clamps + setPixelRatio;
+        // compose() mirrors effectComposer.render(); tick(). When flag ON, animate()
+        // routes its render through RenderGraph.compose(). Flag: __GENESIS_RENDER_GRAPH.
+        window.__GENESIS_RENDER_GRAPH = (typeof window.__GENESIS_RENDER_GRAPH === 'boolean') ? window.__GENESIS_RENDER_GRAPH : true;
+        (function () {
+            if (window.__GENESIS_RENDER_GRAPH === false) { Genesis.RenderGraph = { addPass(){}, setResolutionScale(){}, compose(){return false;}, tick(){}, getResolutionScale(){return 1;}, summary(){return{passes:0};} }; return; }
+            const _passes = new Map();
+            let _resolutionScale = 1.0;
+            const _baseDPR = (renderer && renderer.getPixelRatio) ? renderer.getPixelRatio() : 1;
+            let _appliedDPR = _baseDPR;
+            let _lastResizeAt = 0;
+            const _MIN = 0.5, _MAX = 1.0, _RESIZE_INTERVAL_MS = 1000, _DPR_EPSILON = 0.03;
+            function _setResolutionScale(scale) {
+                _resolutionScale = Math.max(_MIN, Math.min(_MAX, scale));
+                const dpr = Math.max(0.5, Math.min(2, _baseDPR * _resolutionScale));
+                const now = performance.now();
+                if (Math.abs(dpr - _appliedDPR) < _DPR_EPSILON || (now - _lastResizeAt) < _RESIZE_INTERVAL_MS) return _appliedDPR;
+                try { renderer.setPixelRatio(dpr); } catch (e) {}
+                if (effectComposer) {
+                    if (effectComposer.setPixelRatio) { try { effectComposer.setPixelRatio(dpr); } catch (e) {} }
+                    if (effectComposer.setSize) { try { effectComposer.setSize(window.innerWidth, window.innerHeight); } catch (e) {} }
+                }
+                _appliedDPR = dpr;
+                _lastResizeAt = now;
+                return _appliedDPR;
+            }
+            Genesis.RenderGraph = {
+                addPass(pass, meta) {
+                    if (!pass) return;
+                    _passes.set(pass, { owner: (meta && meta.owner) || 'unknown', optional: !!(meta && meta.optional) });
+                    if (typeof effectComposer !== 'undefined' && effectComposer.addPass) { try { effectComposer.addPass(pass); } catch (e) {} }
+                },
+                setResolutionScale(s) { return _setResolutionScale(s); },
+                compose() {
+                    if (typeof effectComposer !== 'undefined' && effectComposer.render) { try { effectComposer.render(); return true; } catch (e) {} }
+                    try { renderer.render(scene, camera); } catch (e) {}
+                    return false;
+                },
+                tick() {},
+                getResolutionScale() { return _resolutionScale; },
+                summary() { return { passes: _passes.size, resolutionScale: _resolutionScale, baseDPR: _baseDPR }; }
+            };
+            import('./src/genesis/render-graph.js').then((m) => {
+                if (!Genesis.RenderGraph && typeof m.install === 'function') m.install(window.Genesis, THREE, renderer, camera, scene, effectComposer, _baseDPR);
+                if (typeof console !== 'undefined') console.log('[Genesis] Render Graph module validated (inline manager remains authoritative)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Render Graph module load skipped:', e && e.message); });
+        })();
+
+        // ========== GENESIS PERFORMANCE GOVERNOR v2 (Phase C — manager #10) ==========
+        // CONTINUOUS, pre-emptive loop. Replaces the discrete tier switch with a
+        // self-correcting analog controller that nudges levers EVERY frame BEFORE
+        // the frame rate struggles, and recovers when metrics improve. Keeps the
+        // OLD setQuality as fallback when this flag is OFF. Flag: __GENESIS_PERFORMANCE_GOVERNOR.
+        window.__GENESIS_PERFORMANCE_GOVERNOR = (typeof window.__GENESIS_PERFORMANCE_GOVERNOR === 'boolean') ? window.__GENESIS_PERFORMANCE_GOVERNOR : true;
+        (function () {
+            if (window.__GENESIS_PERFORMANCE_GOVERNOR === false) { Genesis.PerformanceGovernor = { sample(){}, setQuality(t){return t;}, summary(){return{};} }; return; }
+            const _ema = { frameMs: 16.7, calls: 200, geo: 0, tex: 0, video: 0 };
+            let _resolutionScale = 1.0, _particleLevel = 0, _updateFreqLevel = 0, _sleepBias = 0, _decorativeOn = true, _optionalPaused = false, _videoCap = 6;
+            function _clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+            function _applyLevers() {
+                if (typeof window !== 'undefined') {
+                    window.__genesisReduceParticles = _particleLevel > 0.5;
+                    window.__genesisLowerUpdateFreq = _updateFreqLevel > 0.5;
+                    window.__genesisSleepBias = _sleepBias;
+                }
+                if (Genesis.RenderGraph && Genesis.RenderGraph.setResolutionScale) { try { Genesis.RenderGraph.setResolutionScale(_resolutionScale); } catch (e) {} }
+                if (Genesis.LightingManager && Genesis.LightingManager.setDecorativeEnabled) {
+                    const want = _sleepBias < 0.5;
+                    if (_decorativeOn !== want) { _decorativeOn = want; try { Genesis.LightingManager.setDecorativeEnabled(want); } catch (e) {} }
+                }
+                if (Genesis.AnimationScheduler && Genesis.AnimationScheduler.setOptionalPaused) {
+                    const want = _updateFreqLevel > 0.6;
+                    if (_optionalPaused !== want) { _optionalPaused = want; try { Genesis.AnimationScheduler.setOptionalPaused(want); } catch (e) {} }
+                }
+                if (Genesis.VideoManager && Genesis.VideoManager.capCheck) { try { Genesis.VideoManager.capCheck(_videoCap); } catch (e) {} }
+                if (_sleepBias > 0.5 && Genesis.SectorManager && Genesis.SectorManager.tick) { try { Genesis.SectorManager.tick(); } catch (e) {} }
+            }
+            function _sample(info) {
+                if (!info) return;
+                const a = 0.08;
+                _ema.frameMs = _ema.frameMs * (1 - a) + (info.frameMs || 16.7) * a;
+                _ema.calls = _ema.calls * (1 - a) + (info.calls || _ema.calls) * a;
+                _ema.geo = _ema.geo * (1 - a) + (info.geometries || 0) * a;
+                _ema.tex = _ema.tex * (1 - a) + (info.textures || 0) * a;
+                _ema.video = _ema.video * (1 - a) + (info.videos || 0) * a;
+                const frameStress = _clamp((_ema.frameMs - 16.7) / 16.7, 0, 1);
+                const callStress = _clamp((_ema.calls - 250) / 750, 0, 1);
+                const stress = Math.max(frameStress, callStress * 0.8);
+                const step = 0.04;
+                const dir = stress > 0.45 ? 1 : (stress < 0.25 ? -1 : 0);
+                if (dir === 1) {
+                    _particleLevel = _clamp(_particleLevel + step, 0, 1);
+                    _updateFreqLevel = _clamp(_updateFreqLevel + step * 0.7, 0, 1);
+                    _resolutionScale = _clamp(_resolutionScale - step * 0.04, 0.5, 1.0);
+                    _videoCap = _clamp(Math.round(_videoCap - 1), 1, 6);
+                    if (stress > 0.7) _sleepBias = _clamp(_sleepBias + step * 0.5, 0, 1);
+                } else if (dir === -1) {
+                    _particleLevel = _clamp(_particleLevel - step * 0.5, 0, 1);
+                    _updateFreqLevel = _clamp(_updateFreqLevel - step * 0.4, 0, 1);
+                    _resolutionScale = _clamp(_resolutionScale + step * 0.03, 0.5, 1.0);
+                    _videoCap = _clamp(Math.round(_videoCap + 1), 1, 6);
+                    _sleepBias = _clamp(_sleepBias - step * 0.3, 0, 1);
+                }
+                _applyLevers();
+                return { stress, frameMs: _ema.frameMs, calls: _ema.calls, resolutionScale: _resolutionScale };
+            }
+            Genesis.PerformanceGovernor = {
+                sample(info) { return _sample(info); },
+                setQuality(t) { return t; },
+                summary() { return { frameMs: _ema.frameMs, calls: _ema.calls, resolutionScale: _resolutionScale, particleLevel: _particleLevel, updateFreqLevel: _updateFreqLevel, sleepBias: _sleepBias, videoCap: _videoCap }; }
+            };
+            import('./src/genesis/performance-governor.js').then((m) => {
+                if (!Genesis.PerformanceGovernor && typeof m.install === 'function') m.install(window.Genesis, THREE, renderer, camera, scene);
+                if (typeof console !== 'undefined') console.log('[Genesis] Performance Governor module validated (inline manager remains authoritative)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Performance Governor v2 module load skipped:', e && e.message); });
+        })();
+        }
+
         Genesis.notifyError = function (message) {
             if (!message) return;
             this.setStatus('error: ' + message, 'err');
@@ -1333,15 +1824,29 @@
             if (typeof window.__genesisReleaseLoader === 'function') window.__genesisReleaseLoader(safe);
         }
         criticalManager.onStart = () => { if (!window.__cplReady) loaderOverlay.classList.remove('hidden'); };
-        criticalManager.onProgress = (url, loaded, total) => { _bytes[url] = { loaded, total }; _refreshProgress(); };
+        criticalManager.onProgress = (url, loaded, total) => { _bytes[url] = { loaded, total }; _refreshProgress();
+            if (window.__GENESIS_P9_SCROLLWORLD !== false) {
+                const eng = document.getElementById('sl-engine');
+                if (eng) {
+                    let L = 0, T = 0;
+                    for (const k in _bytes) { L += _bytes[k].loaded; T += _bytes[k].total || _bytes[k].loaded; }
+                    const lp = T ? Math.round((L / T) * 100) : 0;
+                    eng.textContent = 'Genesis Engine booting — Resource Manager auditing GPU (' + lp + '% · ' + Object.keys(_bytes).length + ' assets)';
+                }
+            }
+        };
         criticalManager.onLoad = () => {
             _refreshProgress();
+            if (window.__GENESIS_P9_SCROLLWORLD !== false) {
+                const eng = document.getElementById('sl-engine');
+                if (eng) eng.textContent = '10 managers online · world governed · enter when ready';
+            }
             loaderPct.textContent = 'entering the library…';
-            hideLoader();
             window.__cplReady = true;
             Genesis.boot.criticalLoadedAt = performance.now();
             Genesis.boot.backstopReleased = !!window.__genesisBackstopReleased;
             Genesis.setStatus('critical load complete', 'ok');
+            if (typeof window.__genesisReleaseLoader === 'function') window.__genesisReleaseLoader('critical load complete');
             if (Genesis.boot.fallbackGroup) {
                 Genesis.boot.fallbackGroup.visible = false;
                 Genesis.boot.fallbackVisible = false;
@@ -1926,6 +2431,7 @@ bloomPass.radius = 0.7;
                 }
             }
         };
+        initGenesisManagers();
         function recreateDragControlsSafely() {
             if (typeof dragControls === 'undefined' || typeof draggables === 'undefined') return false;
             try {
@@ -1954,6 +2460,7 @@ bloomPass.radius = 0.7;
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
                 if (typeof renderer.resetState === 'function') renderer.resetState();
+                initGenesisManagers();
                 perf.apply();
                 genesisRenderSchedule.composerReady = false;
                 genesisRenderSchedule.shadowsReady = false;
@@ -3825,7 +4332,9 @@ bloomPass.radius = 0.7;
         // ========== SOULFEILD CITY BELOW THE LIBRARY ==========
         const cityGroup = new THREE.Group();
         scene.add(cityGroup);
-        
+        if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('city-core', cityGroup, { maxDistance: 260, autoSleep: false }); // city always near spawn; never auto-dispose
+        if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('city-core', cityGroup, { priority: 5, maxDistance: 260 });
+
         // Ground plane - large city floor
         const cityGroundGeo = new THREE.PlaneGeometry(200, 200);
         const cityGroundMat = new THREE.MeshStandardMaterial({ color: 0x080818, roughness: 0.8, metalness: 0.15, emissive: 0x040410, emissiveIntensity: 0.1 });
@@ -4062,6 +4571,7 @@ bloomPass.radius = 0.7;
                 parts.push(beacon);
             }
 
+            if (window.__GENESIS_COST_CONTRACT !== false) for (const p of parts) Genesis.declareCost(p, { cpu: 1, gpu: 2, memory: 0.5, updateFreq: 0, priority: 3, sector: 'city-core', sleep: 'distance' });
             buildings.push({ mesh: box, parts, x, z, type, h, w, d });
         }
         
@@ -4110,6 +4620,56 @@ bloomPass.radius = 0.7;
                 console.log('[CityPack] skinned ' + buildings.length + ' buildings with ' + pool.length + ' city textures');
             }, undefined, (e) => console.warn('[CityPack] load failed', e));
         })();
+
+        // ========== P7 CITY EXPANSION — OUTER-RING DISTRICTS (D-Phase, manager-governed) ==========
+        // Cheaper satellite rings far out. No new lights (billboards stay emissive+bloom). Lit only
+        // by ambient/directional/hemisphere + emissive materials. Governed by SectorManager (sleeps
+        // when far) + Visibility (frustum-culls when off-screen, low priority = wakes last).
+        if (window.__GENESIS_P7_CITY !== false) {
+            const outerCity = new THREE.Group();
+            outerCity.name = 'outerCity';
+            cityGroup.add(outerCity);
+
+            // Cheap-builder: routes through makeBuilding (cost already declared), then lowers the
+            // cost of every part so outer rings are cheaper and sleep by distance.
+            function makeCheapBuilding(x, z, type) {
+                const b = makeBuilding(x, z, type);
+                if (b && b.parts && window.__GENESIS_COST_CONTRACT !== false) {
+                    for (const p of b.parts) {
+                        Genesis.declareCost(p, { cpu: 0.5, gpu: 1, memory: 0.3, updateFreq: 0, priority: 1, sector: 'city-outer', sleep: 'distance' });
+                    }
+                }
+                return b;
+            }
+
+            // 2–3 sparser rings at radius 90–160, larger step, higher skip chance for performance.
+            const ringDefs = [
+                { r: 95, count: 28, skip: 0.45, types: ['Apartment', 'House'] },
+                { r: 125, count: 34, skip: 0.55, types: ['Apartment', 'House'] },
+                { r: 158, count: 40, skip: 0.65, types: ['House', 'Apartment'] }
+            ];
+            for (const ring of ringDefs) {
+                for (let i = 0; i < ring.count; i++) {
+                    if (Math.random() < ring.skip) continue;
+                    const ang = (Math.PI * 2 * i) / ring.count + Math.random() * 0.12;
+                    const rad = ring.r + (Math.random() - 0.5) * 12;
+                    const x = Math.cos(ang) * rad;
+                    const z = Math.sin(ang) * rad;
+                    // keep outer content out of the central library footprint
+                    if (Math.abs(x) < 38 && Math.abs(z) < 38) continue;
+                    const type = ring.types[Math.floor(Math.random() * ring.types.length)];
+                    makeCheapBuilding(x, z, type);
+                }
+            }
+
+            if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) {
+                Genesis.SectorManager.register('city-outer', outerCity, { maxDistance: 400, autoSleep: true });
+            }
+            if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) {
+                Genesis.Visibility.register('city-outer', outerCity, { priority: 2, maxDistance: 400 });
+            }
+            console.log('[P7] outer-ring districts spawned (' + outerCity.children.length + ' groups)');
+        }
 
         // Satellite districts
         function makeDistrict(cx, cz, name, accent, shapeBias) {
@@ -4247,6 +4807,8 @@ bloomPass.radius = 0.7;
             }, { once: true });
             video.addEventListener('error', () => console.warn('[Billboard] video failed:', vidUrl));
             fx.video = video; fx.videoUrl = vidUrl;
+            if (window.__GENESIS_VIDEO_MANAGER !== false && Genesis.VideoManager && Genesis.VideoManager.register) Genesis.VideoManager.register(video, plane, { owner: 'billboard', cost: 4 });
+            if (window.__GENESIS_COST_CONTRACT !== false && plane && plane.userData) Genesis.declareCost(plane, { cpu: 1, gpu: 3, memory: 4, updateFreq: 30, priority: 5, sector: 'city-core', sleep: 'offscreen' });
         }
         function makeBillboard(spot, idx) {
             const w = spot.w || 5.8;
@@ -4257,6 +4819,7 @@ bloomPass.radius = 0.7;
             group.rotation.y = spot.rot || 0;
             const accent = spot.accent || 0xff33aa;
             cityGroup.add(group);
+            if (window.__GENESIS_COST_CONTRACT !== false) Genesis.declareCost(group, { cpu: 0.5, gpu: 1.5, memory: 0.3, updateFreq: 1, priority: 4, sector: 'city-core', sleep: 'distance' });
 
             const neonMat = new THREE.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.9 });
             const darkMat = new THREE.MeshStandardMaterial({ color: 0x03040a, emissive: 0x010205, roughness: 0.75, metalness: 0.3 });
@@ -4523,10 +5086,16 @@ bloomPass.radius = 0.7;
                 else if (capEl) capEl.textContent = caption;
             }
             function maybeShowEnter() {
-                if (ready && enterBtn) enterBtn.classList.add('show');
+                const safeReady = !!window.__cplReady && (!!window.__genesisFirstFrameSeen || !!window.__genesisBackstopReleased);
+                if (safeReady && enterBtn) enterBtn.classList.add('show');
             }
             function finish() {
                 if (!loaderActive) return;
+                const safeReady = !!window.__cplReady && (!!window.__genesisFirstFrameSeen || !!window.__genesisBackstopReleased);
+                if (!safeReady) {
+                    if (capEl) capEl.textContent = 'World not yet safe — waiting for first visible frame…';
+                    return;
+                }
                 loaderActive = false;
                 if (el) el.classList.add('hidden');
                 // hand control to the player at the hub spawn (matches the npc camera)
@@ -4545,8 +5114,8 @@ bloomPass.radius = 0.7;
                 if (!el) return;
                 const io = document.getElementById('intro-overlay');
                 if (io) io.style.display = 'none';
-                // Hide the built-in opaque loader so the LIVE world shows through the scroll loader.
-                if (typeof loaderOverlay !== 'undefined' && loaderOverlay) loaderOverlay.classList.add('hidden');
+                // Black-screen protocol: NEVER hide the opaque survival loader here.
+                // Only __genesisReleaseLoader / criticalManager may release it after first visible frame.
                 loaderActive = true;
                 applyCamera();
                 setProgress();
@@ -4558,13 +5127,12 @@ bloomPass.radius = 0.7;
                 }, { passive: true });
                 if (enterBtn) enterBtn.addEventListener('click', finish);
                 window.addEventListener('keydown', (e) => { if (loaderActive && (e.key === 'Enter' || e.code === 'Enter')) finish(); });
-                // Readiness comes from the built-in loader (window.__cplReady), not by overwriting
-                // criticalManager.onLoad. Backstop in case the signal is missed.
-                setTimeout(() => { if (!ready) { ready = true; maybeShowEnter(); } }, 15000);
+                // Readiness comes from the built-in loader + first-frame/backstop only.
+                // Never force ready on a timer; that violates black-screen protocol.
             }
             function update(dt) {
                 if (!loaderActive) return;
-                if (window.__cplReady) { ready = true; maybeShowEnter(); }
+                if (window.__cplReady && (window.__genesisFirstFrameSeen || window.__genesisBackstopReleased)) { ready = true; maybeShowEnter(); }
                 if (t < 1) { t = Math.min(1, t + dt * 0.06); applyCamera(); setProgress(); }
                 maybeShowEnter();
             }
@@ -4650,6 +5218,7 @@ bloomPass.radius = 0.7;
                 sys.emitter = emitter;
                 emitter.position.set(0, 2.85, 0); // pyramid capstone apex
                 scene.add(emitter);
+                if (window.__GENESIS_COST_CONTRACT !== false) Genesis.declareCost(emitter, { cpu: 1, gpu: 4, memory: 1, updateFreq: 60, priority: 2, sector: 'city-core', sleep: 'distance' });
                 const br = new Q.BatchedParticleRenderer();
                 br.addSystem(sys);
                 scene.add(br);
@@ -5546,6 +6115,7 @@ bloomPass.radius = 0.7;
             const r = 5 + Math.random() * 25;
             cGroup.position.set(Math.cos(a) * r, 0.2, Math.sin(a) * r);
             cityGroup.add(cGroup);
+            if (window.__GENESIS_COST_CONTRACT !== false) Genesis.declareCost(cGroup, { cpu: 2, gpu: 1, memory: 0.4, updateFreq: 10, priority: 6, sector: 'realm-denizens', sleep: 'distance' });
             npcTalkTargets.push(cGroup);
             assignWalkerRig(cGroup, i % walkerRigUrls.length, talkData, body);
             const baseSpeed = 1 + Math.random() * 2;
@@ -10730,6 +11300,7 @@ bloomPass.radius = 0.7;
         // and the active chamber content is rebuilt deterministically on each entry. ESC returns to the hub.
         const chamberBase = new THREE.Vector3(0, -20000, 0);
         const chamberRoot = new THREE.Group();
+        if (window.__GENESIS_COST_CONTRACT !== false) Genesis.declareCost(chamberRoot, { cpu: 3, gpu: 4, memory: 2, updateFreq: 5, priority: 8, sector: 'chamber', sleep: 'idle' });
         chamberRoot.position.copy(chamberBase);
         scene.add(chamberRoot);
         const chamberClickTargets = [];
@@ -11163,6 +11734,11 @@ bloomPass.radius = 0.7;
             lastTime = now;
             time += dt;
             genesisRenderSchedule.update(now);
+            if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager && Genesis.SectorManager.tick) Genesis.SectorManager.tick();
+            if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility && Genesis.Visibility.tick) Genesis.Visibility.tick();
+            if (window.__GENESIS_ANIM_SCHEDULER !== false && Genesis.AnimationScheduler && Genesis.AnimationScheduler.tick) Genesis.AnimationScheduler.tick(dt);
+            if (window.__GENESIS_LIGHTING_MANAGER !== false && Genesis.LightingManager && Genesis.LightingManager.tick) Genesis.LightingManager.tick();
+            if (window.__GENESIS_STREAMING_MANAGER !== false && Genesis.StreamingManager && Genesis.StreamingManager.tick) Genesis.StreamingManager.tick();
             if (!Genesis.boot.firstFrameAt) {
                 Genesis.boot.firstFrameAt = now;
                 if (typeof window.__genesisMarkFirstFrame === 'function') window.__genesisMarkFirstFrame();
@@ -11183,6 +11759,16 @@ bloomPass.radius = 0.7;
             const skySectorActive = hubActive && Genesis.lifecycle.isSectorActive(skyLayer, { root: skyLayer, maxDistance: 560, sleepWhenFar: true });
             const heavenSectorActive = hubActive && Genesis.lifecycle.isSectorActive(heaven, { root: heaven, maxDistance: 420, sleepWhenFar: true });
             perf.sample(dt);
+            if (window.__GENESIS_PERFORMANCE_GOVERNOR !== false && Genesis.PerformanceGovernor && Genesis.PerformanceGovernor.sample) {
+                const _ri = (renderer && renderer.info) ? renderer.info : null;
+                Genesis.PerformanceGovernor.sample({
+                    frameMs: dt * 1000,
+                    calls: _ri && _ri.render ? _ri.render.calls : 0,
+                    geometries: _ri && _ri.memory ? _ri.memory.geometries : 0,
+                    textures: _ri && _ri.memory ? _ri.memory.textures : 0,
+                    videos: (Genesis.VideoManager && Genesis.VideoManager.activeCount) ? Genesis.VideoManager.activeCount() : 0
+                });
+            }
             
             _uiTick += dt;
             if (_uiTick >= 0.08) {
@@ -11534,8 +12120,17 @@ bloomPass.radius = 0.7;
             updatePlayerNPC(dt);
             if (cameraMode === 'orbit') controls.update();
             perf.beginGpu();
-            if (genesisRenderSchedule.composerReady) effectComposer.render();
-            else renderer.render(scene, camera);
+            try {
+                if (window.__GENESIS_RENDER_GRAPH !== false && Genesis.RenderGraph && Genesis.RenderGraph.compose && genesisRenderSchedule.composerReady) Genesis.RenderGraph.compose();
+                else if (genesisRenderSchedule.composerReady) effectComposer.render();
+                else renderer.render(scene, camera);
+            } catch (e) {
+                console.warn('[Genesis] render path failed', e);
+                if (typeof window.__genesisPushError === 'function') window.__genesisPushError('render path failed: ' + ((e && e.message) || e));
+                if (typeof showGenesisFailure === 'function') showGenesisFailure('Render path failed — survival mode active.');
+                if (typeof window.__genesisReleaseLoader === 'function') window.__genesisReleaseLoader('Render path failed — survival mode active.', { force: false });
+                try { renderer.render(scene, camera); } catch (_) {}
+            }
             perf.endGpu();
             perf.pollGpu();
             if (Genesis.recovery && typeof Genesis.recovery.noteFrame === 'function') Genesis.recovery.noteFrame();
@@ -11624,6 +12219,7 @@ bloomPass.radius = 0.7;
             <h1>THE LIVING LIBRARY</h1>
             <div class="sl-sub">GSK · SOUL PROTOCOL · ENTERING THE WORLD</div>
             <div class="sl-caption" id="sl-caption"></div>
+            <div class="sl-engine" id="sl-engine"></div>
             <div class="sl-hint">Scroll, or simply wait — your guided flight is <b>scrubbable</b>. The world streams in around you.</div>
             <button class="sl-enter" id="sl-enter">ENTER THE LIBRARY</button>
         </div>
