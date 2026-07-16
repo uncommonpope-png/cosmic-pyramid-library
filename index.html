@@ -1743,6 +1743,137 @@
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Performance Governor v2 module load skipped:', e && e.message); });
         })();
 
+        // ========== GENESIS ASSET PIPELINE (Phase A — subsystem #1) ==========
+        // Registry + validation + loader for CC0 premium assets. Routes every load
+        // through enqueueLazyAsset so ResourceManager + StreamingManager track it.
+        // Flag-gated by window.__GENESIS_ASSET_PIPELINE (default true; false => no-op).
+        // NOTE: even when the flag is true, until PremiumSlice builds nothing is added to
+        // the scene — AssetPipeline only loads what is explicitly registered.
+        window.__GENESIS_ASSET_PIPELINE = (typeof window.__GENESIS_ASSET_PIPELINE === 'boolean') ? window.__GENESIS_ASSET_PIPELINE : true;
+        (function () {
+            if (window.__GENESIS_ASSET_PIPELINE === false) {
+                Genesis.AssetPipeline = { registerAsset(){return false;}, validate(){return {ok:false,errors:['asset-pipeline-disabled']};}, load(){}, summary(){return {registered:0,loaded:0,byTier:{},byOwner:{},validationErrors:0};} };
+                return;
+            }
+            const _manifests = new Map();
+            const _loaded = new Map();
+            const _errors = {};
+            function _validate(manifest) {
+                const errs = [];
+                if (!manifest) { errs.push('manifest is required'); return { ok: false, errors: errs }; }
+                if (!manifest.id) errs.push('manifest.id is required');
+                if (!manifest.url) errs.push('manifest.url is required');
+                if (!manifest.provenance || !manifest.provenance.license || !manifest.provenance.source) {
+                    if (typeof console !== 'undefined') console.warn('[AssetPipeline] manifest "' + (manifest.id || '?') + '" missing license/source provenance — CC0 audit gap');
+                }
+                if (!manifest.cost) errs.push('manifest.cost is required');
+                return { ok: errs.length === 0, errors: errs };
+            }
+            function _registerAsset(manifest) {
+                if (!manifest || !manifest.id) { if (typeof console !== 'undefined') console.warn('[AssetPipeline] registerAsset ignored: missing id'); return false; }
+                _manifests.set(manifest.id, manifest);
+                const v = _validate(manifest);
+                if (!v.ok) _errors[manifest.id] = v.errors.join('; '); else delete _errors[manifest.id];
+                return true;
+            }
+            function _load(id, onLoad, onError) {
+                const manifest = _manifests.get(id);
+                if (!manifest) {
+                    const msg = 'unknown asset id: ' + id;
+                    if (typeof console !== 'undefined') console.warn('[AssetPipeline] ' + msg);
+                    if (typeof onError === 'function') onError(new Error(msg));
+                    return null;
+                }
+                try {
+                    enqueueLazyAsset(id, () => {
+                        const loader = makeGLTF({ tier: manifest.tier || 'decor', owner: manifest.owner || id });
+                        return loader.load(manifest.url, (obj) => {
+                            _loaded.set(id, obj);
+                            if (Genesis.ResourceManager && typeof Genesis.ResourceManager.track === 'function') { try { Genesis.ResourceManager.track(obj, manifest.owner || id, obj); } catch (e) {} }
+                            if (typeof onLoad === 'function') onLoad(obj);
+                        }, undefined, (err) => {
+                            _errors[id] = (err && err.message) ? err.message : String(err);
+                            if (typeof onError === 'function') onError(err);
+                        });
+                    }, manifest.tier || 'decor', { owner: manifest.owner || id, sector: manifest.sector });
+                } catch (err) {
+                    _errors[id] = (err && err.message) ? err.message : String(err);
+                    if (typeof onError === 'function') onError(err);
+                }
+                return null;
+            }
+            function _summary() {
+                const byTier = {}, byOwner = {};
+                for (const m of _manifests.values()) {
+                    const t = m.tier || 'decor'; byTier[t] = (byTier[t] || 0) + 1;
+                    const o = m.owner || 'unknown'; byOwner[o] = (byOwner[o] || 0) + 1;
+                }
+                return { registered: _manifests.size, loaded: _loaded.size, byTier, byOwner, validationErrors: Object.keys(_errors).length };
+            }
+            Genesis.AssetPipeline = { registerAsset: _registerAsset, validate: _validate, load: _load, summary: _summary };
+            import('./src/genesis/asset-pipeline.js').then((m) => {
+                if (!Genesis.AssetPipeline && typeof m.install === 'function') m.install(window.Genesis, THREE, renderer, camera, scene);
+                if (typeof console !== 'undefined') console.log('[Genesis] Asset Pipeline module validated (inline manager remains authoritative)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Asset Pipeline module load skipped:', e && e.message); });
+        })();
+
+        // ========== GENESIS PREMIUM SLICE (Phase A — subsystem #2) ==========
+        // Builds ONE premium street sector (procedural placeholders for where CC0
+        // GLBs drop in later). OFF by default so the live world is byte-identical.
+        // Flag-gated by window.__GENESIS_PREMIUM_SLICE (default FALSE; enable to build).
+        window.__GENESIS_PREMIUM_SLICE = (typeof window.__GENESIS_PREMIUM_SLICE === 'boolean') ? window.__GENESIS_PREMIUM_SLICE : false;
+        (function () {
+            if (window.__GENESIS_PREMIUM_SLICE === false) {
+                Genesis.PremiumSlice = { build(){return null;}, summary(){return {enabled:false,childCount:0,registeredWithSector:false,registeredWithVisibility:false,built:false};} };
+                return;
+            }
+            let _built = null;
+            function _build() {
+                if (_built) return _built;
+                if (typeof cityGroup === 'undefined' || !cityGroup) { if (typeof console !== 'undefined') console.warn('[PremiumSlice] cityGroup not ready; slice deferred'); return null; }
+                const root = new THREE.Group();
+                root.name = 'Premium Street Root';
+                const road = new THREE.Mesh(new THREE.PlaneGeometry(40, 8), new THREE.MeshStandardMaterial({ color: 0x14151c, roughness: 0.55, metalness: 0.35, emissive: 0x05060a, emissiveIntensity: 0.25 }));
+                road.name = 'Premium Street Road'; road.rotation.x = -Math.PI / 2; road.position.set(0, 0, 0); road.receiveShadow = true; road.userData.premiumSlice = 'street'; root.add(road);
+                const curbMat = new THREE.MeshStandardMaterial({ color: 0x2a2d3a, roughness: 0.7, metalness: 0.2 });
+                for (const z of [-4.1, 4.1]) {
+                    const curb = new THREE.Mesh(new THREE.BoxGeometry(40, 0.25, 0.3), curbMat);
+                    curb.name = 'Premium Street Curb ' + (z < 0 ? 'L' : 'R'); curb.position.set(0, 0.12, z); curb.castShadow = true; curb.receiveShadow = true; curb.userData.premiumSlice = 'street'; root.add(curb);
+                }
+                const lampMat = new THREE.MeshStandardMaterial({ color: 0x3a3f55, roughness: 0.5, metalness: 0.6, emissive: 0x111522, emissiveIntensity: 0.4 });
+                for (let i = -1; i <= 1; i++) {
+                    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 3.2, 8), lampMat);
+                    lamp.name = 'Premium Street Lamp ' + i; lamp.position.set(i * 14, 1.6, 4.6); lamp.castShadow = true; lamp.userData.premiumSlice = 'street'; root.add(lamp);
+                }
+                let buildingMat = null;
+                if (typeof getFacadeTexture === 'function') {
+                    const facadeTex = getFacadeTexture('tower', 0x223355, Math.floor(Math.random() * 4));
+                    if (facadeTex && facadeTex.isTexture) buildingMat = new THREE.MeshStandardMaterial({ map: facadeTex, roughness: 0.6, metalness: 0.3, emissive: 0x0a1430, emissiveIntensity: 0.35 });
+                }
+                if (!buildingMat) buildingMat = new THREE.MeshStandardMaterial({ color: 0x1b2030, roughness: 0.6, metalness: 0.4, emissive: 0x0a1430, emissiveIntensity: 0.35 });
+                const building = new THREE.Mesh(new THREE.BoxGeometry(10, 14, 8), buildingMat);
+                building.name = 'Premium Street Building'; building.position.set(0, 7, -10); building.castShadow = true; building.receiveShadow = true; building.userData.premiumSlice = 'street'; root.add(building);
+                root.userData.cost = { cpu: 2, gpu: 3, memory: 1, updateFreq: 0, priority: 6, sector: 'premium-street', sleep: 'distance' };
+                root.userData.premiumSlice = 'street';
+                cityGroup.add(root);
+                let regSector = false, regVis = false;
+                if (Genesis.SectorManager && typeof Genesis.SectorManager.register === 'function') { Genesis.SectorManager.register('premium-street', root, { maxDistance: 200, autoSleep: true }); regSector = true; }
+                if (Genesis.Visibility && typeof Genesis.Visibility.register === 'function') { Genesis.Visibility.register('premium-street', root, { priority: 6, maxDistance: 200 }); regVis = true; }
+                _built = { root, registeredWithSector: regSector, registeredWithVisibility: regVis };
+                if (typeof console !== 'undefined') console.log('[PremiumSlice] street sector built (childCount=' + root.children.length + ')');
+                return _built;
+            }
+            function _summary() {
+                if (!_built) return { enabled: true, childCount: 0, registeredWithSector: false, registeredWithVisibility: false, built: false };
+                return { enabled: true, childCount: _built.root.children.length, registeredWithSector: _built.registeredWithSector, registeredWithVisibility: _built.registeredWithVisibility, built: true };
+            }
+            Genesis.PremiumSlice = { build: _build, summary: _summary };
+            import('./src/genesis/premium-slice.js').then((m) => {
+                if (!Genesis.PremiumSlice && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene, cityGroup);
+                if (typeof console !== 'undefined') console.log('[Genesis] Premium Slice module validated (inline manager remains authoritative)');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Premium Slice module load skipped:', e && e.message); });
+        })();
+
         window.__GENESIS_VERTICAL_STACK = (typeof window.__GENESIS_VERTICAL_STACK === 'boolean') ? window.__GENESIS_VERTICAL_STACK : true;
         (function () {
             const STATES = Object.freeze({ UNLOADED: 'UNLOADED', LOADED: 'LOADED', ACTIVE: 'ACTIVE', SLEEPING: 'SLEEPING' });
@@ -4978,6 +5109,13 @@ bloomPass.radius = 0.7;
         scene.add(cityGroup);
         if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('city-core', cityGroup, { maxDistance: 260, autoSleep: false }); // city always near spawn; never auto-dispose
         if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('city-core', cityGroup, { priority: 5, maxDistance: 260 });
+
+        // ========== GENESIS PREMIUM SLICE — BUILD TRIGGER (Phase A) ==========
+        // cityGroup now exists. Only build the street when the slice flag is explicitly ON.
+        // When OFF (default) this line is a no-op and the live world is untouched.
+        if (window.__GENESIS_PREMIUM_SLICE === true && Genesis.PremiumSlice && typeof Genesis.PremiumSlice.build === 'function') {
+            try { Genesis.PremiumSlice.build(); } catch (e) { if (typeof console !== 'undefined') console.warn('[PremiumSlice] build failed:', e && e.message); }
+        }
 
         // Ground plane - large city floor
         const cityGroundGeo = new THREE.PlaneGeometry(200, 200);
