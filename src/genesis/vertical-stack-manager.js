@@ -54,6 +54,25 @@ export function createVerticalStackManager(ctx = {}) {
     return true;
   }
 
+  function getObjectStratumId(object) {
+    let node = object;
+    while (node) {
+      if (node.userData && node.userData.verticalStratumId) return node.userData.verticalStratumId;
+      node = node.parent;
+    }
+    return null;
+  }
+
+  function isSimulationActive(object) {
+    let node = object;
+    while (node) {
+      const data = node.userData;
+      if (data && data.verticalStratumId) return data.verticalState === STRATUM_STATES.ACTIVE && data.verticalSimulationActive === true;
+      node = node.parent;
+    }
+    return true;
+  }
+
   function applyState(record) {
     if (!record || !record.root) return;
     applyCount++;
@@ -287,6 +306,8 @@ export function createVerticalStackManager(ctx = {}) {
     registerConnector,
     getActive,
     getStratum,
+    getObjectStratumId,
+    isSimulationActive,
     transitionTo,
     setState,
     setExteriorVisible,
@@ -301,5 +322,7 @@ export function install(Genesis, _THREE = THREE, _camera, _scene) {
   if (!Genesis) return null;
   const manager = createVerticalStackManager({ scene: _scene });
   Genesis.VerticalStackManager = manager;
+  Genesis.isSimulationActive = manager.isSimulationActive;
+  Genesis.getObjectStratumId = manager.getObjectStratumId;
   return manager;
 }

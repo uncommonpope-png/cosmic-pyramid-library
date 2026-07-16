@@ -279,7 +279,7 @@ function isAllowedRequestFailure(entry) {
           coreExists: !!coreFloor,
           coreMaterialType: coreFloor?.material?.type || null
         },
-        underside: { exists: !!underside, worldY: underside ? underside.getWorldPosition(worldPosition).y : null, childCount: underside?.children.length || 0, visible: underside ? visibleInTree(underside) : false },
+        underside: { exists: !!underside, worldY: underside ? underside.getWorldPosition(worldPosition).y : null, childCount: underside?.children.length || 0, visible: underside ? visibleInTree(underside) : false, cost: underside?.userData?.cost ? { ...underside.userData.cost } : null },
         prototypeHeaven: { exists: !!prototypeHeaven, directSceneChild: prototypeHeaven?.parent === scene, visible: prototypeHeaven ? visibleInTree(prototypeHeaven) : false },
         legacyHeavens: {
           nestedName: legacyHeaven?.name || null,
@@ -290,6 +290,11 @@ function isAllowedRequestFailure(entry) {
         stack: summary,
         genesis: genesisSummary,
         diagnosticsFrozen: Object.isFrozen(window.__verticalStack) && !('manager' in window.__verticalStack) && Object.isFrozen(window.__verticalStack.test),
+        simulationApi: {
+          available: typeof window.Genesis.isSimulationActive === 'function' && typeof window.Genesis.VerticalStackManager.isSimulationActive === 'function',
+          ancestorSurfaceActive: !!citizen && window.Genesis.isSimulationActive(citizen),
+          legacyRootActive: window.Genesis.isSimulationActive({ userData: {}, parent: null })
+        },
         baselineVisible: {
           ground: !!ground && visibleInTree(ground), surfaceGrid: !!surfaceGrid && visibleInTree(surfaceGrid),
           car: !!car && visibleInTree(car), citizen: !!citizen && visibleInTree(citizen)
@@ -304,6 +309,34 @@ function isAllowedRequestFailure(entry) {
     const surfaceSystemsEnd = await page.evaluate(() => window.__verticalStack.sampleSurfaceSystems());
     const captureRenderGraphBefore = await page.evaluate(() => window.Genesis.RenderGraph.summary());
     const surfaceCapture = await captureCanvas('cpl-vertical-surface.png');
+    const surfaceParticleEvidence = await page.evaluate(() => {
+      let scenePoints = 0;
+      window.Genesis.scene.traverse((object) => { if (object.isPoints) scenePoints++; });
+      return { scenePoints, summary: window.Genesis.Diagnostics.summary() };
+    });
+    const surfaceDiagnostics = surfaceParticleEvidence.summary;
+    const diagnosticsPanelProof = await page.evaluate(() => {
+      const root = document.getElementById('genesis-pill');
+      const summary = document.getElementById('genesis-diagnostics-summary');
+      const requiredLabels = ['ACTIVE STRATUM', 'ACTIVE SECTOR(S)', 'DRAW CALLS', 'TRIANGLES', 'POINT LIGHTS', 'VIDEOS', 'MIXERS', 'PARTICLE SYSTEMS', 'TEXTURES', 'FRAME TIME', 'GPU TIME', 'RENDERER PATH'];
+      const beforeExpanded = root?.classList.contains('expanded') || false;
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backquote', key: '`', bubbles: true }));
+      const afterToggle = root?.classList.contains('expanded') || false;
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backquote', key: '`', bubbles: true }));
+      const restored = root?.classList.contains('expanded') || false;
+      return {
+        exists: !!root && !!summary,
+        shown: !!root && root.classList.contains('show') && getComputedStyle(root).opacity !== '0',
+        pinned: !!window.Genesis.ui.debugPinned,
+        beforeExpanded,
+        afterToggle,
+        restored,
+        labels: Object.fromEntries(requiredLabels.map((label) => [label, summary?.textContent.includes(label) || false])),
+        textOnly: !!summary && summary.childElementCount === 0,
+        diagnosticsFrozen: Object.isFrozen(window.Genesis.Diagnostics)
+      };
+    });
+    const mixerDoubleTickGuard = await page.evaluate(() => window.__verticalStack.test.exerciseMixerDoubleTickGuard());
 
     console.error('[probe] capture underside');
     const undersideCapture = await page.evaluate(() => {
@@ -343,9 +376,19 @@ function isAllowedRequestFailure(entry) {
     }));
     const sleepingActorsStart = await page.evaluate(() => window.__verticalStack.sampleSurfaceActors());
     const sleepingSystemsStart = await page.evaluate(() => window.__verticalStack.sampleSurfaceSystems());
+    const heavenSystemsStart = await page.evaluate(() => window.__verticalStack.sampleHeavenSystems());
     await page.waitForTimeout(900);
     const sleepingActorsEnd = await page.evaluate(() => window.__verticalStack.sampleSurfaceActors());
     const sleepingSystemsEnd = await page.evaluate(() => window.__verticalStack.sampleSurfaceSystems());
+    const heavenSystemsEnd = await page.evaluate(() => window.__verticalStack.sampleHeavenSystems());
+    const heavenSimulationOwnership = await page.evaluate(() => {
+      const citizen = window.Genesis.scene.getObjectByName('Surface Citizen 1');
+      const heavenChild = window.Genesis.scene.getObjectByName('Heaven Return Pad');
+      return {
+        surfaceChildActive: citizen ? window.Genesis.isSimulationActive(citizen) : null,
+        heavenChildActive: heavenChild ? window.Genesis.isSimulationActive(heavenChild) : null
+      };
+    });
     const hiddenPortalAttempt = await page.evaluate(() => window.__verticalStack.test.attemptSurfacePortal());
     const boundaryAttempt = await page.evaluate(() => window.__verticalStack.test.attemptHeavenBoundary(120, 0));
     const beaconCollisionAttempt = await page.evaluate(() => window.__verticalStack.test.attemptHeavenBoundary(0, -14));
@@ -354,6 +397,22 @@ function isAllowedRequestFailure(entry) {
     const heavenMovementContract = await page.evaluate(() => window.__verticalStack.movementContract());
     const heavenAfterSafety = await page.evaluate(() => ({ player: window.__verticalStack.playerState(), interaction: window.__verticalStack.interactionState() }));
     const heavenCapture = await captureCanvas('cpl-vertical-heaven.png');
+    const heavenParticleEvidence = await page.evaluate(() => {
+      let scenePoints = 0;
+      window.Genesis.scene.traverse((object) => { if (object.isPoints) scenePoints++; });
+      return { scenePoints, summary: window.Genesis.Diagnostics.summary() };
+    });
+    const heavenDiagnostics = heavenParticleEvidence.summary;
+    const verticalWakeGuard = await page.evaluate(() => {
+      const root = window.Genesis.scene.getObjectByName('outerCity');
+      const wakeResult = window.Genesis.SectorManager.wake('city-outer');
+      window.Genesis.Visibility.tick();
+      const sector = window.Genesis.SectorManager.summary()['city-outer'];
+      let visible = !!root;
+      let node = root;
+      while (node) { if (node.visible === false) visible = false; node = node.parent; }
+      return { wakeResult, visible, sector };
+    });
 
     console.error('[probe] connector transition surface');
     await page.evaluate(() => { window.__verticalConnectorReturnProbe = window.__verticalStack.test.activateConnector({ placeNear: true }); return true; });
@@ -361,9 +420,11 @@ function isAllowedRequestFailure(entry) {
     await page.waitForFunction(() => window.__verticalStack.getActive() === 'surface', null, { timeout: 10000 });
     const returnedActorsStart = await page.evaluate(() => window.__verticalStack.sampleSurfaceActors());
     const returnedSystemsStart = await page.evaluate(() => window.__verticalStack.sampleSurfaceSystems());
+    const returnedHeavenStart = await page.evaluate(() => window.__verticalStack.sampleHeavenSystems());
     await page.waitForTimeout(900);
     const returnedActorsEnd = await page.evaluate(() => window.__verticalStack.sampleSurfaceActors());
     const returnedSystemsEnd = await page.evaluate(() => window.__verticalStack.sampleSurfaceSystems());
+    const returnedHeavenEnd = await page.evaluate(() => window.__verticalStack.sampleHeavenSystems());
     const returnedState = await page.evaluate(() => ({
       summary: window.__verticalStack.summary(),
       player: window.__verticalStack.playerState(),
@@ -371,6 +432,12 @@ function isAllowedRequestFailure(entry) {
       engine: window.__genesisSummary()
     }));
     const returnedCapture = await captureCanvas('cpl-vertical-returned.png');
+    const returnedParticleEvidence = await page.evaluate(() => {
+      let scenePoints = 0;
+      window.Genesis.scene.traverse((object) => { if (object.isPoints) scenePoints++; });
+      return { scenePoints, summary: window.Genesis.Diagnostics.summary() };
+    });
+    const returnedDiagnostics = returnedParticleEvidence.summary;
     const captureRenderGraphAfter = await page.evaluate(() => window.Genesis.RenderGraph.summary());
 
     const consoleErrors = consoleMessages.filter((entry) => entry.type === 'error');
@@ -383,6 +450,20 @@ function isAllowedRequestFailure(entry) {
     const worldRequests = Object.values(baseline.genesis.streaming.requests).filter((request) => request.tier === 'world');
     const framebufferSignals = [surfaceCapture, undersideCapture, prewarmCapture, heavenCapture, returnedCapture];
     const tickKeys = ['billboards', 'videos', 'particles', 'physics', 'audio', 'legacyAngels', 'sky'];
+    const availableTickKeys = tickKeys.filter((key) => surfaceSystemsStart.available?.[key] !== false);
+    const unavailableTickKeys = tickKeys.filter((key) => surfaceSystemsStart.available?.[key] === false);
+    const phase0SurfaceTickKeys = ['billboards', 'videos', 'souls', 'legacyHeaven', 'sky', 'traffic', 'citizens', 'gskVisuals', 'runes', 'recentExtensions'];
+    const particleEvidenceTruthful = (evidence) => {
+      const particles = evidence?.summary?.particles;
+      if (!particles || particles.semantics !== 'THREE.Points Object3D systems + Quarks system') return false;
+      const numeric = [particles.active, particles.registered, particles.points?.active, particles.points?.registered];
+      if (!numeric.every((value) => Number.isInteger(value) && value >= 0)) return false;
+      if (particles.active > particles.registered || particles.points.active > particles.points.registered) return false;
+      if (particles.points.registered !== evidence.scenePoints) return false;
+      if (particles.registered !== particles.points.registered + (particles.quarks?.explicitlyCounted ? 1 : 0)) return false;
+      const totals = Object.values(particles.byStratum || {}).reduce((sum, counts) => ({ active: sum.active + counts.active, registered: sum.registered + counts.registered }), { active: 0, registered: 0 });
+      return totals.active === particles.active && totals.registered === particles.registered;
+    };
     const lifecycleForRole = (role, minimum) => {
       const initial = baseline.stack.strata.surface.roots.filter((entry) => entry.role === role);
       return initial.length >= minimum && initial.every((entry) => {
@@ -423,9 +504,11 @@ function isAllowedRequestFailure(entry) {
       heavyRoutesExplicitlyBlocked: blockedHeavyRoutes.length > 0 && ![...blockedByTestUrls].some((blockedUrl) => new URL(blockedUrl).pathname === allowedLocalGlbPath),
       oneLocalGlbAllowedAndServed: allowedLocalGlbResponses.length >= 1 && allowedLocalGlbResponses.every((response) => response.ok && response.status === 200),
       noMutableManagerDiagnostic: baseline.diagnosticsFrozen,
+      ancestorAwareSimulationApi: baseline.simulationApi.available && baseline.simulationApi.ancestorSurfaceActive && baseline.simulationApi.legacyRootActive && heavenSimulationOwnership.surfaceChildActive === false && heavenSimulationOwnership.heavenChildActive === true,
       finiteCoreGridPermitted: baseline.gridTruth.coreExists && baseline.gridTruth.corePlane && Math.abs(baseline.gridTruth.corePlane.normal[1]) > 0.95 && baseline.gridTruth.corePlane.y < 0 && baseline.gridTruth.corePlane.width === 600 && baseline.gridTruth.corePlane.height === 600 && baseline.gridTruth.coreMaterialType !== 'ShaderMaterial',
       noWorldSplittingGrid: baseline.gridTruth.namedInfiniteGrid.length === 0 && baseline.gridTruth.prohibitedPlanes.length === 0,
       undersideExistsBelowSurface: baseline.underside.exists && baseline.underside.worldY < 0 && baseline.underside.childCount >= 7,
+      undersideRemainsStaticSurfaceContent: baseline.underside.cost?.updateFreq === 0 && baseline.underside.cost?.sector === 'dark-city-underside',
       prototypeHeavenDirectSceneChild: baseline.prototypeHeaven.exists && baseline.prototypeHeaven.directSceneChild,
       duplicateHeavensNamedTruthfully: baseline.legacyHeavens.nestedType === 'legacy-surface-heaven' && baseline.legacyHeavens.directType === 'legacy-surface-heaven' && baseline.stack.strata.heaven.contentType === 'prototype-heaven',
       stackRegistered: baseline.stack.active === 'surface' && baseline.stack.strata.surface && baseline.stack.strata.heaven && baseline.stack.connectors.some((connector) => connector.id === 'surface-heaven'),
@@ -453,7 +536,11 @@ function isAllowedRequestFailure(entry) {
       gskLateRootLifecycle: lifecycleForRole('surface-gsk-body', 1) && lifecycleForRole('surface-gsk-memory', 1) && lifecycleForRole('surface-gsk-subagents', 1),
       lateRootsNamedTruthfully: baseline.stack.strata.surface.roots.filter((entry) => entry.role.startsWith('surface-') && ['surface-chamber-portal-ring','surface-god-world','surface-docking-ring','surface-docking-beacon','surface-portal-caretaker','surface-thought-stream','surface-realm-portal','surface-hub-atmosphere'].includes(entry.role)).every((entry) => entry.name.startsWith('Surface ')),
       surfaceInitiallyMoves: moved(surfaceActorsStart.car, surfaceActorsEnd.car),
-      surfaceSystemsInitiallyRun: ticksAdvanced(surfaceSystemsStart, surfaceSystemsEnd, tickKeys),
+      surfaceSystemsInitiallyRun: availableTickKeys.length > 0 && ticksAdvanced(surfaceSystemsStart, surfaceSystemsEnd, availableTickKeys),
+      unavailableSurfaceCountersStayTruthful: unavailableTickKeys.every((key) => Number(surfaceSystemsStart.ticks[key] || 0) === Number(surfaceSystemsEnd.ticks[key] || 0)),
+      phase0SurfaceSystemsAdvance: ticksAdvanced(surfaceSystemsStart, surfaceSystemsEnd, phase0SurfaceTickKeys),
+      surfaceMixersTickOnlyInScheduler: surfaceDiagnostics.mixers.registered > 0 && surfaceDiagnostics.mixers.activeThisTick > 0 && (surfaceDiagnostics.mixers.byStratum.surface?.active || 0) > 0,
+      mixerDoubleTickPrevented: mixerDoubleTickGuard.first === true && mixerDoubleTickGuard.second === false && mixerDoubleTickGuard.updates === 1 && mixerDoubleTickGuard.secondUpdateDelta === 0 && mixerDoubleTickGuard.doubleTickSkipDelta >= 1,
       representativeSurfaceValuesInitiallyMove: scalarMoved(surfaceSystemsStart.billboardSweepY, surfaceSystemsEnd.billboardSweepY) && scalarMoved(surfaceSystemsStart.legacyDirectHeavenCrownRotation, surfaceSystemsEnd.legacyDirectHeavenCrownRotation) && scalarMoved(surfaceSystemsStart.skyCloudY, surfaceSystemsEnd.skyCloudY),
       connectorProximityRejectsFarPlayer: farConnectorRejected === false && baseline.stack.active === 'surface',
       destinationPrewarmed: prewarm.transitioning && prewarm.active === 'surface' && prewarm.sourceVisible && prewarm.destinationState === 'LOADED' && prewarm.destinationVisible,
@@ -462,6 +549,10 @@ function isAllowedRequestFailure(entry) {
       allSurfaceRootsHiddenInHeaven: hiddenSurfaceRoots.length >= 10 && hiddenSurfaceRoots.every((rootEntry) => rootEntry.visible === false),
       legacyHeavensHiddenInHeaven: hiddenSurfaceRoots.filter((rootEntry) => rootEntry.role === 'legacy-surface-heaven').length >= 1 && hiddenSurfaceRoots.filter((rootEntry) => rootEntry.role === 'legacy-surface-heaven').every((rootEntry) => rootEntry.visible === false),
       surfaceSimulationSleeps: stopped(sleepingActorsStart.car, sleepingActorsEnd.car) && stopped(sleepingActorsStart.citizen, sleepingActorsEnd.citizen) && ticksStopped(sleepingSystemsStart, sleepingSystemsEnd, tickKeys),
+      allPhase0SurfaceSystemsSleep: ticksStopped(sleepingSystemsStart, sleepingSystemsEnd, phase0SurfaceTickKeys),
+      heavenSystemsAdvanceInHeaven: ticksAdvanced(heavenSystemsStart, heavenSystemsEnd, ['prototype']) && scalarMoved(heavenSystemsStart.ringRotation, heavenSystemsEnd.ringRotation) && scalarMoved(heavenSystemsStart.beaconRotation, heavenSystemsEnd.beaconRotation),
+      surfaceMixersZeroActiveInHeaven: heavenDiagnostics.mixers.registered > 0 && heavenDiagnostics.mixers.activeThisTick === 0 && (heavenDiagnostics.mixers.byStratum.surface?.active || 0) === 0 && (heavenDiagnostics.mixers.byStratum.surface?.sleeping || 0) > 0,
+      sectorAndVisibilityCannotWakeVerticalSleep: verticalWakeGuard.wakeResult === false && verticalWakeGuard.visible === false && verticalWakeGuard.sector.state === 'asleep' && verticalWakeGuard.sector.simulationActive === false,
       representativeSurfaceValuesSleep: scalarStopped(sleepingSystemsStart.billboardSweepY, sleepingSystemsEnd.billboardSweepY) && scalarStopped(sleepingSystemsStart.legacyDirectHeavenCrownRotation, sleepingSystemsEnd.legacyDirectHeavenCrownRotation) && scalarStopped(sleepingSystemsStart.skyCloudY, sleepingSystemsEnd.skyCloudY),
       videosPausedInHeaven: sleepingSystemsEnd.activeVideos === 0,
       hiddenSurfacePortalRejected: heavenState.interaction.surfacePortalVisible === false && heavenState.interaction.surfacePortalEligible === false && hiddenPortalAttempt.accepted === false && hiddenPortalAttempt.inside === false,
@@ -473,7 +564,17 @@ function isAllowedRequestFailure(entry) {
       heavenTowerCollisionPushesOut: towerCollisionAttempt.applied && towerCollisionAttempt.category === 'tower' && towerCollisionAttempt.pushedOut && towerCollisionAttempt.floorY > 600,
       sectorSleepsOutOfRange: heavenState.engine.sectors['city-outer'].state === 'asleep' && heavenState.engine.visibility['city-outer'].inRange === false,
       sectorWakesFromInvisible: returnedState.engine.sectors['city-outer'].state === 'active' && returnedState.engine.visibility['city-outer'].inRange === true && returnedState.engine.visibility['city-outer'].visible === true,
-      surfaceSimulationResumes: moved(returnedActorsStart.car, returnedActorsEnd.car) && ticksAdvanced(returnedSystemsStart, returnedSystemsEnd, tickKeys),
+      surfaceSimulationResumes: moved(returnedActorsStart.car, returnedActorsEnd.car) && ticksAdvanced(returnedSystemsStart, returnedSystemsEnd, availableTickKeys),
+      phase0SurfaceSystemsResume: ticksAdvanced(returnedSystemsStart, returnedSystemsEnd, phase0SurfaceTickKeys),
+      heavenSystemsStopOnSurfaceReturn: ticksStopped(returnedHeavenStart, returnedHeavenEnd, ['prototype']) && scalarStopped(returnedHeavenStart.ringRotation, returnedHeavenEnd.ringRotation) && scalarStopped(returnedHeavenStart.beaconRotation, returnedHeavenEnd.beaconRotation),
+      surfaceMixersResumeThroughScheduler: returnedDiagnostics.mixers.activeThisTick > 0 && (returnedDiagnostics.mixers.byStratum.surface?.active || 0) > 0,
+      diagnosticsStateMachineTruthful: surfaceDiagnostics.activeStratum === 'surface' && heavenDiagnostics.activeStratum === 'heaven' && returnedDiagnostics.activeStratum === 'surface' && surfaceDiagnostics.activeSectors.length > 0 && heavenDiagnostics.activeSectors.includes('heaven-prototype') && returnedDiagnostics.activeSectors.length > 0,
+      diagnosticsMetricsPresent: [surfaceDiagnostics, heavenDiagnostics, returnedDiagnostics].every((d) => Number.isFinite(d.drawCalls) && Number.isFinite(d.triangles) && Number.isFinite(d.pointLights.active) && Number.isFinite(d.pointLights.registered) && Number.isFinite(d.videos.active) && Number.isFinite(d.videos.registered) && Number.isFinite(d.mixers.activeThisTick) && Number.isFinite(d.mixers.registered) && Number.isFinite(d.mixers.pausedThisTick) && Number.isFinite(d.particles.active) && Number.isFinite(d.particles.registered) && Number.isFinite(d.textures) && Number.isFinite(d.frameTimeMs) && Object.prototype.hasOwnProperty.call(d, 'gpuTimeMs') && typeof d.rendererPath === 'string'),
+      particleDiagnosticsUseRuntimeEvidence: [surfaceParticleEvidence, heavenParticleEvidence, returnedParticleEvidence].every(particleEvidenceTruthful),
+      particleDiagnosticsSleepWithStratum: surfaceDiagnostics.particles.active > heavenDiagnostics.particles.active && returnedDiagnostics.particles.active > heavenDiagnostics.particles.active && (heavenDiagnostics.particles.byStratum.surface?.active || 0) === 0 && ((heavenDiagnostics.particles.byStratum.surface?.registered || 0) !== heavenDiagnostics.particles.registered || heavenDiagnostics.particles.active === 0),
+      diagnosticsPanelPinnedAndToggleable: diagnosticsPanelProof.exists && diagnosticsPanelProof.shown && diagnosticsPanelProof.pinned && diagnosticsPanelProof.beforeExpanded && diagnosticsPanelProof.afterToggle !== diagnosticsPanelProof.beforeExpanded && diagnosticsPanelProof.restored === diagnosticsPanelProof.beforeExpanded && diagnosticsPanelProof.textOnly && diagnosticsPanelProof.diagnosticsFrozen && Object.values(diagnosticsPanelProof.labels).every(Boolean),
+      drawCallsChangeAcrossStrata: surfaceDiagnostics.drawCalls > 0 && heavenDiagnostics.drawCalls > 0 && surfaceDiagnostics.drawCalls !== heavenDiagnostics.drawCalls,
+      diagnosticsRendererPathProven: [surfaceDiagnostics, heavenDiagnostics, returnedDiagnostics].every((d) => d.rendererPath === 'composer'),
       representativeSurfaceValuesResume: scalarMoved(returnedSystemsStart.billboardSweepY, returnedSystemsEnd.billboardSweepY) && scalarMoved(returnedSystemsStart.legacyDirectHeavenCrownRotation, returnedSystemsEnd.legacyDirectHeavenCrownRotation) && scalarMoved(returnedSystemsStart.skyCloudY, returnedSystemsEnd.skyCloudY),
       surfaceRootsResume: surfaceRootsPreserved,
       returnedSafelyThroughConnector: returnedState.summary.active === 'surface' && returnedState.player.floorY < 1 && returnedState.player.cameraTarget[1] < 4 && returnedState.player.grounded && !returnedState.player.flying

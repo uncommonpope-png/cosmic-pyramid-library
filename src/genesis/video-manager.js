@@ -8,16 +8,15 @@ import * as THREE from 'three';
 export function createVideoManager(ctx) {
   const { Genesis } = ctx;
   const entries = new Map(); // videoEl -> { plane, meta, active }
-  let activeCount = 0;
 
   function register(videoEl, plane, meta = {}) {
     if (!videoEl) return;
-    entries.set(videoEl, { plane, meta, active: true });
-    activeCount = entries.size;
+    entries.set(videoEl, { plane, meta, active: !videoEl.paused });
   }
-  function unregister(videoEl) { if (entries.delete(videoEl)) activeCount = entries.size; }
+  function unregister(videoEl) { return entries.delete(videoEl); }
+  function setActive(videoEl, active) { const record = entries.get(videoEl); if (record) record.active = !!active; }
 
-  function count() { return entries.size; }
+  function count() { let active = 0; for (const [video, record] of entries) if (record.active && !video.paused) active++; return active; }
 
   // Pause videos beyond maxActive (keep first maxActive registered; pause rest).
   function capCheck(maxActive) {
@@ -35,9 +34,9 @@ export function createVideoManager(ctx) {
     // cheap bookkeeping; cap enforced on demand by Governor
   }
 
-  function summary() { return { registered: entries.size, active: activeCount }; }
+  function summary() { return { registered: entries.size, active: count() }; }
 
-  return { register, unregister, activeCount: count, capCheck, tick, summary };
+  return { register, unregister, setActive, activeCount: count, capCheck, tick, summary };
 }
 
 export function install(Genesis, THREE, _camera, _scene) {
@@ -46,6 +45,7 @@ export function install(Genesis, THREE, _camera, _scene) {
   Genesis.VideoManager = Object.assign(Genesis.VideoManager || {}, {
     register(v, p, meta) { return mgr.register(v, p, meta); },
     unregister(v) { return mgr.unregister(v); },
+    setActive(v, active) { return mgr.setActive(v, active); },
     activeCount() { return mgr.activeCount(); },
     capCheck(max) { return mgr.capCheck(max); },
     tick() { return mgr.tick(); },

@@ -1,80 +1,145 @@
-// Genesis Engine — Animation Scheduler (Phase B7)
-// Registers AnimationMixers with metadata and ticks ONLY the active ones
-// (in-range, awake via SectorManager, visible via Visibility). Far mixers pause.
-//
-// Reversible: this module only supplies createAnimationScheduler + install.
-// The inline mirror decides whether to use it; flag off => no-op stubs.
+// Genesis Engine — Animation Scheduler (Phase B7 / Genesis Phase 0)
+// Single owner for every registered AnimationMixer. Vertical state, visibility,
+// distance, optional pausing, and same-frame duplicate ticks are enforced here.
 import * as THREE from 'three';
 
 export function createAnimationScheduler(ctx) {
   const { Genesis, camera } = ctx;
-  const mixers = new Map(); // mixer -> meta
+  const mixers = new Map();
+  const position = new THREE.Vector3();
   let optionalPaused = false;
+  let activeThisTick = 0;
+  let sleepingThisTick = 0;
+  let optionalPausedThisTick = 0;
+  let updates = 0;
+  let tickCount = 0;
+  let doubleTickSkips = 0;
+  let lastTickToken = null;
+
+  function stratumId(root) {
+    let node = root;
+    while (node) {
+      if (node.userData && node.userData.verticalStratumId) return node.userData.verticalStratumId;
+      node = node.parent;
+    }
+    return 'legacy';
+  }
 
   function registerMixer(mixer, meta = {}) {
-    if (!mixer) return;
-    mixers.set(mixer, {
-      root: meta.root || (mixer.getRoot ? mixer.getRoot() : null),
-      maxDistance: meta.maxDistance || 180,
-      owner: meta.owner || 'unknown',
-      critical: !!meta.critical,
-      optional: !!meta.optional
-    });
+    if (!mixer) return mixer;
+    const previous = mixers.get(mixer) || {};
+    mixers.set(mixer, Object.assign(previous, {
+      root: meta.root || previous.root || (mixer.getRoot ? mixer.getRoot() : null),
+      maxDistance: meta.maxDistance || previous.maxDistance || 180,
+      owner: meta.owner || previous.owner || 'unknown',
+      critical: meta.critical != null ? !!meta.critical : !!previous.critical,
+      optional: meta.optional != null ? !!meta.optional : !!previous.optional,
+      tickState: previous.tickState || 'registered'
+    }));
+    return mixer;
   }
-  function deregisterMixer(mixer) { mixers.delete(mixer); }
+
+  function deregisterMixer(mixer) { return mixers.delete(mixer); }
 
   function isActive(root, meta) {
     if (!root) return true;
-    // visibility gate
-    if (Genesis.Visibility && Genesis.Visibility.isVisible) {
-      // Visibility keys by id; we approximate: visible unless explicitly hidden
-    }
-    // sector gate (reuse lifecycle helper if present)
+    if (Genesis.isSimulationActive && !Genesis.isSimulationActive(root)) return false;
     if (Genesis.lifecycle && typeof Genesis.lifecycle.isSectorActive === 'function') {
       if (!Genesis.lifecycle.isSectorActive(root, { root, maxDistance: meta.maxDistance, sleepWhenFar: true, allowWhenHidden: !!meta.critical })) return false;
     } else if (camera && root.parent) {
       root.updateWorldMatrix(true, false);
-      const p = new THREE.Vector3().setFromMatrixPosition(root.matrixWorld);
-      if (camera.position.distanceToSquared(p) > meta.maxDistance * meta.maxDistance) return false;
+      position.setFromMatrixPosition(root.matrixWorld);
+      if (camera.position.distanceToSquared(position) > meta.maxDistance * meta.maxDistance) return false;
     }
     return true;
   }
 
-  function tick(dt) {
-    for (const [mixer, meta] of mixers) {
-      if (meta.optional && optionalPaused) { mixer.time = mixer.time; continue; }
-      if (!isActive(meta.root, meta)) { continue; } // paused (not updated)
-      if (Genesis.lifecycle && typeof Genesis.lifecycle.updateMixer === 'function') {
-        try { Genesis.lifecycle.updateMixer(mixer, dt, { root: meta.root, maxDistance: meta.maxDistance, owner: meta.owner, critical: meta.critical }); continue; } catch (e) {}
-      }
-      try { mixer.update(dt); } catch (e) {}
+  function tick(dt, frameToken) {
+    if (frameToken != null && frameToken === lastTickToken) {
+      doubleTickSkips++;
+      return false;
     }
+    if (frameToken != null) lastTickToken = frameToken;
+    tickCount++;
+    activeThisTick = 0;
+    sleepingThisTick = 0;
+    optionalPausedThisTick = 0;
+    for (const [mixer, meta] of mixers) {
+      if (meta.optional && optionalPaused) {
+        meta.tickState = 'optional-paused';
+        optionalPausedThisTick++;
+        continue;
+      }
+      if (!isActive(meta.root, meta)) {
+        meta.tickState = 'sleeping';
+        sleepingThisTick++;
+        continue;
+      }
+      try {
+        mixer.update(dt);
+        meta.tickState = 'active';
+        activeThisTick++;
+        updates++;
+      } catch (_) {
+        meta.tickState = 'error';
+        sleepingThisTick++;
+      }
+    }
+    return true;
   }
 
-  function setOptionalPaused(v) { optionalPaused = !!v; }
-  function sweepAndRegister() {
-    // Best-effort: find realm._assetMixers arrays in the scene graph the inline
-    // block hands us, and register them. Keeps behaviour reversible: scheduler
-    // observes existing mixers rather than duplicating creation sites.
-    const seen = new Set();
-    for (const [, meta] of mixers) seen.add(meta);
-    return mixers.size;
+  function setOptionalPaused(value) { optionalPaused = !!value; }
+  function sweepAndRegister() { return mixers.size; }
+
+  function summary() {
+    const byOwner = {};
+    const byStratum = {};
+    for (const meta of mixers.values()) {
+      const owner = meta.owner || 'unknown';
+      const stratum = stratumId(meta.root);
+      const ownerCounts = byOwner[owner] || (byOwner[owner] = { registered: 0, active: 0, sleeping: 0, optionalPaused: 0 });
+      const stratumCounts = byStratum[stratum] || (byStratum[stratum] = { registered: 0, active: 0, sleeping: 0, optionalPaused: 0 });
+      ownerCounts.registered++;
+      stratumCounts.registered++;
+      if (meta.tickState === 'active') {
+        ownerCounts.active++;
+        stratumCounts.active++;
+      } else if (meta.tickState === 'optional-paused') {
+        ownerCounts.optionalPaused++;
+        stratumCounts.optionalPaused++;
+      } else {
+        ownerCounts.sleeping++;
+        stratumCounts.sleeping++;
+      }
+    }
+    return {
+      registered: mixers.size,
+      activeThisTick,
+      sleepingThisTick,
+      optionalPausedThisTick,
+      pausedThisTick: sleepingThisTick + optionalPausedThisTick,
+      optionalPaused,
+      tickCount,
+      doubleTickSkips,
+      updates,
+      byOwner,
+      byStratum
+    };
   }
-  function summary() { return { registered: mixers.size, optionalPaused }; }
 
   return { registerMixer, deregisterMixer, tick, setOptionalPaused, sweepAndRegister, summary };
 }
 
-export function install(Genesis, THREE, camera, _scene) {
+export function install(Genesis, _THREE, camera, _scene) {
   if (!Genesis) return false;
-  const mgr = createAnimationScheduler({ Genesis, camera });
+  const manager = createAnimationScheduler({ Genesis, camera });
   Genesis.AnimationScheduler = Object.assign(Genesis.AnimationScheduler || {}, {
-    registerMixer(m, meta) { return mgr.registerMixer(m, meta); },
-    deregisterMixer(m) { return mgr.deregisterMixer(m); },
-    tick(dt) { return mgr.tick(dt); },
-    setOptionalPaused(v) { return mgr.setOptionalPaused(v); },
-    sweepAndRegister() { return mgr.sweepAndRegister(); },
-    summary() { return mgr.summary(); }
+    registerMixer(mixer, meta) { return manager.registerMixer(mixer, meta); },
+    deregisterMixer(mixer) { return manager.deregisterMixer(mixer); },
+    tick(dt, frameToken) { return manager.tick(dt, frameToken); },
+    setOptionalPaused(value) { return manager.setOptionalPaused(value); },
+    sweepAndRegister() { return manager.sweepAndRegister(); },
+    summary() { return manager.summary(); }
   });
   return true;
 }

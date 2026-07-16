@@ -5,7 +5,7 @@
 
 import * as THREE from 'three';
 
-export function createVisibilitySystem(THREE, camera, SectorManager) {
+export function createVisibilitySystem(THREE, camera, SectorManager, Genesis = null) {
   const entries = new Map(); // id -> { root, priority, maxDistance, visible }
   const _frustum = new THREE.Frustum();
   const _projScreen = new THREE.Matrix4();
@@ -75,7 +75,17 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
     _prepareFrustum();
     for (const [id, e] of entries) {
       const stateOwned = e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner);
-      e.managedExternally = stateOwned;
+      const verticalOwner = Genesis && Genesis.getObjectStratumId ? Genesis.getObjectStratumId(e.root) : null;
+      const simulationActive = !Genesis || !Genesis.isSimulationActive || Genesis.isSimulationActive(e.root);
+      e.managedExternally = stateOwned || !!verticalOwner;
+      e.simulationActive = simulationActive;
+      if (verticalOwner && !simulationActive) {
+        e.visible = _visibleInTree(e.root);
+        e.inRange = false;
+        e.inFrustum = false;
+        e.metricKind = 'root-origin-point';
+        continue;
+      }
       _measure(e, stateOwned);
       if (stateOwned) {
         e.visible = _visibleInTree(e.root);
@@ -105,6 +115,8 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
       priority: e.priority,
       stateOwned: e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner),
       managedExternally: e.managedExternally,
+      verticalOwner: Genesis && Genesis.getObjectStratumId ? Genesis.getObjectStratumId(e.root) : null,
+      simulationActive: e.simulationActive !== false,
       metricKind: e.metricKind,
       distanceMetric: 'root-origin',
       owner: e.owner
@@ -117,7 +129,7 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
 
 export function install(Genesis, THREE, camera, SectorManager) {
   if (!Genesis) return null;
-  const mgr = createVisibilitySystem(THREE, camera, SectorManager);
+  const mgr = createVisibilitySystem(THREE, camera, SectorManager, Genesis);
   Genesis.Visibility = mgr;
   return mgr;
 }
