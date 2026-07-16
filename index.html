@@ -2236,8 +2236,10 @@ renderer.toneMappingExposure = 0.75;
                 varying vec3 vWorld;
                 uniform float uDistance;
                 void main() {
+                    // Mesh is pinned to controls.target every frame (see __genesisFrameCb below),
+                    // so we only need the local quad scaled out to uDistance. Adding cameraPosition
+                    // here too double-offset the plane and sliced the world in half — removed.
                     vec3 pos = position.xzy * uDistance;
-                    pos.xz += cameraPosition.xz;
                     vWorld = pos;
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
                 }
@@ -4869,15 +4871,26 @@ bloomPass.radius = 0.7;
             19: 'assets/billboards/billboard-02.mp4',
             20: 'assets/billboards/billboard-03.mp4'
         };
-        // Craig (2026-07-16): poster stills are YOUR DayZ art from ChatGPT, not generic JPGs.
+        // Craig (2026-07-16): poster stills are YOUR art from ChatGPT (DayZ set + the Downloads stash
+        // he pointed me to). Copied into assets/downloads-art/ so the boards show REAL pics, not junk JPGs.
         const DAYZ_POSTERS = [
             'assets/recent/dayz/dayz zz.png', 'assets/recent/dayz/dayz 3.png', 'assets/recent/dayz/dayz 6.png',
             'assets/recent/dayz/dayz 66.png', 'assets/recent/dayz/dayz 6666.png', 'assets/recent/dayz/dayz cc.png',
             'assets/recent/dayz/dayz ss.png', 'assets/recent/dayz/dayz x.png', 'assets/recent/dayz/dayz.png',
-            'assets/recent/dayz/pink dayz.jpg', 'assets/recent/dayz/dayz zz.png', 'assets/recent/dayz/dayz 3.png',
-            'assets/recent/dayz/dayz 6.png', 'assets/recent/dayz/dayz 66.png', 'assets/recent/dayz/dayz 6666.png',
-            'assets/recent/dayz/dayz cc.png', 'assets/recent/dayz/dayz ss.png', 'assets/recent/dayz/dayz x.png',
-            'assets/recent/dayz/dayz.png', 'assets/recent/dayz/pink dayz.jpg', 'assets/recent/dayz/dayz zz.png'
+            'assets/recent/dayz/pink dayz.jpg',
+            'assets/downloads-art/brasi.png', 'assets/downloads-art/plt_the_complete_doctrine.png',
+            'assets/downloads-art/the_build.png', 'assets/downloads-art/the_frequency.png', 'assets/downloads-art/the_soul_economy.png',
+            'assets/downloads-art/for_allie_1.png', 'assets/downloads-art/for_allie_k.png', 'assets/downloads-art/for_allie_kk.png',
+            'assets/downloads-art/for_allie_vw.png', 'assets/downloads-art/for_allie3.png', 'assets/downloads-art/for_allie8.png',
+            'assets/downloads-art/download__1_.png', 'assets/downloads-art/download__2_.png', 'assets/downloads-art/download__3_.png',
+            'assets/downloads-art/download__4_.png', 'assets/downloads-art/download__5_.png', 'assets/downloads-art/download__7_.png',
+            'assets/downloads-art/download__8_.png', 'assets/downloads-art/download__9_.png',
+            'assets/downloads-art/ChatGPT_Image_Jun_21__2026__06_04_03_PM__1_.png',
+            'assets/downloads-art/ChatGPT_Image_Jun_21__2026__06_31_42_PM.png',
+            'assets/downloads-art/ChatGPT_Image_Jun_21__2026__07_14_34_PM.png',
+            'assets/downloads-art/ChatGPT_Image_Jun_21__2026__08_02_39_PM.png',
+            'assets/downloads-art/ChatGPT_Image_Jun_22__2026__10_28_35_PM.png',
+            'assets/downloads-art/Generated_Image_May_21__2026_-_6_32PM.png'
         ];
         const billboardSpots = [
             { x: -28, z: -43, rot: 0, accent: 0xff33aa },
@@ -5512,6 +5525,13 @@ bloomPass.radius = 0.7;
         ];
         const _carLoader = makeGLTF({ tier: 'world', owner: 'neon-car' });
         // Immediate emissive box placeholders keep the lanes lit before GLBs arrive.
+        // Craig (2026-07-16): cars drove SIDEWAYS + sat ON TOP of each other.
+        //  - Sideways: placeholder body is long in X (1.4). For axis==='x' travel the body
+        //    already points along X -> NO rotation. For axis==='z' travel we rotate Y 90deg
+        //    so the X-long body points down +Z. (Old code had this inverted.)
+        //  - Stacking: snap lanes to a fixed 14u grid and stagger spawn offset (p) per car
+        //    so no two share the same spot.
+        const _laneSlots = [-70, -56, -42, -28, -14, 0, 14, 28, 42, 56, 70];
         for (let i = 0; i < 28; i++) {
             const carGroup = new THREE.Group();
             const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 0.75), new THREE.MeshStandardMaterial({
@@ -5523,11 +5543,11 @@ bloomPass.radius = 0.7;
             }));
             cabin.position.y = 0.33;
             carGroup.add(cabin);
-            const lane = (Math.floor(Math.random() * 11) - 5) * 14;
-            const axis = Math.random() < 0.5 ? 'x' : 'z';
-            const p = -80 + Math.random() * 160;
+            const lane = _laneSlots[i % _laneSlots.length]; // fixed, non-overlapping lane
+            const axis = (i % 2 === 0) ? 'x' : 'z';
+            const p = -80 + ((i * 37) % 160); // staggered so cars don't share a point
             carGroup.position.set(axis === 'x' ? p : lane, 0.35, axis === 'x' ? lane : p);
-            carGroup.rotation.y = axis === 'x' ? Math.PI / 2 : 0;
+            carGroup.rotation.y = axis === 'x' ? 0 : Math.PI / 2; // FIX: x-travel -> 0, z-travel -> 90
             cityGroup.add(carGroup);
             const baseSpeed = 6 + Math.random() * 7;
             cars.push({ group: carGroup, axis, lane, baseSpeed, speed: baseSpeed, dir: Math.random() < 0.5 ? -1 : 1, _boxBody: body });
@@ -6237,9 +6257,14 @@ bloomPass.radius = 0.7;
                 if (placeholder && placeholder.parent === group) group.remove(placeholder);
                 const clone = cloneSkeleton(rig.scene);
                 clone.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
-                const box = new THREE.Box3().setFromObject(clone);
-                const sizeV = new THREE.Vector3(); box.getSize(sizeV);
-                const s = NPC_SIZE_REF / (sizeV.y || 1.8);
+                // Craig (2026-07-16): walkers rendered GIANT. Root cause: measuring a freshly
+                // cloned skinned rig returns a degenerate (too-short) bounding box, so s = 1.7/h
+                // ballooned. Measure the SOURCE rig instead, and clamp so a bad measure can't
+                // blow the NPC up. Target standing height = NPC_SIZE_REF (1.7u).
+                const srcBox = new THREE.Box3().setFromObject(rig.scene);
+                const srcSize = new THREE.Vector3(); srcBox.getSize(srcSize);
+                let s = NPC_SIZE_REF / (srcSize.y || 1.8);
+                s = Math.max(0.4, Math.min(2.2, s)); // sane clamp: humanoid, never giant
                 clone.scale.setScalar(s);
                 const box2 = new THREE.Box3().setFromObject(clone);
                 clone.position.y -= box2.min.y; // feet on the ground
