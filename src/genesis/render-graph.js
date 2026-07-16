@@ -12,10 +12,16 @@ export function createRenderGraph(ctx) {
   let resolutionScale = 1.0;
   let appliedDPR = renderer && renderer.getPixelRatio ? renderer.getPixelRatio() : 1;
   let lastResizeAt = 0;
+  let lastPath = 'failed';
+  let lastError = null;
+  let composeCount = 0;
+  let fallbackCount = 0;
+  let lastRenderedAt = 0;
   const baseDPR = (typeof basePixelRatio === 'number' && basePixelRatio > 0) ? basePixelRatio : 1;
   const MIN_SCALE = 0.5, MAX_SCALE = 1.0;
   const RESIZE_INTERVAL_MS = 1000;
   const DPR_EPSILON = 0.03;
+  const now = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
 
   function addPass(pass, meta = {}) {
     if (!pass) return;
@@ -39,12 +45,44 @@ export function createRenderGraph(ctx) {
     return appliedDPR;
   }
   function compose() {
-    if (effectComposer && typeof effectComposer.render === 'function') { try { effectComposer.render(); return true; } catch (e) {} }
-    try { renderer.render(scene || renderer.__genesisScene, camera || renderer.__genesisCamera); return true; } catch (e) {}
-    return false;
+    composeCount++;
+    if (effectComposer && typeof effectComposer.render === 'function') {
+      try {
+        effectComposer.render();
+        lastPath = 'composer';
+        lastError = null;
+        lastRenderedAt = now();
+        return true;
+      } catch (error) {
+        const composerError = error && error.message ? error.message : String(error);
+        lastError = composerError;
+        fallbackCount++;
+        try {
+          renderer.render(scene || renderer.__genesisScene, camera || renderer.__genesisCamera);
+          lastPath = 'raw-fallback';
+          lastRenderedAt = now();
+          return true;
+        } catch (fallbackError) {
+          lastPath = 'failed';
+          lastError = `composer: ${composerError}; raw fallback: ${fallbackError && fallbackError.message ? fallbackError.message : String(fallbackError)}`;
+          return false;
+        }
+      }
+    }
+    try {
+      renderer.render(scene || renderer.__genesisScene, camera || renderer.__genesisCamera);
+      lastPath = 'raw';
+      lastError = null;
+      lastRenderedAt = now();
+      return true;
+    } catch (error) {
+      lastPath = 'failed';
+      lastError = error && error.message ? error.message : String(error);
+      return false;
+    }
   }
   function tick() {}
-  function summary() { return { passes: passes.size, resolutionScale, baseDPR }; }
+  function summary() { return { passes: passes.size, resolutionScale, baseDPR, lastPath, lastError, composeCount, fallbackCount, lastRenderedAt }; }
   return { addPass, setResolutionScale, compose, tick, summary, getResolutionScale: () => resolutionScale };
 }
 

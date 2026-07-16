@@ -152,7 +152,10 @@ function isAllowedRequestFailure(entry) {
       const capture = await page.evaluate(() => {
         const renderer = window.Genesis.renderer;
         const canvas = renderer.domElement;
-        const composed = !!(window.Genesis.RenderGraph && window.Genesis.RenderGraph.compose && window.Genesis.RenderGraph.compose());
+        const renderGraph = window.Genesis.RenderGraph;
+        const before = renderGraph && renderGraph.summary ? renderGraph.summary() : null;
+        const composeSucceeded = !!(renderGraph && renderGraph.compose && renderGraph.compose());
+        const after = renderGraph && renderGraph.summary ? renderGraph.summary() : null;
         const gl = renderer.getContext();
         gl.finish();
         const width = gl.drawingBufferWidth;
@@ -168,7 +171,14 @@ function isAllowedRequestFailure(entry) {
           if (r > 5 || g > 5 || b > 5) nonBlack++;
         }
         return {
-          composed,
+          composeSucceeded,
+          renderPath: after?.lastPath || null,
+          renderError: after?.lastError || null,
+          composeCountBefore: before?.composeCount ?? null,
+          composeCountAfter: after?.composeCount ?? null,
+          fallbackCountBefore: before?.fallbackCount ?? null,
+          fallbackCountAfter: after?.fallbackCount ?? null,
+          lastRenderedAt: after?.lastRenderedAt || 0,
           png: canvas.toDataURL('image/png').split(',')[1],
           framebuffer: {
             width, height, peak,
@@ -179,7 +189,7 @@ function isAllowedRequestFailure(entry) {
       });
       const buffer = Buffer.from(capture.png, 'base64');
       fs.writeFileSync(outputPath, buffer);
-      return { path: outputPath, composed: capture.composed, png: await pngSignal(buffer), framebuffer: capture.framebuffer };
+      return { path: outputPath, ...capture, png: await pngSignal(buffer) };
     };
 
     const url = `http://127.0.0.1:${port}/index.html?key=92140facf0a3b8484f85b9d343687a95703e91b4724928eec78b8fd9d4aefc6&genesisDebug=1`;
@@ -292,6 +302,7 @@ function isAllowedRequestFailure(entry) {
     await page.waitForTimeout(750);
     const surfaceActorsEnd = await page.evaluate(() => window.__verticalStack.sampleSurfaceActors());
     const surfaceSystemsEnd = await page.evaluate(() => window.__verticalStack.sampleSurfaceSystems());
+    const captureRenderGraphBefore = await page.evaluate(() => window.Genesis.RenderGraph.summary());
     const surfaceCapture = await captureCanvas('cpl-vertical-surface.png');
 
     console.error('[probe] capture underside');
@@ -360,6 +371,7 @@ function isAllowedRequestFailure(entry) {
       engine: window.__genesisSummary()
     }));
     const returnedCapture = await captureCanvas('cpl-vertical-returned.png');
+    const captureRenderGraphAfter = await page.evaluate(() => window.Genesis.RenderGraph.summary());
 
     const consoleErrors = consoleMessages.filter((entry) => entry.type === 'error');
     const expectedConsoleErrors = consoleErrors.filter(isAllowedConsoleError);
@@ -400,7 +412,9 @@ function isAllowedRequestFailure(entry) {
       readyAndRendered: baseline.cplReady && baseline.firstFrame && baseline.backstop && baseline.firstFrameAt > 0 && baseline.renderedFrames > 0,
       canvasVisible: baseline.canvas.width > 0 && baseline.canvas.height > 0 && baseline.canvas.display !== 'none',
       canvasOnlyNonBlack: framebufferSignals.every((signal) => signal.framebuffer.peak > 5 && signal.framebuffer.nonBlackRatio > 0.01 && signal.png.peakMean > 2),
-      productionComposerCaptured: framebufferSignals.every((signal) => signal.composed === true),
+      productionComposerCaptured: framebufferSignals.every((signal) => signal.composeSucceeded === true && signal.renderPath === 'composer' && signal.renderError === null && signal.composeCountAfter === signal.composeCountBefore + 1 && signal.fallbackCountAfter === signal.fallbackCountBefore && signal.lastRenderedAt > 0),
+      noRenderFallbackDuringCaptureWindow: captureRenderGraphAfter.fallbackCount === captureRenderGraphBefore.fallbackCount,
+      renderPathTelemetryPresent: ['composer', 'raw-fallback', 'raw', 'failed'].includes(captureRenderGraphAfter.lastPath) && Number.isFinite(captureRenderGraphAfter.composeCount) && Number.isFinite(captureRenderGraphAfter.fallbackCount) && Number.isFinite(captureRenderGraphAfter.lastRenderedAt),
       noPageErrors: pageErrors.length === 0,
       noShaderErrors: shaderErrors.length === 0,
       noUnexpectedConsoleErrors: unexpectedConsoleErrors.length === 0,
@@ -471,10 +485,11 @@ function isAllowedRequestFailure(entry) {
       checkCount: Object.keys(checks).length,
       passedCount: Object.values(checks).filter(Boolean).length,
       checks,
-      canvasOnlySignals: Object.fromEntries(['surface', 'underside', 'prewarm', 'heaven', 'returned'].map((name, index) => [name, { composed: framebufferSignals[index].composed, png: framebufferSignals[index].png, framebuffer: framebufferSignals[index].framebuffer }])),
+      canvasOnlySignals: Object.fromEntries(['surface', 'underside', 'prewarm', 'heaven', 'returned'].map((name, index) => [name, { composeSucceeded: framebufferSignals[index].composeSucceeded, renderPath: framebufferSignals[index].renderPath, renderError: framebufferSignals[index].renderError, composeCountBefore: framebufferSignals[index].composeCountBefore, composeCountAfter: framebufferSignals[index].composeCountAfter, fallbackCountBefore: framebufferSignals[index].fallbackCountBefore, fallbackCountAfter: framebufferSignals[index].fallbackCountAfter, lastRenderedAt: framebufferSignals[index].lastRenderedAt, png: framebufferSignals[index].png, framebuffer: framebufferSignals[index].framebuffer }])),
       screenshots,
       dependencies: { playwright: playwrightDependency.source, sharp: sharpDependency.source, browser: browserLaunch },
       blockedHeavyRoutes: { count: blockedHeavyRoutes.length, policy: `Only ${allowedLocalGlbPath} is allowed locally; every other local GLB/MP4/WebM and the known optional ReadyPlayerMe avatar are blocked by this probe.` },
+      renderPathEvidence: { beforeCaptures: captureRenderGraphBefore, afterCaptures: captureRenderGraphAfter },
       streamingEvidence: { duplicateStreaming, lifecycle: streamingEvidence, allowedLocalGlbResponses },
       pageErrors,
       shaderErrors,

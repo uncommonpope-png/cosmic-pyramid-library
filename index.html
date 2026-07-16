@@ -1465,12 +1465,17 @@
         // routes its render through RenderGraph.compose(). Flag: __GENESIS_RENDER_GRAPH.
         window.__GENESIS_RENDER_GRAPH = (typeof window.__GENESIS_RENDER_GRAPH === 'boolean') ? window.__GENESIS_RENDER_GRAPH : true;
         (function () {
-            if (window.__GENESIS_RENDER_GRAPH === false) { Genesis.RenderGraph = { addPass(){}, setResolutionScale(){}, compose(){return false;}, tick(){}, getResolutionScale(){return 1;}, summary(){return{passes:0};} }; return; }
+            if (window.__GENESIS_RENDER_GRAPH === false) { Genesis.RenderGraph = { addPass(){}, setResolutionScale(){}, compose(){return false;}, tick(){}, getResolutionScale(){return 1;}, summary(){return{passes:0,lastPath:'failed',lastError:'render-graph-disabled',composeCount:0,fallbackCount:0,lastRenderedAt:0};} }; return; }
             const _passes = new Map();
             let _resolutionScale = 1.0;
             const _baseDPR = (renderer && renderer.getPixelRatio) ? renderer.getPixelRatio() : 1;
             let _appliedDPR = _baseDPR;
             let _lastResizeAt = 0;
+            let _lastPath = 'failed';
+            let _lastError = null;
+            let _composeCount = 0;
+            let _fallbackCount = 0;
+            let _lastRenderedAt = 0;
             const _MIN = 0.5, _MAX = 1.0, _RESIZE_INTERVAL_MS = 1000, _DPR_EPSILON = 0.03;
             function _setResolutionScale(scale) {
                 _resolutionScale = Math.max(_MIN, Math.min(_MAX, scale));
@@ -1494,13 +1499,45 @@
                 },
                 setResolutionScale(s) { return _setResolutionScale(s); },
                 compose() {
-                    if (typeof effectComposer !== 'undefined' && effectComposer.render) { try { effectComposer.render(); return true; } catch (e) {} }
-                    try { renderer.render(scene, camera); return true; } catch (e) {}
-                    return false;
+                    _composeCount++;
+                    if (typeof effectComposer !== 'undefined' && effectComposer.render) {
+                        try {
+                            effectComposer.render();
+                            _lastPath = 'composer';
+                            _lastError = null;
+                            _lastRenderedAt = performance.now();
+                            return true;
+                        } catch (error) {
+                            const composerError = error && error.message ? error.message : String(error);
+                            _lastError = composerError;
+                            _fallbackCount++;
+                            try {
+                                renderer.render(scene, camera);
+                                _lastPath = 'raw-fallback';
+                                _lastRenderedAt = performance.now();
+                                return true;
+                            } catch (fallbackError) {
+                                _lastPath = 'failed';
+                                _lastError = 'composer: ' + composerError + '; raw fallback: ' + (fallbackError && fallbackError.message ? fallbackError.message : String(fallbackError));
+                                return false;
+                            }
+                        }
+                    }
+                    try {
+                        renderer.render(scene, camera);
+                        _lastPath = 'raw';
+                        _lastError = null;
+                        _lastRenderedAt = performance.now();
+                        return true;
+                    } catch (error) {
+                        _lastPath = 'failed';
+                        _lastError = error && error.message ? error.message : String(error);
+                        return false;
+                    }
                 },
                 tick() {},
                 getResolutionScale() { return _resolutionScale; },
-                summary() { return { passes: _passes.size, resolutionScale: _resolutionScale, baseDPR: _baseDPR }; }
+                summary() { return { passes: _passes.size, resolutionScale: _resolutionScale, baseDPR: _baseDPR, lastPath: _lastPath, lastError: _lastError, composeCount: _composeCount, fallbackCount: _fallbackCount, lastRenderedAt: _lastRenderedAt }; }
             };
             import('./src/genesis/render-graph.js').then((m) => {
                 if (!Genesis.RenderGraph && typeof m.install === 'function') m.install(window.Genesis, THREE, renderer, camera, scene, effectComposer, _baseDPR);
