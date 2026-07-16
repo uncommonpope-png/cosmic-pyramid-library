@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 
 export function createRenderGraph(ctx) {
-  const { renderer, effectComposer, basePixelRatio } = ctx;
+  const { renderer, effectComposer, scene, camera, basePixelRatio } = ctx;
   const passes = new Map();
   let resolutionScale = 1.0;
   let appliedDPR = renderer && renderer.getPixelRatio ? renderer.getPixelRatio() : 1;
@@ -40,7 +40,7 @@ export function createRenderGraph(ctx) {
   }
   function compose() {
     if (effectComposer && typeof effectComposer.render === 'function') { try { effectComposer.render(); return true; } catch (e) {} }
-    try { renderer.render(renderer.__genesisScene || (renderer.info && null), renderer.__genesisCamera || null); } catch (e) {}
+    try { renderer.render(scene || renderer.__genesisScene, camera || renderer.__genesisCamera); return true; } catch (e) {}
     return false;
   }
   function tick() {}
@@ -48,9 +48,9 @@ export function createRenderGraph(ctx) {
   return { addPass, setResolutionScale, compose, tick, summary, getResolutionScale: () => resolutionScale };
 }
 
-export function install(Genesis, THREE, renderer, _camera, _scene, effectComposer, basePixelRatio) {
+export function install(Genesis, THREE, renderer, camera, scene, effectComposer, basePixelRatio) {
   if (!Genesis) return false;
-  const mgr = createRenderGraph({ renderer, effectComposer, basePixelRatio });
+  const mgr = createRenderGraph({ renderer, effectComposer, scene, camera, basePixelRatio });
   Genesis.RenderGraph = Object.assign(Genesis.RenderGraph || {}, {
     addPass(p, meta) { return mgr.addPass(p, meta); },
     setResolutionScale(s) { return mgr.setResolutionScale(s); },

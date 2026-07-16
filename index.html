@@ -1044,6 +1044,17 @@
             obj.userData.cost = Object.assign(def, partial || {});
         };
 
+        Genesis.managerRegistry = Genesis.managerRegistry || new Map();
+        Genesis.moduleRegistry = Genesis.moduleRegistry || new Map();
+        Genesis.registerManager = function (name, manager) {
+            if (name && manager) this.managerRegistry.set(name, manager);
+            return manager;
+        };
+        Genesis.registerModule = function (name, record) {
+            if (name) this.moduleRegistry.set(name, Object.assign({ status: 'registered' }, record || {}));
+        };
+        Genesis.getManagerCount = function () { return this.managerRegistry.size; };
+
         function initGenesisManagers() {
             if (Genesis._managersInitialized) return;
             Genesis._managersInitialized = true;
@@ -1087,9 +1098,8 @@
             const SLEEP_PURGE_MS = 20000;
             if (window.__GENESIS_SECTOR_MANAGER === false) { Genesis.SectorManager = { register(){}, sleep(){}, wake(){}, tick(){}, isAwake(){return true;}, summary(){return{};} }; return; }
             const sectors = new Map();
-            function _isActive(root, maxDistance) {
+            function _isInRange(root, maxDistance) {
                 if (!root) return true;
-                if (root.visible === false) return false;
                 if (!root.parent) return false;
                 if (!camera) return true;
                 root.updateWorldMatrix(true, false);
@@ -1106,7 +1116,7 @@
                     const now = performance.now();
                     for (const [id, s] of sectors) {
                         if (!s.autoSleep) continue;
-                        const active = _isActive(s.root, s.maxDistance);
+                        const active = _isInRange(s.root, s.maxDistance);
                         const costMode = _sleepCost(s.root);
                         if (active) { if (s.state !== 'active') this.wake(id); }
                         else {
@@ -1118,7 +1128,7 @@
                         }
                     }
                 },
-                summary() { const out = {}; for (const [id, s] of sectors) out[id] = { state: s.state, maxDistance: s.maxDistance, disposed: !!s.disposed }; return out; }
+                summary() { const out = {}; for (const [id, s] of sectors) out[id] = { state: s.state, maxDistance: s.maxDistance, autoSleep: s.autoSleep, inRange: _isInRange(s.root, s.maxDistance), visible: !!(s.root && s.root.visible), asleepFor: Math.round(s.asleepFor || 0), disposed: !!s.disposed }; return out; }
             };
             import('./src/genesis/sector-manager.js').then((m) => {
                 if (!Genesis.SectorManager && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, Genesis.ResourceManager);
@@ -1132,12 +1142,13 @@
         // Flag-gated by window.__GENESIS_VISIBILITY (default true; false => no-op).
         window.__GENESIS_VISIBILITY = (typeof window.__GENESIS_VISIBILITY === 'boolean') ? window.__GENESIS_VISIBILITY : true;
         (function () {
-            if (window.__GENESIS_VISIBILITY === false) { Genesis.Visibility = { register(){}, isVisible(){return true;}, wakeOrder(){return [];}, tick(){} }; return; }
+            if (window.__GENESIS_VISIBILITY === false) { Genesis.Visibility = { register(){}, isVisible(){return true;}, wakeOrder(){return [];}, tick(){}, summary(){return{};} }; return; }
             const entries = new Map();
             const _frustum = new THREE.Frustum();
             const _projScreen = new THREE.Matrix4();
             const _box = new THREE.Box3();
             const _sphere = new THREE.Sphere();
+            const _visibilityPosition = new THREE.Vector3();
             function _inFrustum(root) {
                 if (!camera) return true;
                 root.updateWorldMatrix(true, false);
@@ -1149,19 +1160,26 @@
                 return _frustum.intersectsSphere(_sphere);
             }
             Genesis.Visibility = {
-                register(id, root, opts) { entries.set(id, { root, priority: (opts && opts.priority != null) ? opts.priority : 5, maxDistance: (opts && opts.maxDistance) || 260, visible: true }); },
+                register(id, root, opts) { entries.set(id, { root, priority: (opts && opts.priority != null) ? opts.priority : 5, maxDistance: (opts && opts.maxDistance) || 260, stateOwned: !!(opts && opts.stateOwned), owner: (opts && opts.owner) || null, visible: true, inRange: true, inFrustum: true }); },
                 isVisible(id) { const e = entries.get(id); return !!e && e.visible; },
                 wakeOrder() { return [...entries.entries()].sort((a, b) => b[1].priority - a[1].priority).map(([id]) => id); },
                 tick() {
                     for (const [id, e] of entries) {
+                        const stateOwned = e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner);
+                        if (stateOwned) { e.inRange = true; e.inFrustum = true; e.visible = e.root.visible !== false; continue; }
                         let never = false;
                         e.root.traverse((o) => { if (o.userData && o.userData.cost && o.userData.cost.sleep === 'never') never = true; });
-                        if (never) { e.visible = true; if (e.root.visible === false) e.root.visible = true; continue; }
-                        const inView = _inFrustum(e.root);
+                        if (never) { e.inRange = true; e.inFrustum = true; e.visible = true; if (e.root.visible === false) e.root.visible = true; continue; }
+                        e.root.updateWorldMatrix(true, false);
+                        _visibilityPosition.setFromMatrixPosition(e.root.matrixWorld);
+                        e.inRange = !camera || camera.position.distanceToSquared(_visibilityPosition) <= e.maxDistance * e.maxDistance;
+                        e.inFrustum = e.inRange && _inFrustum(e.root);
+                        const inView = e.inRange && e.inFrustum;
                         e.visible = inView;
                         if (e.root.visible !== inView) e.root.visible = inView;
                     }
-                }
+                },
+                summary() { const out = {}; for (const [id, e] of entries) out[id] = { visible: e.visible, inRange: e.inRange, inFrustum: e.inFrustum, maxDistance: e.maxDistance, priority: e.priority, stateOwned: e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner), owner: e.owner }; return out; }
             };
             import('./src/genesis/visibility-system.js').then((m) => {
                 if (!Genesis.Visibility && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, Genesis.SectorManager);
@@ -1340,7 +1358,7 @@
         // unloads assets whose sector is no longer awake. Flag: __GENESIS_STREAMING_MANAGER.
         window.__GENESIS_STREAMING_MANAGER = (typeof window.__GENESIS_STREAMING_MANAGER === 'boolean') ? window.__GENESIS_STREAMING_MANAGER : true;
         (function () {
-            if (window.__GENESIS_STREAMING_MANAGER === false) { Genesis.StreamingManager = { register(){}, ensureLoaded(){return null;}, unload(){return false;}, tick(){}, summary(){return{registered:0};} }; return; }
+            if (window.__GENESIS_STREAMING_MANAGER === false) { Genesis.StreamingManager = { register(){}, ensureLoaded(){return null;}, unload(){return false;}, tick(){}, summary(){return{registered:0,loaded:0,byTier:{},requests:{}};} }; return; }
             const _assets = new Map();
             Genesis.StreamingManager = {
                 register(assetKey, loaderFn, meta) {
@@ -1374,13 +1392,13 @@
                         }
                     }
                 },
-                summary() { let loaded = 0; for (const a of _assets.values()) if (a.loaded) loaded++; return { registered: _assets.size, loaded }; }
+                summary() { const byTier = {}, requests = {}; let loaded = 0; for (const [key, a] of _assets) { if (a.loaded) loaded++; const tier = (a.meta && a.meta.tier) || 'decor'; byTier[tier] = (byTier[tier] || 0) + 1; requests[key] = { loaded: a.loaded, tier, priority: (a.meta && a.meta.priority) || 0, sector: (a.meta && a.meta.sector) || null }; } return { registered: _assets.size, loaded, byTier, requests }; }
             };
             // Observe the existing lazy queue: wrap enqueueLazyAsset so queued tasks register.
             if (typeof enqueueLazyAsset === 'function') {
                 const _orig = enqueueLazyAsset;
                 // enqueueLazyAsset is a function declaration; rebind reference used later.
-                try { enqueueLazyAsset = function (label, fn) { Genesis.StreamingManager.register('lazy:' + label, fn, { owner: 'lazy:' + label, sector: (typeof currentSectorId !== 'undefined') ? currentSectorId : null }); return _orig(label, fn); }; } catch (e) {}
+                try { enqueueLazyAsset = function (label, fn, tier) { const resolvedTier = tier || 'decor'; Genesis.StreamingManager.register('lazy:' + label, fn, { owner: 'lazy:' + label, sector: (typeof currentSectorId !== 'undefined') ? currentSectorId : null, tier: resolvedTier, priority: resolvedTier === 'world' ? 100 : 10 }); return _orig(label, fn, tier); }; } catch (e) {}
             }
             import('./src/genesis/streaming-manager.js').then((m) => {
                 if (!Genesis.StreamingManager && typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene);
@@ -1425,7 +1443,7 @@
                 setResolutionScale(s) { return _setResolutionScale(s); },
                 compose() {
                     if (typeof effectComposer !== 'undefined' && effectComposer.render) { try { effectComposer.render(); return true; } catch (e) {} }
-                    try { renderer.render(scene, camera); } catch (e) {}
+                    try { renderer.render(scene, camera); return true; } catch (e) {}
                     return false;
                 },
                 tick() {},
@@ -1506,6 +1524,166 @@
                 if (typeof console !== 'undefined') console.log('[Genesis] Performance Governor module validated (inline manager remains authoritative)');
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Performance Governor v2 module load skipped:', e && e.message); });
         })();
+
+        window.__GENESIS_VERTICAL_STACK = (typeof window.__GENESIS_VERTICAL_STACK === 'boolean') ? window.__GENESIS_VERTICAL_STACK : true;
+        (function () {
+            const STATES = Object.freeze({ UNLOADED: 'UNLOADED', LOADED: 'LOADED', ACTIVE: 'ACTIVE', SLEEPING: 'SLEEPING' });
+            const validStates = new Set(Object.values(STATES));
+            if (window.__GENESIS_VERTICAL_STACK === false) {
+                Genesis.VerticalStackManager = Object.freeze({ states: STATES, registerStratum(){}, registerConnector(){}, getActive(){return 'surface';}, getStratum(){return null;}, transitionTo(){return Promise.resolve({active:'surface',strata:{},connectors:[]});}, setState(){return false;}, setExteriorVisible(){}, endpoints(){return[];}, summary(){return{active:'surface',strata:{},connectors:[]};}, tick(){return'surface';} });
+                return;
+            }
+            const strata = new Map();
+            const connectors = new Map();
+            let activeId = null;
+            let transitionPromise = null;
+            let exteriorVisible = true;
+            let lastTransition = null;
+            const now = () => performance.now();
+            function applyState(record) {
+                if (!record || !record.root) return;
+                const stateVisible = record.state === STATES.ACTIVE || record.state === STATES.LOADED;
+                record.root.userData.__genesisVisibilityOwner = 'vertical-stack';
+                record.root.userData.verticalStratumId = record.id;
+                record.root.userData.verticalState = record.state;
+                record.root.userData.verticalSimulationActive = record.state === STATES.ACTIVE;
+                record.root.visible = exteriorVisible && !record.root.userData.__verticalExteriorHidden && stateVisible;
+            }
+            function setRecordState(record, state) {
+                if (!record || !validStates.has(state)) return false;
+                record.state = state;
+                record.changedAt = now();
+                applyState(record);
+                if (typeof record.options.onStateChange === 'function') { try { record.options.onStateChange(state, record.id); } catch (e) {} }
+                return true;
+            }
+            function connectorSummary() {
+                return [...connectors.values()].map((c) => ({ id: c.id, from: c.from, to: c.to, bidirectional: !!c.bidirectional, endpoints: c.endpoints ? Object.keys(c.endpoints) : [] }));
+            }
+            function summary() {
+                const out = {};
+                for (const [id, record] of strata) out[id] = { state: record.state, visible: !!record.root.visible, simulationActive: record.state === STATES.ACTIVE, rootName: record.root.name || '', parentType: record.root.parent ? record.root.parent.type : null, order: record.options.order == null ? 0 : record.options.order };
+                return { active: activeId, transitioning: !!transitionPromise, exteriorVisible, strata: out, connectors: connectorSummary(), lastTransition: lastTransition ? Object.assign({}, lastTransition) : null };
+            }
+            function findConnector(from, to, connectorId) {
+                if (connectorId && connectors.has(connectorId)) return connectors.get(connectorId);
+                for (const connector of connectors.values()) {
+                    if (connector.from === from && connector.to === to) return connector;
+                    if (connector.bidirectional && connector.from === to && connector.to === from) return connector;
+                }
+                return null;
+            }
+            function nextFrame() { return new Promise((resolve) => requestAnimationFrame(() => resolve())); }
+            Genesis.VerticalStackManager = Object.freeze({
+                states: STATES,
+                registerStratum(id, root, options) {
+                    if (!id || !root) throw new Error('registerStratum requires id and root');
+                    const opts = options || {};
+                    const state = validStates.has(opts.state) ? opts.state : STATES.UNLOADED;
+                    const record = { id, root, options: Object.assign({}, opts), state, changedAt: now() };
+                    strata.set(id, record);
+                    if (state === STATES.ACTIVE) {
+                        if (activeId && activeId !== id) setRecordState(strata.get(activeId), STATES.SLEEPING);
+                        activeId = id;
+                    }
+                    applyState(record);
+                    return id;
+                },
+                registerConnector(id, spec) {
+                    if (!id || !spec || !spec.from || !spec.to) throw new Error('registerConnector requires id, from, and to');
+                    connectors.set(id, Object.assign({}, spec, { id }));
+                    return id;
+                },
+                getActive() { return activeId; },
+                getStratum(id) { const r = strata.get(id); return r ? { id: r.id, root: r.root, state: r.state, options: Object.assign({}, r.options) } : null; },
+                setState(id, state) {
+                    const record = strata.get(id);
+                    if (!record || !validStates.has(state)) return false;
+                    if (state === STATES.ACTIVE && activeId && activeId !== id) setRecordState(strata.get(activeId), STATES.SLEEPING);
+                    if (state === STATES.ACTIVE) activeId = id; else if (activeId === id) activeId = null;
+                    return setRecordState(record, state);
+                },
+                async transitionTo(id, context) {
+                    if (transitionPromise) return transitionPromise;
+                    if (!strata.has(id)) throw new Error('Unknown stratum: ' + id);
+                    if (activeId === id) return summary();
+                    const ctx = context || {};
+                    const sourceId = activeId;
+                    const source = sourceId ? strata.get(sourceId) : null;
+                    const destination = strata.get(id);
+                    const connector = findConnector(sourceId, id, ctx.connectorId);
+                    const previousDestinationState = destination.state;
+                    const trace = { from: sourceId, to: id, connector: connector ? connector.id : null, startedAt: now(), destinationVisibleBeforeTransfer: false, completedAt: 0, ok: false };
+                    lastTransition = trace;
+                    transitionPromise = (async () => {
+                        try {
+                            setRecordState(destination, STATES.LOADED);
+                            if (typeof ctx.prepare === 'function') await ctx.prepare({ source, destination, connector });
+                            else if (connector && typeof connector.prepare === 'function') await connector.prepare({ source, destination, connector });
+                            await nextFrame();
+                            const prewarmMs = Number(ctx.prewarmMs != null ? ctx.prewarmMs : (connector && connector.prewarmMs)) || 0;
+                            if (prewarmMs > 0) await new Promise((resolve) => setTimeout(resolve, prewarmMs));
+                            trace.destinationVisibleBeforeTransfer = !!(destination.root && destination.root.parent && destination.root.visible);
+                            if (!trace.destinationVisibleBeforeTransfer) throw new Error('Destination was not visible before transfer: ' + id);
+                            const ready = typeof ctx.ready === 'function' ? await ctx.ready({ source, destination, connector }) : connector && typeof connector.ready === 'function' ? await connector.ready({ source, destination, connector }) : true;
+                            if (!ready) throw new Error('Destination not ready: ' + id);
+                            const transfer = ctx.transfer || (connector && connector.transfer);
+                            if (typeof transfer === 'function') await transfer({ from: sourceId, to: id, source, destination, connector, context: ctx });
+                            setRecordState(destination, STATES.ACTIVE);
+                            activeId = id;
+                            if (source && source.id !== id) setRecordState(source, STATES.SLEEPING);
+                            trace.ok = true;
+                            trace.completedAt = now();
+                            return summary();
+                        } catch (error) {
+                            if (source) { setRecordState(source, STATES.ACTIVE); activeId = source.id; }
+                            setRecordState(destination, previousDestinationState);
+                            trace.error = error && error.message ? error.message : String(error);
+                            trace.completedAt = now();
+                            throw error;
+                        } finally { transitionPromise = null; }
+                    })();
+                    return transitionPromise;
+                },
+                setExteriorVisible(visible) {
+                    exteriorVisible = !!visible;
+                    for (const record of strata.values()) { record.root.userData.__verticalExteriorHidden = !exteriorVisible; applyState(record); }
+                },
+                endpoints() { return connectorSummary(); },
+                summary,
+                tick(context) {
+                    if (context && typeof context.exteriorVisible === 'boolean' && context.exteriorVisible !== exteriorVisible) this.setExteriorVisible(context.exteriorVisible);
+                    else for (const record of strata.values()) applyState(record);
+                    return activeId;
+                }
+            });
+            Genesis.registerModule('vertical-stack-manager', { status: 'loading', path: './src/genesis/vertical-stack-manager.js' });
+            import('./src/genesis/vertical-stack-manager.js').then((m) => {
+                Genesis.registerModule('vertical-stack-manager', { status: (m && typeof m.createVerticalStackManager === 'function') ? 'validated' : 'invalid', path: './src/genesis/vertical-stack-manager.js' });
+                if (typeof console !== 'undefined') console.log('[Genesis] Vertical Stack Manager module validated (inline manager remains authoritative)');
+            }).catch((e) => {
+                Genesis.registerModule('vertical-stack-manager', { status: 'failed', path: './src/genesis/vertical-stack-manager.js', error: e && e.message });
+                if (typeof console !== 'undefined') console.warn('[Genesis] Vertical Stack Manager module load skipped:', e && e.message);
+            });
+        })();
+
+        Genesis.managerNames = Object.freeze(['ResourceManager', 'StreamingManager', 'RenderGraph', 'SectorManager', 'MemoryManager', 'Visibility', 'AnimationScheduler', 'LightingManager', 'VideoManager', 'PerformanceGovernor', 'VerticalStackManager']);
+        Genesis.refreshManagerRegistry = function () {
+            for (const name of this.managerNames) if (this[name]) this.registerManager(name, this[name]);
+            return this.managerRegistry.size;
+        };
+        Genesis.refreshManagerRegistry();
+        Genesis.summary = function () {
+            return {
+                managers: { count: this.managerRegistry.size, names: [...this.managerRegistry.keys()] },
+                modules: Object.fromEntries(this.moduleRegistry.entries()),
+                verticalStack: this.VerticalStackManager && this.VerticalStackManager.summary ? this.VerticalStackManager.summary() : null,
+                sectors: this.SectorManager && this.SectorManager.summary ? this.SectorManager.summary() : {},
+                visibility: this.Visibility && this.Visibility.summary ? this.Visibility.summary() : {},
+                streaming: this.StreamingManager && this.StreamingManager.summary ? this.StreamingManager.summary() : {}
+            };
+        };
+        if (!Object.prototype.hasOwnProperty.call(window, '__genesisSummary')) Object.defineProperty(window, '__genesisSummary', { value: () => Genesis.summary(), writable: false, configurable: false });
         }
 
         Genesis.notifyError = function (message) {
@@ -1841,7 +2019,7 @@
             _refreshProgress();
             if (window.__GENESIS_P9_SCROLLWORLD !== false) {
                 const eng = document.getElementById('sl-engine');
-                if (eng) eng.textContent = '10 managers online · world governed · enter when ready';
+                if (eng) eng.textContent = ((Genesis.getManagerCount && Genesis.getManagerCount()) || 0) + ' managers online · world governed · enter when ready';
             }
             loaderPct.textContent = 'entering the library…';
             window.__cplReady = true;
@@ -4460,6 +4638,7 @@ bloomPass.radius = 0.7;
         
         // ========== SOULFEILD CITY BELOW THE LIBRARY ==========
         const cityGroup = new THREE.Group();
+        cityGroup.name = 'Surface Stratum Root';
         scene.add(cityGroup);
         if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('city-core', cityGroup, { maxDistance: 260, autoSleep: false }); // city always near spawn; never auto-dispose
         if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('city-core', cityGroup, { priority: 5, maxDistance: 260 });
@@ -4468,6 +4647,7 @@ bloomPass.radius = 0.7;
         const cityGroundGeo = new THREE.PlaneGeometry(200, 200);
         const cityGroundMat = new THREE.MeshStandardMaterial({ color: 0x080818, roughness: 0.8, metalness: 0.15, emissive: 0x040410, emissiveIntensity: 0.1 });
         const cityGround = new THREE.Mesh(cityGroundGeo, cityGroundMat);
+        cityGround.name = 'Surface City Ground';
         cityGround.rotation.x = -Math.PI / 2;
         cityGround.position.y = -0.1;
         cityGround.receiveShadow = true;
@@ -4475,10 +4655,136 @@ bloomPass.radius = 0.7;
         
         // Neon grid on ground
         const gridHelper = new THREE.GridHelper(160, 40, 0x1a0a3a, 0x0a0520);
+        gridHelper.name = 'Surface City Grid';
         gridHelper.position.y = 0.01;
         gridHelper.material.transparent = true;
         gridHelper.material.opacity = 0.3;
         cityGroup.add(gridHelper);
+
+        // ========== DARK CITY UNDERSIDE — FINITE STRUCTURAL VISTA ==========
+        // Craig's mandate: the city has a city beneath it. This is not a playable realm and
+        // uses no world-sized plane, shader grid, external asset, or animation loop.
+        const darkCityUndersideRoot = new THREE.Group();
+        darkCityUndersideRoot.name = 'darkCityUndersideRoot';
+        darkCityUndersideRoot.position.y = -0.35;
+        cityGroup.add(darkCityUndersideRoot);
+
+        const undersidePlateMat = new THREE.MeshStandardMaterial({ color: 0x050711, emissive: 0x02040c, emissiveIntensity: 0.5, roughness: 0.82, metalness: 0.38 });
+        const undersideStructureMat = new THREE.MeshStandardMaterial({ color: 0x111827, emissive: 0x050914, emissiveIntensity: 0.42, roughness: 0.72, metalness: 0.52 });
+        const undersideTowerMat = new THREE.MeshStandardMaterial({ color: 0x080b14, emissive: 0x02040a, emissiveIntensity: 0.35, roughness: 0.86, metalness: 0.3 });
+        const undersidePlate = new THREE.Mesh(new THREE.BoxGeometry(188, 1.6, 188), undersidePlateMat);
+        undersidePlate.name = 'Dark City Underside Plate';
+        undersidePlate.position.y = -1.2;
+        darkCityUndersideRoot.add(undersidePlate);
+
+        const undersideInstanceMatrix = new THREE.Matrix4();
+        const undersideInstanceQuat = new THREE.Quaternion();
+        const undersideInstancePos = new THREE.Vector3();
+        const undersideInstanceScale = new THREE.Vector3();
+
+        const ribInstances = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), undersideStructureMat, 28);
+        ribInstances.name = 'Dark City Structural Ribs';
+        let ribIndex = 0;
+        for (let i = -6; i <= 6; i++) {
+            undersideInstancePos.set(0, -2.7, i * 14);
+            undersideInstanceScale.set(184, 1.35, 1.6);
+            undersideInstanceMatrix.compose(undersideInstancePos, undersideInstanceQuat, undersideInstanceScale);
+            ribInstances.setMatrixAt(ribIndex++, undersideInstanceMatrix);
+            undersideInstancePos.set(i * 14, -2.75, 0);
+            undersideInstanceScale.set(1.6, 1.35, 184);
+            undersideInstanceMatrix.compose(undersideInstancePos, undersideInstanceQuat, undersideInstanceScale);
+            ribInstances.setMatrixAt(ribIndex++, undersideInstanceMatrix);
+        }
+        undersideInstancePos.set(0, -4.2, 0);
+        undersideInstanceScale.set(138, 1.8, 2.4);
+        undersideInstanceMatrix.compose(undersideInstancePos, undersideInstanceQuat, undersideInstanceScale);
+        ribInstances.setMatrixAt(ribIndex++, undersideInstanceMatrix);
+        undersideInstanceScale.set(2.4, 1.8, 138);
+        undersideInstanceMatrix.compose(undersideInstancePos, undersideInstanceQuat, undersideInstanceScale);
+        ribInstances.setMatrixAt(ribIndex++, undersideInstanceMatrix);
+        ribInstances.count = ribIndex;
+        ribInstances.instanceMatrix.needsUpdate = true;
+        darkCityUndersideRoot.add(ribInstances);
+
+        const undersideTowerData = [];
+        const hangingTowers = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), undersideTowerMat, 84);
+        hangingTowers.name = 'Dark City Hanging Towers';
+        let towerIndex = 0;
+        for (let gx = -5; gx <= 5; gx++) {
+            for (let gz = -5; gz <= 5; gz++) {
+                if ((gx * gx + gz * gz) < 5 || ((gx * 17 + gz * 11) & 3) === 0) continue;
+                const x = gx * 15 + Math.sin(gz * 2.1) * 2.4;
+                const z = gz * 15 + Math.cos(gx * 1.7) * 2.4;
+                const height = 10 + ((Math.abs(gx * 19 + gz * 13) % 9) * 4.1);
+                const width = 3.4 + (Math.abs(gx + gz) % 4) * 1.15;
+                const depth = 3.2 + (Math.abs(gx - gz) % 3) * 1.3;
+                undersideInstancePos.set(x, -3.4 - height / 2, z);
+                undersideInstanceScale.set(width, height, depth);
+                undersideInstanceMatrix.compose(undersideInstancePos, undersideInstanceQuat, undersideInstanceScale);
+                hangingTowers.setMatrixAt(towerIndex++, undersideInstanceMatrix);
+                undersideTowerData.push({ x, z, height, width, depth });
+                if (towerIndex >= 84) break;
+            }
+            if (towerIndex >= 84) break;
+        }
+        hangingTowers.count = towerIndex;
+        hangingTowers.instanceMatrix.needsUpdate = true;
+        darkCityUndersideRoot.add(hangingTowers);
+
+        const anchorColumns = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.6, 1.3, 1, 8), undersideStructureMat, 20);
+        anchorColumns.name = 'Dark City Anchor Columns';
+        for (let i = 0; i < 20; i++) {
+            const a = (i / 20) * Math.PI * 2;
+            const radius = i % 2 ? 76 : 88;
+            const height = 28 + (i % 5) * 5;
+            undersideInstancePos.set(Math.cos(a) * radius, -2.6 - height / 2, Math.sin(a) * radius);
+            undersideInstanceScale.set(1, height, 1);
+            undersideInstanceMatrix.compose(undersideInstancePos, undersideInstanceQuat, undersideInstanceScale);
+            anchorColumns.setMatrixAt(i, undersideInstanceMatrix);
+        }
+        anchorColumns.instanceMatrix.needsUpdate = true;
+        darkCityUndersideRoot.add(anchorColumns);
+
+        const undersideWindowColors = [0x39e8ff, 0xff4fc9, 0xffb449];
+        const undersideWindows = undersideWindowColors.map((color, colorIndex) => {
+            const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.78 });
+            const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 0.18, 0.08), material, 40);
+            mesh.name = 'Dark City Windows ' + colorIndex;
+            let count = 0;
+            for (let i = colorIndex; i < undersideTowerData.length && count < 40; i += 3) {
+                const tower = undersideTowerData[i];
+                for (let row = 0; row < 2 && count < 40; row++) {
+                    const y = -7 - ((i * 3 + row * 7) % Math.max(4, Math.floor(tower.height - 4)));
+                    undersideInstancePos.set(tower.x, y, tower.z + tower.depth / 2 + 0.05);
+                    undersideInstanceScale.set(1, 1, 1);
+                    undersideInstanceMatrix.compose(undersideInstancePos, undersideInstanceQuat, undersideInstanceScale);
+                    mesh.setMatrixAt(count++, undersideInstanceMatrix);
+                }
+            }
+            mesh.count = count;
+            mesh.instanceMatrix.needsUpdate = true;
+            darkCityUndersideRoot.add(mesh);
+            return mesh;
+        });
+
+        const catwalkPoints = [];
+        const catwalkRings = [34, 58, 82];
+        for (const radius of catwalkRings) {
+            for (let i = 0; i < 48; i++) {
+                const a0 = (i / 48) * Math.PI * 2;
+                const a1 = ((i + 1) / 48) * Math.PI * 2;
+                catwalkPoints.push(new THREE.Vector3(Math.cos(a0) * radius, -6 - radius * 0.025, Math.sin(a0) * radius));
+                catwalkPoints.push(new THREE.Vector3(Math.cos(a1) * radius, -6 - radius * 0.025, Math.sin(a1) * radius));
+            }
+        }
+        const catwalkLines = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(catwalkPoints), new THREE.LineBasicMaterial({ color: 0x38d8ee, transparent: true, opacity: 0.42 }));
+        catwalkLines.name = 'Dark City Catwalk Rails';
+        darkCityUndersideRoot.add(catwalkLines);
+
+        if (window.__GENESIS_COST_CONTRACT !== false) Genesis.declareCost(darkCityUndersideRoot, { cpu: 0, gpu: 8, memory: 2, updateFreq: 0, priority: 4, sector: 'dark-city-underside', sleep: 'manual' });
+        if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('dark-city-underside', darkCityUndersideRoot, { maxDistance: 520, autoSleep: false });
+        if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('dark-city-underside', darkCityUndersideRoot, { priority: 4, maxDistance: 520, owner: 'surface-stratum' });
+        window.__darkCityUndersideRoot = darkCityUndersideRoot;
         
         // Roads
         const roadMat = new THREE.MeshStandardMaterial({ color: 0x010102, roughness: 0.8, emissive: 0x005005, emissiveIntensity: 0.02 });
@@ -5621,6 +5927,7 @@ bloomPass.radius = 0.7;
         const _laneSlots = [-70, -56, -42, -28, -14, 0, 14, 28, 42, 56, 70];
         for (let i = 0; i < 28; i++) {
             const carGroup = new THREE.Group();
+            carGroup.name = 'Surface Traffic Car ' + (i + 1);
             const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 0.75), new THREE.MeshStandardMaterial({
                 color: carColors[i % 3], emissive: carColors[i % 3], emissiveIntensity: 0.4
             }));
@@ -6290,6 +6597,7 @@ bloomPass.radius = 0.7;
         // Clickable Heaven lift: first-person players can enter Heaven from the city.
         const heavenGateTargets = [];
         const heavenLift = new THREE.Group();
+        heavenLift.name = 'Surface Heaven Lift';
         heavenLift.position.set(0, 0, -52);
         cityGroup.add(heavenLift);
         const liftMat = new THREE.MeshStandardMaterial({ color: 0xffdd88, emissive: 0xffaa44, emissiveIntensity: 0.7, roughness: 0.35, metalness: 0.2 });
@@ -6304,8 +6612,131 @@ bloomPass.radius = 0.7;
         liftBeam.position.y = 14;
         liftBeam.userData.heavenGate = true;
         heavenLift.add(liftBase, liftRing, liftBeam);
+        [liftBase, liftRing, liftBeam].forEach((part) => {
+            part.userData.verticalConnector = { connectorId: 'surface-heaven', endpoint: 'surface' };
+        });
         heavenGateTargets.push(liftBase, liftRing, liftBeam);
         window.__heavenLift = heavenLift;
+
+        // ========== GENESIS VERTICAL STACK — AUTHORED HEAVEN PROTOTYPE ==========
+        // This is a new independent stratum, not either legacy heaven group. It remains a
+        // direct scene child and uses only finite procedural geometry + stable materials.
+        const HEAVEN_STRATUM_Y = 640;
+        const heavenStratumRoot = new THREE.Group();
+        heavenStratumRoot.name = 'heavenStratumRoot';
+        heavenStratumRoot.position.set(0, HEAVEN_STRATUM_Y, -52);
+        scene.add(heavenStratumRoot);
+
+        const heavenDeckMat = new THREE.MeshStandardMaterial({ color: 0x172138, emissive: 0x08152a, emissiveIntensity: 0.75, roughness: 0.68, metalness: 0.32 });
+        const heavenStoneMat = new THREE.MeshStandardMaterial({ color: 0x596278, emissive: 0x10192b, emissiveIntensity: 0.42, roughness: 0.78, metalness: 0.18 });
+        const heavenCyanMat = new THREE.MeshStandardMaterial({ color: 0x7df7ff, emissive: 0x20c8e8, emissiveIntensity: 1.15, roughness: 0.32, metalness: 0.38 });
+        const heavenGoldMat = new THREE.MeshStandardMaterial({ color: 0xffdb8a, emissive: 0xffa93a, emissiveIntensity: 0.9, roughness: 0.36, metalness: 0.42 });
+        const heavenMagentaMat = new THREE.MeshBasicMaterial({ color: 0xff70d8, transparent: true, opacity: 0.72, depthWrite: false });
+
+        const heavenDeck = new THREE.Mesh(new THREE.CylinderGeometry(46, 50, 2.2, 64), heavenDeckMat);
+        heavenDeck.name = 'Heaven Sky Plaza Deck';
+        heavenDeck.position.y = -1.1;
+        heavenDeck.receiveShadow = true;
+        heavenStratumRoot.add(heavenDeck);
+        const plazaRim = new THREE.Mesh(new THREE.TorusGeometry(46, 0.55, 10, 96), heavenCyanMat);
+        plazaRim.rotation.x = Math.PI / 2;
+        plazaRim.position.y = 0.18;
+        heavenStratumRoot.add(plazaRim);
+
+        const skyPlazas = [new THREE.Vector3(58, -1.5, 0), new THREE.Vector3(-43, 7.5, 44), new THREE.Vector3(0, 13, -62)];
+        for (let i = 0; i < skyPlazas.length; i++) {
+            const p = skyPlazas[i];
+            const satellite = new THREE.Mesh(new THREE.CylinderGeometry(13 - i, 15 - i, 1.4, 40), i === 1 ? heavenStoneMat : heavenDeckMat);
+            satellite.position.copy(p);
+            heavenStratumRoot.add(satellite);
+            const length = Math.hypot(p.x, p.z);
+            const bridge = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.65, length), heavenStoneMat);
+            bridge.position.set(p.x * 0.5, p.y + 0.35, p.z * 0.5);
+            bridge.rotation.y = Math.atan2(p.x, p.z);
+            heavenStratumRoot.add(bridge);
+            for (const side of [-1, 1]) {
+                const rail = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.05, length), heavenCyanMat);
+                rail.position.set(side * 2.65, 0.8, 0);
+                bridge.add(rail);
+            }
+        }
+
+        // Chongqing cue: the destination is legible across several contextual ground levels.
+        const upperPlaza = new THREE.Mesh(new THREE.CylinderGeometry(17, 20, 1.5, 48), heavenStoneMat);
+        upperPlaza.position.set(0, 12, -24);
+        heavenStratumRoot.add(upperPlaza);
+        for (const x of [-13, 13]) {
+            const support = new THREE.Mesh(new THREE.BoxGeometry(2.4, 24, 2.4), heavenDeckMat);
+            support.position.set(x, 0, -24);
+            heavenStratumRoot.add(support);
+        }
+
+        // Strong destination landmark: a finite beacon tower visible from every sky plaza.
+        const heavenBeacon = new THREE.Group();
+        heavenBeacon.name = 'Heaven Northstar Beacon';
+        heavenBeacon.position.set(0, 0.8, -14);
+        const beaconShaft = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 4.2, 30, 12), heavenDeckMat);
+        beaconShaft.position.y = 15;
+        heavenBeacon.add(beaconShaft);
+        const beaconCrown = new THREE.Mesh(new THREE.OctahedronGeometry(5.4, 1), heavenGoldMat);
+        beaconCrown.position.y = 32;
+        heavenBeacon.add(beaconCrown);
+        const beaconCore = new THREE.Mesh(new THREE.IcosahedronGeometry(3.2, 1), heavenCyanMat);
+        beaconCore.position.y = 32;
+        heavenBeacon.add(beaconCore);
+        const heavenPrototypeRings = [];
+        for (let i = 0; i < 3; i++) {
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(8 + i * 4, 0.22, 10, 64), i === 1 ? heavenMagentaMat : heavenCyanMat);
+            ring.position.y = 30 + i * 3.2;
+            ring.rotation.set(Math.PI / 2.5 + i * 0.18, i * 0.34, 0);
+            heavenBeacon.add(ring);
+            heavenPrototypeRings.push(ring);
+        }
+        heavenStratumRoot.add(heavenBeacon);
+
+        // Repeated skyline is instanced: one draw call, finite authored footprint.
+        const skyTowerGeo = new THREE.BoxGeometry(1, 1, 1);
+        const skyTowerInstances = new THREE.InstancedMesh(skyTowerGeo, heavenDeckMat, 28);
+        skyTowerInstances.name = 'Heaven Plaza Towers';
+        const skyTowerMatrix = new THREE.Matrix4();
+        const skyTowerQuat = new THREE.Quaternion();
+        const skyTowerScale = new THREE.Vector3();
+        const skyTowerPos = new THREE.Vector3();
+        for (let i = 0; i < 28; i++) {
+            const a = (i / 28) * Math.PI * 2;
+            const r = 27 + (i % 3) * 5;
+            const h = 5 + (i % 7) * 2.1;
+            skyTowerPos.set(Math.cos(a) * r, h / 2, Math.sin(a) * r);
+            skyTowerScale.set(2.1 + (i % 2), h, 2.1 + ((i + 1) % 2));
+            skyTowerMatrix.compose(skyTowerPos, skyTowerQuat, skyTowerScale);
+            skyTowerInstances.setMatrixAt(i, skyTowerMatrix);
+        }
+        skyTowerInstances.instanceMatrix.needsUpdate = true;
+        heavenStratumRoot.add(skyTowerInstances);
+
+        const heavenReturnPad = new THREE.Group();
+        heavenReturnPad.name = 'Heaven Return Pad';
+        const returnBase = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.8, 0.3, 48), heavenGoldMat);
+        returnBase.position.y = 0.15;
+        const returnRing = new THREE.Mesh(new THREE.TorusGeometry(4.0, 0.12, 8, 64), heavenCyanMat);
+        returnRing.rotation.x = Math.PI / 2;
+        returnRing.position.y = 0.36;
+        const returnArch = new THREE.Mesh(new THREE.TorusGeometry(4.4, 0.18, 10, 64, Math.PI), heavenGoldMat);
+        returnArch.position.set(0, 4.2, -2.3);
+        [returnBase, returnRing, returnArch].forEach((part) => {
+            part.userData.heavenGate = true;
+            part.userData.verticalConnector = { connectorId: 'surface-heaven', endpoint: 'heaven' };
+            heavenGateTargets.push(part);
+        });
+        heavenReturnPad.add(returnBase, returnRing, returnArch);
+        heavenStratumRoot.add(heavenReturnPad);
+        if (window.__GENESIS_COST_CONTRACT !== false) Genesis.declareCost(heavenStratumRoot, { cpu: 1, gpu: 5, memory: 2, updateFreq: 1, priority: 8, sector: 'heaven-prototype', sleep: 'manual' });
+        window.__heavenStratumRoot = heavenStratumRoot;
+
+        function updateHeavenPrototype(dt) {
+            for (let i = 0; i < heavenPrototypeRings.length; i++) heavenPrototypeRings[i].rotation.z += dt * (0.12 + i * 0.04) * (i % 2 ? -1 : 1);
+            beaconCore.rotation.y += dt * 0.28;
+        }
 
         // Citizens (aliens, humans, robots)
         const npcTalkTargets = [];
@@ -6375,6 +6806,7 @@ bloomPass.radius = 0.7;
         const citizens = [];
         for (let i = 0; i < 25; i++) {
             const cGroup = new THREE.Group();
+            cGroup.name = 'Surface Citizen ' + (i + 1);
             const talkData = { label: `Citizen ${i + 1}`, kind: 'citizen' };
             const cMat = new THREE.MeshStandardMaterial({
                 color: new THREE.Color(Math.random(), Math.random(), Math.random()),
@@ -6688,6 +7120,11 @@ bloomPass.radius = 0.7;
             playerPitch = Math.max(-0.5, Math.min(1.2, playerPitch - e.movementY * 0.004));
         });
 
+        function getActiveStratum() {
+            return Genesis.VerticalStackManager && Genesis.VerticalStackManager.getActive ? (Genesis.VerticalStackManager.getActive() || 'surface') : 'surface';
+        }
+        function isStratumActive(id) { return getActiveStratum() === id; }
+
         function updatePlayerNPC(dt) {
             if (loaderActive) return; // scroll-world loader owns the camera during initial load
             if (cameraMode !== 'npc') return;
@@ -6711,7 +7148,7 @@ bloomPass.radius = 0.7;
                 if (playerNPC.position.y <= playerFloorY) { playerNPC.position.y = playerFloorY; playerVelY = 0; playerGrounded = true; }
             }
             // Collision: keep the character out of building footprints (all realms)
-            if (!_commandCenter && typeof buildings !== 'undefined' && buildings && buildings.length) {
+            if (isStratumActive('surface') && !_commandCenter && typeof buildings !== 'undefined' && buildings && buildings.length) {
                 for (const b of buildings) {
                     const hw = (b.w || 4) / 2 + 0.7, hd = (b.d || 4) / 2 + 0.7;
                     const dx = playerNPC.position.x - b.x, dz = playerNPC.position.z - b.z;
@@ -6723,7 +7160,7 @@ bloomPass.radius = 0.7;
                 }
             }
             // Pyramid collision (hub only, pyramid at origin)
-            if (!_commandCenter && Math.abs(playerFloorY) < 1) {
+            if (isStratumActive('surface') && !_commandCenter && Math.abs(playerFloorY) < 1) {
                 const pyramidRadius = 8;
                 const dx = playerNPC.position.x;
                 const dz = playerNPC.position.z;
@@ -6749,12 +7186,53 @@ bloomPass.radius = 0.7;
             camera.lookAt(eye);
         }
 
-        function teleportPlayerToHeaven() {
-            playerNPC.position.set(0, 42.4, -88);
-            playerFloorY = 42.4;
-            playerFlying = true; playerVelY = 0;
+        function applyVerticalPlayerArrival(stratumId) {
+            const arrival = stratumId === 'heaven'
+                ? heavenStratumRoot.localToWorld(new THREE.Vector3(0, 0.38, 6))
+                : cityGroup.localToWorld(new THREE.Vector3(0, 0.02, -46));
+            playerNPC.position.copy(arrival);
+            playerFloorY = arrival.y;
+            playerVelY = 0;
+            playerFlying = false;
+            playerGrounded = true;
+            playerYaw = stratumId === 'heaven' ? Math.PI : 0;
             setCameraMode('npc');
-            spawnWhisper(playerNPC.position, 'Heaven platform reached. Flight mode online.');
+            const eye = arrival.clone().add(new THREE.Vector3(0, 1.6, 0));
+            const look = new THREE.Vector3(Math.sin(playerYaw), 0, Math.cos(playerYaw));
+            camera.position.copy(eye).addScaledVector(look, -camDist);
+            camera.position.y = Math.max(camera.position.y, playerFloorY + 0.6);
+            camera.lookAt(eye);
+            controls.target.copy(eye);
+            controls.update();
+            spawnWhisper(arrival, stratumId === 'heaven' ? 'Sky-plaza reached. The Northstar beacon is live.' : 'Surface city restored. The lift remembers the route.');
+        }
+
+        function transitionPlayerStratum(stratumId) {
+            if (!Genesis.VerticalStackManager || !Genesis.VerticalStackManager.transitionTo) return Promise.reject(new Error('Vertical Stack Manager unavailable'));
+            return Genesis.VerticalStackManager.transitionTo(stratumId, { connectorId: 'surface-heaven' });
+        }
+
+        function teleportPlayerToHeaven() {
+            return transitionPlayerStratum('heaven');
+        }
+
+        function activateVerticalConnector(target) {
+            const meta = target && target.userData ? target.userData.verticalConnector : null;
+            if (!meta) return false;
+            const expected = meta.endpoint === 'heaven' ? 'heaven' : 'surface';
+            if (!isStratumActive(expected)) return true;
+            const endpointPosition = new THREE.Vector3();
+            target.getWorldPosition(endpointPosition);
+            if (playerNPC.position.distanceTo(endpointPosition) > 11) {
+                spawnWhisper(endpointPosition, 'Move closer to the lift to travel.');
+                return true;
+            }
+            const destination = expected === 'surface' ? 'heaven' : 'surface';
+            transitionPlayerStratum(destination).catch((error) => {
+                console.warn('[VerticalStack] transition failed', error);
+                spawnWhisper(endpointPosition, 'The vertical route is stabilizing. Try again.');
+            });
+            return true;
         }
 
         function talkToNPC(target) {
@@ -7149,6 +7627,45 @@ bloomPass.radius = 0.7;
         }
         buildSkyBackdrop();
         window.__skyLayer = skyLayer;
+
+        // Register the vertical dimension stack only after both authored roots and player
+        // transfer state exist. Legacy heaven groups stay exactly where they were.
+        Genesis.VerticalStackManager.registerStratum('surface', cityGroup, { order: 0, state: 'ACTIVE', floorY: 0 });
+        Genesis.VerticalStackManager.registerStratum('heaven', heavenStratumRoot, { order: 1, state: 'LOADED', floorY: HEAVEN_STRATUM_Y + 0.38 });
+        Genesis.VerticalStackManager.registerConnector('surface-heaven', {
+            from: 'surface',
+            to: 'heaven',
+            bidirectional: true,
+            prewarmMs: 140,
+            endpoints: { surface: heavenLift, heaven: heavenReturnPad },
+            ready: ({ destination }) => !!(destination && destination.root && destination.root.parent && destination.root.visible),
+            transfer: ({ to }) => applyVerticalPlayerArrival(to)
+        });
+        if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('heaven-prototype', heavenStratumRoot, { maxDistance: 1600, autoSleep: false });
+        if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('heaven-prototype', heavenStratumRoot, { priority: 9, maxDistance: 1600, stateOwned: true, owner: 'vertical-stack' });
+        Genesis.VerticalStackManager.tick({ exteriorVisible: true });
+
+        const verticalStackDiagnostics = Object.freeze({
+            manager: Genesis.VerticalStackManager,
+            summary: () => Genesis.VerticalStackManager.summary(),
+            endpoints: () => Genesis.VerticalStackManager.endpoints(),
+            getActive: () => Genesis.VerticalStackManager.getActive(),
+            playerState: () => ({
+                position: playerNPC.position.toArray(),
+                floorY: playerFloorY,
+                grounded: playerGrounded,
+                flying: playerFlying,
+                verticalVelocity: playerVelY,
+                cameraMode,
+                cameraTarget: controls.target.toArray()
+            }),
+            sampleSurfaceActors: () => ({
+                car: cars.length ? cars[0].group.position.toArray() : null,
+                citizen: citizens.length ? citizens[0].group.position.toArray() : null
+            })
+        });
+        Object.defineProperty(window, '__verticalStack', { value: verticalStackDiagnostics, writable: false, configurable: false });
+        Object.defineProperty(window, 'activeStratum', { get: () => Genesis.VerticalStackManager.getActive(), configurable: false });
 
         // ========== RECENT DOWNLOADS -> EXTENDED SPACE + HEAVEN CITIES ==========
         // Pope directive: do not hide the recent-download assets behind a gallery.
@@ -8098,7 +8615,8 @@ bloomPass.radius = 0.7;
         const interiorCamPos = new THREE.Vector3(0, 1.2, 2.3);
         const interiorTarget = new THREE.Vector3(0, 1, 0);
         function setPyramidExteriorVisible(visible) {
-            [cityGroup, skyLayer, platform, capstone, edges, legacyGroup].forEach((obj) => { if (obj) obj.visible = visible; });
+            [cityGroup, skyLayer, heavenStratumRoot, platform, capstone, edges, legacyGroup].forEach((obj) => { if (obj) obj.visible = visible; });
+            if (Genesis.VerticalStackManager && Genesis.VerticalStackManager.setExteriorVisible) Genesis.VerticalStackManager.setExteriorVisible(visible);
             if (window.__gskAvatar && window.__gskAvatar.group) window.__gskAvatar.group.visible = visible;
             if (window.__memoryBuildings && window.__memoryBuildings.group) window.__memoryBuildings.group.visible = visible;
             if (window.__subagentNPCs && window.__subagentNPCs.group) window.__subagentNPCs.group.visible = visible;
@@ -8432,7 +8950,7 @@ bloomPass.radius = 0.7;
         function resolveInteractionTarget(obj) {
             const keys = ['npcTalk', 'realmAsset', 'book', 'scribe', 'stall', 'merchant', 'commission', 'schematic', 'builder',
                 'prophetOracle', 'future', 'prophet', 'chamberFeature', 'gskMemory', 'gskSoul', 'isBook', 'shipPortal',
-                'realmPortal', 'chamberIndex', 'godWorld', 'caretaker', 'gskAvatar', 'heavenGate', 'commandConsole', 'commandAction', 'agentPlug'];
+                'realmPortal', 'chamberIndex', 'godWorld', 'caretaker', 'gskAvatar', 'verticalConnector', 'heavenGate', 'commandConsole', 'commandAction', 'agentPlug'];
             let node = obj;
             while (node && node !== scene) {
                 if (node.userData && keys.some((key) => node.userData[key] !== undefined)) return node;
@@ -8545,6 +9063,10 @@ bloomPass.radius = 0.7;
             }
             if (mouseDownTarget === portalPlane) {
                 enterPyramid();
+                return;
+            }
+            if (mouseDownTarget.userData && mouseDownTarget.userData.verticalConnector) {
+                activateVerticalConnector(mouseDownTarget);
                 return;
             }
             if (mouseDownTarget.userData && mouseDownTarget.userData.heavenGate) {
@@ -11955,6 +12477,10 @@ bloomPass.radius = 0.7;
         const _realmEnter = { scribe: enterScribeRealm, merchant: enterMerchantRealm, builder: enterBuilderRealm, prophet: enterProphetRealm, chamber: () => enterChamber(0) };
         const _realmExit = { scribe: exitScribeRealm, merchant: exitMerchantRealm, builder: exitBuilderRealm, prophet: exitProphetRealm, chamber: exitChamber };
         function travelToRealm(name) {
+            if (getActiveStratum() !== 'surface') {
+                spawnWhisper(playerNPC.position, 'Return to the surface lift before entering a realm.');
+                return;
+            }
             const cur = currentRealm();
             if (cur && cur !== name && _realmExit[cur]) _realmExit[cur]();
             if (name !== 'hub' && _realmEnter[name]) _realmEnter[name]();
@@ -12009,17 +12535,13 @@ bloomPass.radius = 0.7;
             lastTime = now;
             time += dt;
             genesisRenderSchedule.update(now);
+            if (window.__GENESIS_VERTICAL_STACK !== false && Genesis.VerticalStackManager && Genesis.VerticalStackManager.tick) Genesis.VerticalStackManager.tick({ exteriorVisible: !isInside });
             if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager && Genesis.SectorManager.tick) Genesis.SectorManager.tick();
             if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility && Genesis.Visibility.tick) Genesis.Visibility.tick();
             if (window.__GENESIS_ANIM_SCHEDULER !== false && Genesis.AnimationScheduler && Genesis.AnimationScheduler.tick) Genesis.AnimationScheduler.tick(dt);
             if (window.__genesisFrameCb) { for (let _fi = 0; _fi < window.__genesisFrameCb.length; _fi++) { try { window.__genesisFrameCb[_fi](dt); } catch (e) {} } }
             if (window.__GENESIS_LIGHTING_MANAGER !== false && Genesis.LightingManager && Genesis.LightingManager.tick) Genesis.LightingManager.tick();
             if (window.__GENESIS_STREAMING_MANAGER !== false && Genesis.StreamingManager && Genesis.StreamingManager.tick) Genesis.StreamingManager.tick();
-            if (!Genesis.boot.firstFrameAt) {
-                Genesis.boot.firstFrameAt = now;
-                if (typeof window.__genesisMarkFirstFrame === 'function') window.__genesisMarkFirstFrame();
-                Genesis.setStatus('first frame alive', 'ok');
-            }
             if (loaderActive) ScrollWorldLoader.update(dt);
             updateRealmAtmospheres(time);
             if (!_audioSeeded) { _audioSeeded = true; CPL_AUDIO.seed(); }
@@ -12030,10 +12552,13 @@ bloomPass.radius = 0.7;
             updateBillboardVideoPlayback();
             const _slow = (_frameCount++ & 1) === 0; // half-rate for cosmetic-only systems (Gun H)
             const hubActive = !isInside && !inScribe && !inMerchant && !inBuilder && !inProphet && !inChamber;
+            const activeStratum = getActiveStratum();
+            const hubSurfaceActive = hubActive && activeStratum === 'surface';
+            const prototypeHeavenActive = hubActive && activeStratum === 'heaven';
             // ========== GENESIS TIER 1 / SHARD B: world sector sleeping foundation ==========
-            const hubCityActive = hubActive && Genesis.lifecycle.isSectorActive(cityGroup, { root: cityGroup, maxDistance: 260, sleepWhenFar: true });
-            const skySectorActive = hubActive && Genesis.lifecycle.isSectorActive(skyLayer, { root: skyLayer, maxDistance: 560, sleepWhenFar: true });
-            const heavenSectorActive = hubActive && Genesis.lifecycle.isSectorActive(heaven, { root: heaven, maxDistance: 420, sleepWhenFar: true });
+            const hubCityActive = hubSurfaceActive && Genesis.lifecycle.isSectorActive(cityGroup, { root: cityGroup, maxDistance: 260, sleepWhenFar: true });
+            const skySectorActive = hubSurfaceActive && Genesis.lifecycle.isSectorActive(skyLayer, { root: skyLayer, maxDistance: 560, sleepWhenFar: true });
+            const heavenSectorActive = hubSurfaceActive && Genesis.lifecycle.isSectorActive(heaven, { root: heaven, maxDistance: 420, sleepWhenFar: true });
             perf.sample(dt);
             if (window.__GENESIS_PERFORMANCE_GOVERNOR !== false && Genesis.PerformanceGovernor && Genesis.PerformanceGovernor.sample) {
                 const _ri = (renderer && renderer.info) ? renderer.info : null;
@@ -12055,7 +12580,7 @@ bloomPass.radius = 0.7;
             updateCommandCenter(dt, time);
             
             // --- souls orbiting & bobbing + mouse reaction (half-rate: cosmetic) ---
-            if (_slow && hubActive) souls.forEach(s => {
+            if (_slow && hubSurfaceActive) souls.forEach(s => {
                 if (s.obj.userData.isDragging) return;
                 // mouse proximity: flee from cursor
                 const dx = s.obj.position.x - mouseWorldPos.x;
@@ -12076,9 +12601,10 @@ bloomPass.radius = 0.7;
             });
             
             // --- alive angels: flight + social conversation (GSK-aware) ---
-            if (hubActive) updateAngelLife(dt, time);
+            if (hubSurfaceActive) updateAngelLife(dt, time);
+            if (prototypeHeavenActive) updateHeavenPrototype(dt);
 
-            if (hubActive) {
+            if (hubSurfaceActive) {
             // --- avatar bob ---
             if (avatar) {
                 const bobY = Math.sin(time * 1.2) * 0.04;
@@ -12296,7 +12822,7 @@ bloomPass.radius = 0.7;
                     Genesis.lifecycle.updateMixer(w.mixer, dt, { owner: 'walker-rig', root: c.group, maxDistance: 120, sleepWhenFar: true });
                 }
             }
-            if (paimonMixer) Genesis.lifecycle.updateMixer(paimonMixer, dt, { owner: 'paimon', root: paimonNPC || scene, maxDistance: 160, sleepWhenFar: true });
+            if (hubSurfaceActive && paimonMixer) Genesis.lifecycle.updateMixer(paimonMixer, dt, { owner: 'paimon', root: paimonNPC || scene, maxDistance: 160, sleepWhenFar: true });
             if (hubCityActive && paimonNPC) {
                 paimonTimer += dt;
                 if (paimonTimer > 4) {
@@ -12340,7 +12866,7 @@ bloomPass.radius = 0.7;
             updateBookReading();
 
             // --- avatar system ---
-            if (hubActive) {
+            if (hubSurfaceActive) {
                 updateAvatars(dt);
                 updateTaskParticles(dt);
                 updateBuildingWindowFlashes(dt);
@@ -12351,20 +12877,20 @@ bloomPass.radius = 0.7;
             gskBridge.update(dt);
 
             // --- GSK visible body (Gap 1) ---
-            if (hubActive && window.__gskAvatar) window.__gskAvatar.update(dt, time);
+            if (hubSurfaceActive && window.__gskAvatar) window.__gskAvatar.update(dt, time);
 
             // --- Memory buildings (Gap 2) ---
-            if (hubActive && window.__memoryBuildings) window.__memoryBuildings.update(dt, time);
+            if (hubSurfaceActive && window.__memoryBuildings) window.__memoryBuildings.update(dt, time);
 
             // --- Subagent NPCs (Gap 3) ---
-            if (hubActive && window.__subagentNPCs) window.__subagentNPCs.update(dt, time);
+            if (hubSurfaceActive && window.__subagentNPCs) window.__subagentNPCs.update(dt, time);
 
             // --- Thought stream (GSK inner life) ---
-            if (hubActive && window.__thoughtStream) window.__thoughtStream.update(dt);
-            if (hubActive && window.__worldSync) window.__worldSync.update(dt);
+            if (hubSurfaceActive && window.__thoughtStream) window.__thoughtStream.update(dt);
+            if (hubSurfaceActive && window.__worldSync) window.__worldSync.update(dt);
             
             // --- rune pulse animation ---
-            if (hubActive) runes.forEach(rune => {
+            if (hubSurfaceActive) runes.forEach(rune => {
                 const pulse = 0.5 + Math.sin(time * 2.5 + rune.position.x) * 0.4;
                 rune.material.opacity = pulse;
                 const s = 1 + Math.sin(time * 3 + rune.position.x) * 0.2;
@@ -12381,10 +12907,10 @@ bloomPass.radius = 0.7;
             if (inBuilder) updateBuilderRealm(time, dt);
             if (inProphet) updateProphetRealm(time, dt);
             if (inChamber) updateChamberRealm(time, dt);
-            if (hubActive) updatePortalCaretaker(time);
+            if (hubSurfaceActive) updatePortalCaretaker(time);
             
             // --- pulse pyramid glow ---
-            if (hubActive) {
+            if (hubSurfaceActive) {
                 pyramidGlow.intensity = 0.9 + Math.sin(time * 1.8) * 0.3;
                 capstone.material.emissiveIntensity = 0.5 + Math.sin(time * 2.2) * 0.2;
             }
@@ -12400,20 +12926,26 @@ bloomPass.radius = 0.7;
             updatePlayerNPC(dt);
             if (cameraMode === 'orbit') controls.update();
             perf.beginGpu();
+            let renderSucceeded = false;
             try {
-                if (window.__GENESIS_RENDER_GRAPH !== false && Genesis.RenderGraph && Genesis.RenderGraph.compose && genesisRenderSchedule.composerReady) Genesis.RenderGraph.compose();
-                else if (genesisRenderSchedule.composerReady) effectComposer.render();
-                else renderer.render(scene, camera);
+                if (window.__GENESIS_RENDER_GRAPH !== false && Genesis.RenderGraph && Genesis.RenderGraph.compose && genesisRenderSchedule.composerReady) renderSucceeded = Genesis.RenderGraph.compose() !== false;
+                else if (genesisRenderSchedule.composerReady) { effectComposer.render(); renderSucceeded = true; }
+                else { renderer.render(scene, camera); renderSucceeded = true; }
             } catch (e) {
                 console.warn('[Genesis] render path failed', e);
                 if (typeof window.__genesisPushError === 'function') window.__genesisPushError('render path failed: ' + ((e && e.message) || e));
                 if (typeof showGenesisFailure === 'function') showGenesisFailure('Render path failed — survival mode active.');
                 if (typeof window.__genesisReleaseLoader === 'function') window.__genesisReleaseLoader('Render path failed — survival mode active.', { force: false });
-                try { renderer.render(scene, camera); } catch (_) {}
+                try { renderer.render(scene, camera); renderSucceeded = true; } catch (_) {}
             }
             perf.endGpu();
             perf.pollGpu();
-            if (Genesis.recovery && typeof Genesis.recovery.noteFrame === 'function') Genesis.recovery.noteFrame();
+            if (renderSucceeded && !Genesis.boot.firstFrameAt) {
+                Genesis.boot.firstFrameAt = performance.now();
+                if (typeof window.__genesisMarkFirstFrame === 'function') window.__genesisMarkFirstFrame();
+                Genesis.setStatus('first frame alive', 'ok');
+            }
+            if (renderSucceeded && Genesis.recovery && typeof Genesis.recovery.noteFrame === 'function') Genesis.recovery.noteFrame();
             if (!Genesis.boot.recoveryActive && Genesis.boot.fallbackGroup && Genesis.boot.fallbackGroup.visible && (window.__cplReady || (window.__genesisBackstopReleased && Genesis.boot.firstFrameAt && (now - Genesis.boot.firstFrameAt) > 1500 && renderer.info.render.calls > 20))) {
                 Genesis.boot.fallbackGroup.visible = false;
                 Genesis.boot.fallbackVisible = false;

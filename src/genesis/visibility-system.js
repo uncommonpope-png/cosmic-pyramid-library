@@ -11,6 +11,7 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
   const _projScreen = new THREE.Matrix4();
   const _box = new THREE.Box3();
   const _sphere = new THREE.Sphere();
+  const _position = new THREE.Vector3();
 
   function _inFrustum(root) {
     if (!camera) return true;
@@ -24,7 +25,16 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
   }
 
   function register(id, root, opts = {}) {
-    entries.set(id, { root, priority: (opts.priority != null) ? opts.priority : 5, maxDistance: opts.maxDistance || 260, visible: true });
+    entries.set(id, {
+      root,
+      priority: (opts.priority != null) ? opts.priority : 5,
+      maxDistance: opts.maxDistance || 260,
+      stateOwned: !!opts.stateOwned,
+      owner: opts.owner || null,
+      visible: true,
+      inRange: true,
+      inFrustum: true
+    });
   }
 
   function isVisible(id) { const e = entries.get(id); return !!e && e.visible; }
@@ -35,11 +45,22 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
 
   function tick() {
     for (const [id, e] of entries) {
+      const stateOwned = e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner);
+      if (stateOwned) {
+        e.inRange = true;
+        e.inFrustum = true;
+        e.visible = e.root.visible !== false;
+        continue;
+      }
       // sleep:'never' objects always visible
       let never = false;
       e.root.traverse((o) => { if (o.userData && o.userData.cost && o.userData.cost.sleep === 'never') never = true; });
-      if (never) { e.visible = true; if (e.root.visible === false) e.root.visible = true; continue; }
-      const inView = _inFrustum(e.root);
+      if (never) { e.inRange = true; e.inFrustum = true; e.visible = true; if (e.root.visible === false) e.root.visible = true; continue; }
+      e.root.updateWorldMatrix(true, false);
+      _position.setFromMatrixPosition(e.root.matrixWorld);
+      e.inRange = !camera || camera.position.distanceToSquared(_position) <= e.maxDistance * e.maxDistance;
+      e.inFrustum = e.inRange && _inFrustum(e.root);
+      const inView = e.inRange && e.inFrustum;
       const wasVisible = e.visible;
       e.visible = inView;
       if (e.root.visible !== inView) e.root.visible = inView; // cheap hide/show
@@ -49,7 +70,21 @@ export function createVisibilitySystem(THREE, camera, SectorManager) {
     }
   }
 
-  return { register, isVisible, wakeOrder, tick, _entries: entries };
+  function summary() {
+    const out = {};
+    for (const [id, e] of entries) out[id] = {
+      visible: e.visible,
+      inRange: e.inRange,
+      inFrustum: e.inFrustum,
+      maxDistance: e.maxDistance,
+      priority: e.priority,
+      stateOwned: e.stateOwned || !!(e.root.userData && e.root.userData.__genesisVisibilityOwner),
+      owner: e.owner
+    };
+    return out;
+  }
+
+  return { register, isVisible, wakeOrder, tick, summary, _entries: entries };
 }
 
 export function install(Genesis, THREE, camera, SectorManager) {
