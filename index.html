@@ -1937,6 +1937,51 @@
             }
         })();
 
+        // ========== GENESIS CINEMATIC RENDERER (Phase D — subsystem) ==========
+        // Realm look profiles + selective post (bloom threshold/enabled + exposure
+        // + vignette + decorative-light stratum hint). OFF by default so the live
+        // world is byte-identical: the manager is a no-op stub and the module is
+        // never imported. Inline decides use. Mirrors the VehicleController idiom.
+        window.__GENESIS_CINEMATIC_RENDERER = (typeof window.__GENESIS_CINEMATIC_RENDERER === 'boolean') ? window.__GENESIS_CINEMATIC_RENDERER : false;
+        (function () {
+            if (window.__GENESIS_CINEMATIC_RENDERER === false) {
+                Genesis.CinematicRenderer = {
+                    setRefs(){}, applyLook(){return false;}, setTier(){}, enable(){return false;},
+                    disable(){return true;}, restore(){return true;}, summary(){return {enabled:false,activeLook:'surface',exposure:null,bloomStrength:null,bloomThreshold:null,bloomEnabled:null,fogDensity:null,decorativeEnabled:null,tier:'high'};},
+                    LOOK_PROFILES: {}
+                };
+                return;
+            }
+            // No-op stub first so call sites before async load never throw.
+            Genesis.CinematicRenderer = {
+                setRefs(){}, applyLook(){return false;}, setTier(){}, enable(){return false;},
+                disable(){return true;}, restore(){return true;}, summary(){return {enabled:false,activeLook:'surface',exposure:null,bloomStrength:null,bloomThreshold:null,bloomEnabled:null,fogDensity:null,decorativeEnabled:null,tier:'high'};},
+                LOOK_PROFILES: {}
+            };
+            import('./src/genesis/cinematic-renderer.js').then((m) => {
+                if (typeof m.install !== 'function') return;
+                const perfTier = () => (typeof perf !== 'undefined' && perf && perf.tier) ? perf.tier
+                    : (Genesis && Genesis.PerformanceGovernor && typeof Genesis.PerformanceGovernor.summary === 'function' ? (Genesis.PerformanceGovernor.summary().tier || 'high') : 'high');
+                m.install(window.Genesis, THREE, renderer, camera, scene, effectComposer, perfTier);
+                // Wire the inline post passes (module scope cannot see them).
+                if (Genesis.CinematicRenderer && typeof Genesis.CinematicRenderer.setRefs === 'function') {
+                    try { Genesis.CinematicRenderer.setRefs({ bloomPass: (typeof bloomPass !== 'undefined' ? bloomPass : null), vignettePass: (typeof vignettePass !== 'undefined' ? vignettePass : null) }); } catch (e) {}
+                }
+                if (typeof console !== 'undefined') console.log('[Genesis] Cinematic Renderer module validated (inline manager replaced).');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Cinematic Renderer module load skipped:', e && e.message); });
+
+            // Init once the world is ready: enable + apply current stratum look.
+            window.addEventListener('cpl:ready', () => {
+                try {
+                    if (Genesis.CinematicRenderer && typeof Genesis.CinematicRenderer.enable === 'function') Genesis.CinematicRenderer.enable();
+                    if (Genesis.CinematicRenderer && typeof Genesis.CinematicRenderer.applyLook === 'function') {
+                        const id = (Genesis.VerticalStackManager && typeof Genesis.VerticalStackManager.getActive === 'function') ? Genesis.VerticalStackManager.getActive() : 'surface';
+                        Genesis.CinematicRenderer.applyLook(id || 'surface');
+                    }
+                } catch (e) { if (typeof console !== 'undefined') console.warn('[CinematicRenderer] init failed:', e && e.message); }
+            }, { once: true, passive: true });
+        })();
+
         window.__GENESIS_VERTICAL_STACK = (typeof window.__GENESIS_VERTICAL_STACK === 'boolean') ? window.__GENESIS_VERTICAL_STACK : true;
         (function () {
             const STATES = Object.freeze({ UNLOADED: 'UNLOADED', LOADED: 'LOADED', ACTIVE: 'ACTIVE', SLEEPING: 'SLEEPING' });
@@ -2121,6 +2166,10 @@
                             setRecordState(destination, STATES.ACTIVE);
                             activeId = id;
                             if (source && source.id !== id) setRecordState(source, STATES.SLEEPING);
+                            // Cinematic Renderer: re-apply the look for the new stratum (guarded; no-op if disabled).
+                            if (window.__GENESIS_CINEMATIC_RENDERER !== false && Genesis.CinematicRenderer && typeof Genesis.CinematicRenderer.applyLook === 'function') {
+                                try { Genesis.CinematicRenderer.applyLook(id); } catch (e) {}
+                            }
                             trace.ok = true;
                             trace.completedAt = now();
                             return summary();
@@ -13866,6 +13915,15 @@ bloomPass.radius = 0.7;
             updatePlayerNPC(dt);
             if (cameraMode === 'orbit') controls.update();
             perf.beginGpu();
+            // Cinematic Renderer: sync tier only when it actually changes (cheap
+            // compare; re-applies look so bloom.enabled reflects the new tier).
+            if (window.__GENESIS_CINEMATIC_RENDERER === true && Genesis.CinematicRenderer && typeof Genesis.CinematicRenderer.setTier === 'function') {
+                try {
+                    const _t = (typeof perf !== 'undefined' && perf && perf.tier) ? perf.tier
+                        : (Genesis.PerformanceGovernor && typeof Genesis.PerformanceGovernor.summary === 'function' ? (Genesis.PerformanceGovernor.summary().tier || 'high') : 'high');
+                    Genesis.CinematicRenderer.setTier(_t);
+                } catch (e) {}
+            }
             let renderSucceeded = false;
             try {
                 if (window.__GENESIS_RENDER_GRAPH !== false && Genesis.RenderGraph && Genesis.RenderGraph.compose && genesisRenderSchedule.composerReady) renderSucceeded = Genesis.RenderGraph.compose() !== false;
