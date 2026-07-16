@@ -592,12 +592,6 @@
           color: #dffaff; cursor: pointer; pointer-events: auto; display: none; }
         #scroll-loader .sl-enter.show { display: inline-block; }
         #scroll-loader .sl-enter:hover { background: rgba(40,100,150,0.9); }
-        /* P9 — living backdrop + manager-aware engine-status line */
-        #scroll-loader { background: radial-gradient(circle at 50% 40%, rgba(20,40,80,0.55), rgba(4,8,18,0.96)); }
-        @keyframes slPulse { 0%,100% { box-shadow: 0 12px 40px rgba(0,0,0,0.45), 0 0 28px rgba(40,120,200,0.18); }
-          50% { box-shadow: 0 12px 52px rgba(0,0,0,0.55), 0 0 46px rgba(60,160,255,0.34); } }
-        #scroll-loader .sl-card { animation: slPulse 5.5s ease-in-out infinite; }
-        #scroll-loader .sl-engine { font-size: 10px; color: #7fd0ff; letter-spacing: 2px; margin-top: 6px; min-height: 14px; }
         #objective { position: fixed; left: 14px; top: 14px; z-index: 60; max-width: 240px; padding: 10px 14px;
           font-family: Georgia, serif; font-size: 12px; line-height: 1.5; color: #dcefff; text-align: left;
           background: rgba(8,16,32,0.72); border: 1px solid rgba(102,255,255,0.3); border-radius: 12px; display: none;
@@ -1803,23 +1797,9 @@
             if (typeof window.__genesisReleaseLoader === 'function') window.__genesisReleaseLoader(safe);
         }
         criticalManager.onStart = () => { if (!window.__cplReady) loaderOverlay.classList.remove('hidden'); };
-        criticalManager.onProgress = (url, loaded, total) => { _bytes[url] = { loaded, total }; _refreshProgress();
-            if (window.__GENESIS_P9_SCROLLWORLD !== false) {
-                const eng = document.getElementById('sl-engine');
-                if (eng) {
-                    let L = 0, T = 0;
-                    for (const k in _bytes) { L += _bytes[k].loaded; T += _bytes[k].total || _bytes[k].loaded; }
-                    const lp = T ? Math.round((L / T) * 100) : 0;
-                    eng.textContent = 'Genesis Engine booting — Resource Manager auditing GPU (' + lp + '% · ' + Object.keys(_bytes).length + ' assets)';
-                }
-            }
-        };
+        criticalManager.onProgress = (url, loaded, total) => { _bytes[url] = { loaded, total }; _refreshProgress(); };
         criticalManager.onLoad = () => {
             _refreshProgress();
-            if (window.__GENESIS_P9_SCROLLWORLD !== false) {
-                const eng = document.getElementById('sl-engine');
-                if (eng) eng.textContent = '10 managers online · world governed · enter when ready';
-            }
             loaderPct.textContent = 'entering the library…';
             hideLoader();
             window.__cplReady = true;
@@ -12183,7 +12163,6 @@ bloomPass.radius = 0.7;
             <h1>THE LIVING LIBRARY</h1>
             <div class="sl-sub">GSK · SOUL PROTOCOL · ENTERING THE WORLD</div>
             <div class="sl-caption" id="sl-caption"></div>
-            <div class="sl-engine" id="sl-engine"></div>
             <div class="sl-hint">Scroll, or simply wait — your guided flight is <b>scrubbable</b>. The world streams in around you.</div>
             <button class="sl-enter" id="sl-enter">ENTER THE LIBRARY</button>
         </div>
