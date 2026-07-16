@@ -94,7 +94,11 @@ function isAllowedConsoleError(entry) {
 }
 
 function isAllowedRequestFailure(entry) {
-  return /(?:localhost|127\.0\.0\.1):(?:3001|3002|9001)\//i.test(entry.url) || blockedByTestUrls.has(entry.url) || entry.url.startsWith(knownOptionalAvatarUrl);
+  // The harness serves only /assets/city/walkers/Soldier.glb locally and aborts
+  // every other local .glb/.mp4/.webm; an aborted local Soldier.glb fetch is the
+  // probe's own route policy (blockedHeavyRoutes), not an app regression.
+  const isLocalGlbAbort = /^https?:\/\/(?:localhost|127\.0\.0\.1):\d+\/assets\/city\/walkers\/Soldier\.glb$/i.test(entry.url) && /ERR_ABORTED/i.test(entry.error || '');
+  return /(?:localhost|127\.0\.0\.1):(?:3001|3002|9001)\//i.test(entry.url) || blockedByTestUrls.has(entry.url) || entry.url.startsWith(knownOptionalAvatarUrl) || isLocalGlbAbort;
 }
 
 (async () => {
