@@ -1313,61 +1313,6 @@
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Video Manager module load skipped:', e && e.message); });
         })();
 
-        // ========== GENESIS STREAMING MANAGER (Phase B2 — manager #2) ==========
-        // Adds explicit load/unload lifecycle on the existing lazy-asset queue.
-        // register(assetKey, loaderFn, meta); ensureLoaded(key) runs once + tracks;
-        // unload(key) => MemoryManager.deepDispose + ResourceManager.dispose; tick()
-        // unloads assets whose sector is no longer awake. Flag: __GENESIS_STREAMING_MANAGER.
-        window.__GENESIS_STREAMING_MANAGER = (typeof window.__GENESIS_STREAMING_MANAGER === 'boolean') ? window.__GENESIS_STREAMING_MANAGER : true;
-        (function () {
-            if (window.__GENESIS_STREAMING_MANAGER === false) { Genesis.StreamingManager = { register(){}, ensureLoaded(){return null;}, unload(){return false;}, tick(){}, summary(){return{registered:0};} }; return; }
-            const _assets = new Map();
-            Genesis.StreamingManager = {
-                register(assetKey, loaderFn, meta) {
-                    if (!assetKey || typeof loaderFn !== 'function') return;
-                    if (_assets.has(assetKey) && (meta && meta.loadOnce) !== false) return;
-                    _assets.set(assetKey, { loaderFn, meta: meta || {}, loaded: false, object: null });
-                },
-                ensureLoaded(key) {
-                    const a = _assets.get(key);
-                    if (!a) return null;
-                    if (a.loaded) return a.object;
-                    const obj = a.loaderFn();
-                    a.loaded = true; a.object = obj || null;
-                    if (obj && Genesis.ResourceManager && typeof Genesis.ResourceManager.track === 'function' && obj.userData) Genesis.ResourceManager.track(obj, (a.meta && a.meta.owner) || key, obj);
-                    return obj;
-                },
-                unload(key) {
-                    const a = _assets.get(key);
-                    if (!a || !a.loaded) return false;
-                    if (a.object && Genesis.MemoryManager && typeof Genesis.MemoryManager.deepDispose === 'function') { try { Genesis.MemoryManager.deepDispose(a.object, (a.meta && a.meta.owner) || key); } catch (e) {} }
-                    else if (a.object && Genesis.ResourceManager && typeof Genesis.ResourceManager.dispose === 'function') { try { Genesis.ResourceManager.dispose((a.meta && a.meta.owner) || key); } catch (e) {} }
-                    a.loaded = false; a.object = null;
-                    return true;
-                },
-                tick() {
-                    for (const [key, a] of _assets) {
-                        if (!a.loaded) continue;
-                        const sectorId = a.meta && a.meta.sector;
-                        if (sectorId && Genesis.SectorManager && typeof Genesis.SectorManager.isAwake === 'function') {
-                            if (!Genesis.SectorManager.isAwake(sectorId)) { try { this.unload(key); } catch (e) {} }
-                        }
-                    }
-                },
-                summary() { let loaded = 0; for (const a of _assets.values()) if (a.loaded) loaded++; return { registered: _assets.size, loaded }; }
-            };
-            // Observe the existing lazy queue: wrap enqueueLazyAsset so queued tasks register.
-            if (typeof enqueueLazyAsset === 'function') {
-                const _orig = enqueueLazyAsset;
-                // enqueueLazyAsset is a function declaration; rebind reference used later.
-                try { enqueueLazyAsset = function (label, fn) { Genesis.StreamingManager.register('lazy:' + label, fn, { owner: 'lazy:' + label, sector: (typeof currentSectorId !== 'undefined') ? currentSectorId : null }); return _orig(label, fn); }; } catch (e) {}
-            }
-            import('./src/genesis/streaming-manager.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, camera, scene);
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Streaming Manager loaded from module (src/genesis/streaming-manager.js)');
-            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Streaming Manager module load skipped:', e && e.message); });
-        })();
-
         Genesis.notifyError = function (message) {
             if (!message) return;
             this.setStatus('error: ' + message, 'err');
@@ -11527,7 +11472,6 @@ bloomPass.radius = 0.7;
             if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility && Genesis.Visibility.tick) Genesis.Visibility.tick();
             if (window.__GENESIS_ANIM_SCHEDULER !== false && Genesis.AnimationScheduler && Genesis.AnimationScheduler.tick) Genesis.AnimationScheduler.tick(dt);
             if (window.__GENESIS_LIGHTING_MANAGER !== false && Genesis.LightingManager && Genesis.LightingManager.tick) Genesis.LightingManager.tick();
-            if (window.__GENESIS_STREAMING_MANAGER !== false && Genesis.StreamingManager && Genesis.StreamingManager.tick) Genesis.StreamingManager.tick();
             if (!Genesis.boot.firstFrameAt) {
                 Genesis.boot.firstFrameAt = now;
                 if (typeof window.__genesisMarkFirstFrame === 'function') window.__genesisMarkFirstFrame();
