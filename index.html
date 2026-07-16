@@ -1237,48 +1237,6 @@
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Animation Scheduler module load skipped:', e && e.message); });
         })();
 
-        // ========== GENESIS LIGHTING MANAGER (Phase B8 — manager #8) ==========
-        // Governs point-light population: hard cap <=8 active, decorative off first.
-        // Observes existing lights (perf.lowLights + scattered PointLight creations);
-        // never removes, only governs visibility. Flag: __GENESIS_LIGHTING_MANAGER.
-        window.__GENESIS_LIGHTING_MANAGER = (typeof window.__GENESIS_LIGHTING_MANAGER === 'boolean') ? window.__GENESIS_LIGHTING_MANAGER : true;
-        (function () {
-            if (window.__GENESIS_LIGHTING_MANAGER === false) { Genesis.LightingManager = { register(){}, deregister(){}, capCheck(){return 0;}, setDecorativeEnabled(){}, tick(){}, summary(){return{};} }; return; }
-            const _lights = new Map();
-            let _decorativeEnabled = true;
-            const _HARD_CAP = 8;
-            function _register(light, meta) {
-                if (!light || !light.isLight) return;
-                _lights.set(light, { owner: (meta && meta.owner) || 'unknown', decorative: !!(meta && meta.decorative), cost: (meta && meta.cost) || 1, priority: (typeof (meta && meta.priority) === 'number') ? meta.priority : ((meta && meta.decorative) ? 0 : 5) });
-            }
-            function _activePointLights() { let n = 0; for (const [l, m] of _lights) { if (!l.isPointLight) continue; if (!l.visible) continue; if (m.decorative && !_decorativeEnabled) continue; n++; } return n; }
-            function _capCheck() {
-                let over = _activePointLights() - _HARD_CAP;
-                if (over <= 0) return 0;
-                const decor = [];
-                for (const [l, m] of _lights) if (l.isPointLight && m.decorative && l.visible) decor.push([l, m]);
-                decor.sort((a, b) => a[1].priority - b[1].priority);
-                let disabled = 0;
-                for (const [l] of decor) { if (over <= 0) break; l.visible = false; over--; disabled++; }
-                return disabled;
-            }
-            Genesis.LightingManager = {
-                register(l, meta) { return _register(l, meta); },
-                deregister(l) { _lights.delete(l); },
-                capCheck() { return _capCheck(); },
-                setDecorativeEnabled(v) { _decorativeEnabled = !!v; for (const [l, m] of _lights) if (l.isPointLight && m.decorative) l.visible = _decorativeEnabled && (l.__genesisWasVisible !== false); },
-                tick() { _capCheck(); },
-                summary() { return { registered: _lights.size, activePointLights: _activePointLights(), decorativeEnabled: _decorativeEnabled, cap: _HARD_CAP }; }
-            };
-            // Observe existing lights: register those the perf system already tracked.
-            if (typeof perf !== 'undefined' && perf.lowLights) perf.lowLights.forEach((l) => { if (l && l.isPointLight) _register(l, { owner: 'city-fill', decorative: true, cost: 1, priority: 1 }); });
-            if (typeof scene !== 'undefined' && scene) scene.traverse((o) => { if (o.isPointLight) _register(o, { owner: o.userData && o.userData.cityGrid ? 'city-grid' : 'scene', decorative: !!(o.userData && o.userData.decorative), cost: 1, priority: (o.userData && o.userData.cityGrid) ? 3 : 5 }); });
-            import('./src/genesis/lighting-manager.js').then((m) => {
-                const ext = m.install(window.Genesis, THREE, camera, scene);
-                if (ext && typeof console !== 'undefined') console.log('[Genesis] Lighting Manager loaded from module (src/genesis/lighting-manager.js)');
-            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Lighting Manager module load skipped:', e && e.message); });
-        })();
-
         Genesis.notifyError = function (message) {
             if (!message) return;
             this.setStatus('error: ' + message, 'err');
@@ -11436,7 +11394,6 @@ bloomPass.radius = 0.7;
             if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager && Genesis.SectorManager.tick) Genesis.SectorManager.tick();
             if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility && Genesis.Visibility.tick) Genesis.Visibility.tick();
             if (window.__GENESIS_ANIM_SCHEDULER !== false && Genesis.AnimationScheduler && Genesis.AnimationScheduler.tick) Genesis.AnimationScheduler.tick(dt);
-            if (window.__GENESIS_LIGHTING_MANAGER !== false && Genesis.LightingManager && Genesis.LightingManager.tick) Genesis.LightingManager.tick();
             if (!Genesis.boot.firstFrameAt) {
                 Genesis.boot.firstFrameAt = now;
                 if (typeof window.__genesisMarkFirstFrame === 'function') window.__genesisMarkFirstFrame();
