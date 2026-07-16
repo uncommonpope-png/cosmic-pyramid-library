@@ -1982,6 +1982,46 @@
             }, { once: true, passive: true });
         })();
 
+        // ========== GENESIS WORLD EDITOR (Cross-cutting — explicit creation mode) ==========
+        // Browser editor: select / transform / material / sector / navmesh-debug, scene JSON
+        // save+load, resource-cost inspector, engine debug views. It is an EXPLICIT creation
+        // mode — never the visitor-facing default. OFF by default so the live world is
+        // byte-identical: no-op stub, module never imported, no listeners fire, no panel.
+        // When flag ON it still stays dormant until an explicit user action (KeyP or
+        // window.__worldEditorEnter()) toggles editor MODE on. Mirrors the CinematicRenderer
+        // flag-gate idiom (no-op stub + deferred dynamic import + cpl:ready no-op).
+        window.__GENESIS_WORLD_EDITOR = (typeof window.__GENESIS_WORLD_EDITOR === 'boolean') ? window.__GENESIS_WORLD_EDITOR : false;
+        (function () {
+            if (window.__GENESIS_WORLD_EDITOR === false) {
+                // No-op stub: never imported, never mutates managers or the world, no listeners.
+                Genesis.WorldEditor = {
+                    enable(){}, disable(){}, toggle(){}, enter(){}, select(){}, deselect(){},
+                    save(){}, load(){}, serialize(){return [];}, assignSector(){}, refreshInfo(){},
+                    wire(){}, summary(){return {enabled:false,mode:false,selected:null,sectorCount:0,lightCount:null,savedSceneBytes:0};}, exit(){}
+                };
+                return;
+            }
+            // No-op stub first so call sites before async load never throw.
+            Genesis.WorldEditor = {
+                enable(){}, disable(){}, toggle(){}, enter(){}, select(){}, deselect(){},
+                save(){}, load(){}, serialize(){return [];}, assignSector(){}, refreshInfo(){},
+                wire(){}, summary(){return {enabled:true,mode:false,selected:null,sectorCount:0,lightCount:null,savedSceneBytes:0};}, exit(){}
+            };
+            import('./src/genesis/world-editor.js').then((m) => {
+                if (typeof m.install !== 'function') return;
+                m.install(window.Genesis, THREE, camera, scene, renderer, cityGroup, controls);
+                if (typeof console !== 'undefined') console.log('[Genesis] World Editor module validated (inline manager replaced).');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] World Editor module load skipped:', e && e.message); });
+
+            // Explicit mode gate: KeyP toggles editor mode. NEVER auto-activates.
+            window.addEventListener('keydown', (ev) => {
+                if (!ev || ev.key !== 'p' && ev.key !== 'P') return;
+                if (Genesis.WorldEditor && typeof Genesis.WorldEditor.toggle === 'function') {
+                    try { Genesis.WorldEditor.toggle(); } catch (e) {}
+                }
+            }, { passive: true });
+        })();
+
         // ========== GENESIS SCALE ENGINE (Phase E — bounded population + instanced traffic) ==========
         // Bounded extensions of Phase B (PopulationEngine hero) + Phase C (VehicleController hero).
         // OFF by default so the live world is byte-identical: no-op stub, module never imported,
