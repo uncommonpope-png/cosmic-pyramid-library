@@ -10,9 +10,8 @@ const SLEEP_PURGE_MS = 20000; // asleep longer than this => eligible for disposa
 export function createSectorManager(THREE, camera, ResourceManager) {
   const sectors = new Map(); // id -> { root, maxDistance, autoSleep, state, lastAwakeAt, asleepFor }
 
-  function _isActive(root, maxDistance) {
+  function _isInRange(root, maxDistance) {
     if (!root) return true;
-    if (root.visible === false) return false;
     if (!root.parent) return false;
     if (!camera) return true;
     root.updateWorldMatrix(true, false);
@@ -53,7 +52,7 @@ export function createSectorManager(THREE, camera, ResourceManager) {
     const now = performance.now();
     for (const [id, s] of sectors) {
       if (!s.autoSleep) continue;
-      const active = _isActive(s.root, s.maxDistance);
+      const active = _isInRange(s.root, s.maxDistance);
       const costMode = _sleepCost(s.root);
       if (active) {
         if (s.state !== 'active') wake(id);
@@ -76,7 +75,15 @@ export function createSectorManager(THREE, camera, ResourceManager) {
 
   function summary() {
     const out = {};
-    for (const [id, s] of sectors) out[id] = { state: s.state, maxDistance: s.maxDistance, disposed: !!s.disposed };
+    for (const [id, s] of sectors) out[id] = {
+      state: s.state,
+      maxDistance: s.maxDistance,
+      autoSleep: s.autoSleep,
+      inRange: _isInRange(s.root, s.maxDistance),
+      visible: !!(s.root && s.root.visible),
+      asleepFor: Math.round(s.asleepFor || 0),
+      disposed: !!s.disposed
+    };
     return out;
   }
 
