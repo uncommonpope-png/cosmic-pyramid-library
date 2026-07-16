@@ -1874,6 +1874,26 @@
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Premium Slice module load skipped:', e && e.message); });
         })();
 
+        // ========== GENESIS POPULATION ENGINE (Phase B — subsystem #3) ==========
+        // ONE hero NPC: navmesh pathfinding + intention brain + locomotion blend +
+        // motion + crowd separation. OFF by default so the live world is byte-identical.
+        // When false, the manager is a no-op stub and this module is never imported.
+        window.__GENESIS_POPULATION_ENGINE = (typeof window.__GENESIS_POPULATION_ENGINE === 'boolean') ? window.__GENESIS_POPULATION_ENGINE : false;
+        (function () {
+            if (window.__GENESIS_POPULATION_ENGINE === false) {
+                Genesis.PopulationEngine = { spawnHero(){}, tick(){}, sample(){return {heroPos:[0,0,0],heroMoved:false,brain:'Idle'};}, summary(){return {enabled:false,heroSpawned:false,navmeshReady:false,brainState:'Idle',position:{x:0,y:0,z:0},speed:0,mixerRegistered:false,lodBand:'hero'};}, registerDistantActor(){}, setPopulationLOD(){} };
+                return;
+            }
+            const api = {
+                spawnHero(){}, tick(){}, sample(){return {heroPos:[0,0,0],heroMoved:false,brain:'Idle'};}, summary(){return {enabled:true,heroSpawned:false,navmeshReady:false,brainState:'Idle',position:{x:0,y:0,z:0},speed:0,mixerRegistered:false,lodBand:'hero'};}, registerDistantActor(){}, setPopulationLOD(){}
+            };
+            Genesis.PopulationEngine = api;
+            import('./src/genesis/population-engine.js').then((m) => {
+                if (typeof m.install === 'function') m.install(window.Genesis, THREE, camera, scene, cityGroup);
+                if (typeof console !== 'undefined') console.log('[Genesis] Population Engine module validated (inline manager replaced).');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Population Engine module load skipped:', e && e.message); });
+        })();
+
         window.__GENESIS_VERTICAL_STACK = (typeof window.__GENESIS_VERTICAL_STACK === 'boolean') ? window.__GENESIS_VERTICAL_STACK : true;
         (function () {
             const STATES = Object.freeze({ UNLOADED: 'UNLOADED', LOADED: 'LOADED', ACTIVE: 'ACTIVE', SLEEPING: 'SLEEPING' });
@@ -5115,6 +5135,21 @@ bloomPass.radius = 0.7;
         // When OFF (default) this line is a no-op and the live world is untouched.
         if (window.__GENESIS_PREMIUM_SLICE === true && Genesis.PremiumSlice && typeof Genesis.PremiumSlice.build === 'function') {
             try { Genesis.PremiumSlice.build(); } catch (e) { if (typeof console !== 'undefined') console.warn('[PremiumSlice] build failed:', e && e.message); }
+        }
+
+        // ========== GENESIS POPULATION ENGINE — SPAWN TRIGGER (Phase B) ==========
+        // cityGroup now exists. Only spawn the hero when the engine flag is explicitly ON.
+        // Defer to __cplReady (mirrors primeNpcBodies) so GLB avatars are available;
+        // if already ready, spawn immediately. Default OFF = no scene additions.
+        function spawnPopulationHeroIfEnabled() {
+            if (window.__GENESIS_POPULATION_ENGINE !== true) return;
+            if (!Genesis.PopulationEngine || typeof Genesis.PopulationEngine.spawnHero !== 'function') return;
+            try { Genesis.PopulationEngine.spawnHero(); }
+            catch (e) { if (typeof console !== 'undefined') console.warn('[PopulationEngine] spawn failed:', e && e.message); }
+        }
+        if (window.__GENESIS_POPULATION_ENGINE === true) {
+            if (window.__cplReady) spawnPopulationHeroIfEnabled();
+            else window.addEventListener('cpl:ready', spawnPopulationHeroIfEnabled, { once: true, passive: true });
         }
 
         // Ground plane - large city floor
@@ -13391,6 +13426,7 @@ bloomPass.radius = 0.7;
             if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager && Genesis.SectorManager.tick) Genesis.SectorManager.tick();
             if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility && Genesis.Visibility.tick) Genesis.Visibility.tick();
             if (window.__GENESIS_ANIM_SCHEDULER !== false && Genesis.AnimationScheduler && Genesis.AnimationScheduler.tick) Genesis.AnimationScheduler.tick(dt, ++_genesisFrameSerial);
+            if (window.__GENESIS_POPULATION_ENGINE !== false && Genesis.PopulationEngine && typeof Genesis.PopulationEngine.tick === 'function') Genesis.PopulationEngine.tick(dt);
             if (window.__genesisFrameCb) { for (let _fi = 0; _fi < window.__genesisFrameCb.length; _fi++) { try { window.__genesisFrameCb[_fi](dt); } catch (e) {} } }
             if (window.__GENESIS_LIGHTING_MANAGER !== false && Genesis.LightingManager && Genesis.LightingManager.tick) Genesis.LightingManager.tick();
             if (window.__GENESIS_STREAMING_MANAGER !== false && Genesis.StreamingManager && Genesis.StreamingManager.tick) Genesis.StreamingManager.tick();
