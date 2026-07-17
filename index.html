@@ -5879,27 +5879,27 @@ bloomPass.radius = 0.7;
             'assets/profit-pics/pink dayz.jpg'
         ];
         const billboardSpots = [
-            { x: -28, z: -43, rot: 0, accent: 0xff33aa },
-            { x: 28, z: -43, rot: 0, accent: 0x44ddff },
-            { x: -43, z: -10, rot: Math.PI / 2, accent: 0xffcc44 },
-            { x: 43, z: 10, rot: -Math.PI / 2, accent: 0x66ffcc },
-            { x: -28, z: 43, rot: Math.PI, accent: 0xbb66ff },
-            { x: 28, z: 43, rot: Math.PI, accent: 0xff6644 },
-            { x: -72, z: -52, rot: Math.PI * 0.2, accent: 0xff8844 },
-            { x: 72, z: -52, rot: -Math.PI * 0.2, accent: 0x33ccff },
-            { x: -72, z: 52, rot: Math.PI * 0.8, accent: 0x66ff99 },
-            { x: 72, z: 52, rot: -Math.PI * 0.8, accent: 0xff33cc },
-            { x: 0, z: -58, rot: 0, accent: 0xffffff },
-            { x: -58, z: 0, rot: Math.PI / 2, accent: 0x88aaff },
-            { x: 58, z: 0, rot: -Math.PI / 2, accent: 0xff88aa },
-            { x: 0, z: 33, rot: Math.PI, accent: 0x66ddff },
-            { x: -50, z: -30, rot: Math.PI * 0.5, accent: 0xffaa44 },
-            { x: 50, z: 30, rot: -Math.PI * 0.5, accent: 0xaa66ff },
-            { x: 33, z: 0, rot: -Math.PI / 2, accent: 0x44ffcc },
-            { x: -33, z: 0, rot: Math.PI / 2, accent: 0xff5588 },
-            { x: 0, z: 60, rot: 0, accent: 0xffffff },
-            { x: 60, z: -33, rot: -Math.PI * 0.3, accent: 0x33ff99 },
-            { x: -60, z: 33, rot: Math.PI * 0.3, accent: 0xffcc66 }
+            { x: -28, z: -43, rot: 0, accent: 0xff0033 },
+            { x: 28, z: -43, rot: 0, accent: 0xff0033 },
+            { x: -43, z: -10, rot: Math.PI / 2, accent: 0xff0033 },
+            { x: 43, z: 10, rot: -Math.PI / 2, accent: 0xff0033 },
+            { x: -28, z: 43, rot: Math.PI, accent: 0xff0033 },
+            { x: 28, z: 43, rot: Math.PI, accent: 0xff0033 },
+            { x: -72, z: -52, rot: Math.PI * 0.2, accent: 0xff0033 },
+            { x: 72, z: -52, rot: -Math.PI * 0.2, accent: 0xff0033 },
+            { x: -72, z: 52, rot: Math.PI * 0.8, accent: 0xff0033 },
+            { x: 72, z: 52, rot: -Math.PI * 0.8, accent: 0xff0033 },
+            { x: 0, z: -58, rot: 0, accent: 0xff0033 },
+            { x: -58, z: 0, rot: Math.PI / 2, accent: 0xff0033 },
+            { x: 58, z: 0, rot: -Math.PI / 2, accent: 0xff0033 },
+            { x: 0, z: 33, rot: Math.PI, accent: 0xff0033 },
+            { x: -50, z: -30, rot: Math.PI * 0.5, accent: 0xff0033 },
+            { x: 50, z: 30, rot: -Math.PI * 0.5, accent: 0xff0033 },
+            { x: 33, z: 0, rot: -Math.PI / 2, accent: 0xff0033 },
+            { x: -33, z: 0, rot: Math.PI / 2, accent: 0xff0033 },
+            { x: 0, z: 60, rot: 0, accent: 0xff0033 },
+            { x: 60, z: -33, rot: -Math.PI * 0.3, accent: 0xff0033 },
+            { x: -60, z: 33, rot: Math.PI * 0.3, accent: 0xff0033 }
         ];
 
         const _billboardFx = [];
@@ -5914,7 +5914,7 @@ bloomPass.radius = 0.7;
                 tex.colorSpace = THREE.SRGBColorSpace;
                 tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
                 fx.videoTex = tex;
-                // Feed the Shang Tsung soul shader so the DayZ clip wears samsy's form.
+                // Feed the exact samsy shader so the DayZ clip wears samsy's noise-swirl form.
                 if (fx.soul && fx.soul.uniforms) { fx.soul.uniforms.uTex.value = tex; fx.soul.uniforms.uHasTex.value = 1; fx.soul.needsUpdate = true; }
                 // FIX: play unconditionally (muted autoplay is allowed) — not gated behind _near, so the
                 // board is alive from spawn and visible across the city, per Craig's 2026-07-16 note.
@@ -5925,11 +5925,12 @@ bloomPass.radius = 0.7;
             if (window.__GENESIS_VIDEO_MANAGER !== false && Genesis.VideoManager && Genesis.VideoManager.register) Genesis.VideoManager.register(video, plane, { owner: 'billboard', cost: 4 });
             if (window.__GENESIS_COST_CONTRACT !== false && plane && plane.userData) Genesis.declareCost(plane, { cpu: 1, gpu: 3, memory: 4, updateFreq: 30, priority: 5, sector: 'city-core', sleep: 'offscreen' });
         }
-        // ===== SHANG TSUNG SOUL-STEAL: samsy.ninja billboard aesthetic grafted onto CPL =====
-        // Craig (2026-07-16): northstar for billboards is https://samsy.ninja/ — a Three.js +
-        // GSAP + GLSL rig with signature RGB-split glitch, noise displacement, holographic
-        // scanlines, particle edge. We STEAL that soul: a self-contained ShaderMaterial that
-        // takes the same billboard texture (poster/video) and wears samsy's form.
+        // ===== SAMSY EXACT SOUL-STEAL: samsy.ninja billboard aesthetic grafted onto CPL =====
+        // Craig (2026-07-16): northstar for billboards is https://samsy.ninja/ — exact shader
+        // parameters extracted from samsy's minified bundle: noise-swirl UV distortion (±π/4 per
+        // channel), glitch-band RGB split, scanline 1200Hz, brand red #f03 bleed, strong vignette.
+        // We STEAL that soul: a self-contained ShaderMaterial that takes the same billboard texture
+        // (poster/video) and wears samsy's form exactly.
         function makeBillboardSoulMaterial(accent) {
             const mat = new THREE.ShaderMaterial({
                 transparent: true,
@@ -5969,29 +5970,45 @@ bloomPass.radius = 0.7;
                         vec3 col;
                         float a = 0.95;
                         if (!uHasTex) {
-                            // No texture yet (or failed): show the accent as a lit panel, never black.
                             col = uAccent * (0.5 + 0.5 * sin(uTime * 2.0 + uv.y * 6.0));
                             a = 0.85;
                         } else {
+                            // samsy noise-swirl UV distortion (extracted from bundle: ±π/4 rotation per channel)
+                            float n1 = noise(uv * 5.0 + uTime * 0.2);
+                            float n2 = noise(uv * 5.0 + uTime * 0.2 + 50.0);
+                            vec2 noiseDisp = vec2(n1 - 0.5, n2 - 0.5) * 0.06;
+                            float swirl = sin(uTime * 0.3) * 0.785;
+                            float sc = cos(swirl), ss = sin(swirl);
+                            vec2 dispR = vec2(noiseDisp.x*sc - noiseDisp.y*ss, noiseDisp.x*ss + noiseDisp.y*sc);
+                            vec2 dispB = vec2(noiseDisp.x*sc + noiseDisp.y*ss, -noiseDisp.x*ss + noiseDisp.y*sc);
+                            // samsy glitch: horizontal band slice with RGB split
                             float g = uGlitch * (0.5 + 0.5*sin(uTime*9.0 + uv.y*40.0));
                             float band = floor(uv.y*36.0) + floor(uTime*12.0)*41.0;
                             float slice = step(0.985, fract(sin(band)*43758.5453));
                             float shift = (slice*0.04 + g*0.02);
-                            float r = texture2D(uTex, uv + vec2( shift, 0.0)).r;
-                            float gr= texture2D(uTex, uv).g;
-                            float b = texture2D(uTex, uv + vec2(-shift, 0.0)).b;
+                            vec2 uvR = uv + dispR + vec2( shift, 0.0);
+                            vec2 uvG = uv + noiseDisp * 0.5;
+                            vec2 uvB = uv + dispB - vec2( shift, 0.0);
+                            float r = texture2D(uTex, uvR).r;
+                            float gr= texture2D(uTex, uvG).g;
+                            float b = texture2D(uTex, uvB).b;
                             col = vec3(r, gr, b);
+                            // noise grain
                             float n = noise(uv*18.0 + uTime*0.6);
                             col += (n-0.5) * 0.06;
-                            float scan = 0.85 + 0.15*sin(uv.y*900.0 - uTime*6.0);
+                            // samsy scanline (1200Hz)
+                            float scan = 0.82 + 0.18*sin(uv.y*1200.0 - uTime*8.0);
                             col *= scan;
+                            // samsy brand red #f03 bleed into shadows
                             float lum = dot(col, vec3(0.299,0.587,0.114));
-                            col = mix(col, col + uAccent*0.35, (1.0-lum)*0.4);
+                            col = mix(col, col + uAccent*0.4, (1.0-lum)*0.35);
+                            col = mix(col, uAccent*0.15, pow(1.0-lum, 2.0)*0.25);
                         }
+                        // samsy strong vignette
                         vec2 c = abs(uv-0.5);
-                        float vig = smoothstep(0.62, 0.42, max(c.x,c.y));
-                        col *= mix(0.55, 1.0, vig);
-                        a = mix(0.85, 1.0, vig);
+                        float vig = smoothstep(0.60, 0.35, max(c.x,c.y));
+                        col *= mix(0.45, 1.0, vig);
+                        a = mix(0.78, 1.0, vig);
                         gl_FragColor = vec4(col, a);
                     }
                 `
@@ -6006,7 +6023,7 @@ bloomPass.radius = 0.7;
             const group = new THREE.Group();
             group.position.set(spot.x, 0, spot.z);
             group.rotation.y = spot.rot || 0;
-            const accent = spot.accent || 0xff33aa;
+            const accent = spot.accent || 0xff0033;
             cityGroup.add(group);
             if (window.__GENESIS_COST_CONTRACT !== false) Genesis.declareCost(group, { cpu: 0.5, gpu: 1.5, memory: 0.3, updateFreq: 1, priority: 4, sector: 'city-core', sleep: 'distance' });
 
@@ -7490,6 +7507,12 @@ bloomPass.radius = 0.7;
             'assets/city/walkers/RobotExpressive.glb',
             'assets/city/walkers/Xbot.glb'
         ];
+        // Craig (2026-07-16): rigged OUR OWN characters in Blender headless (npc_bruno / npc_sudo)
+        // and drop them into the walker pool so the city populates with animated NPCs we made.
+        // Gated by __GENESIS_NPC_RIG (default OFF) so the live world is unchanged until flipped.
+        if (window.__GENESIS_NPC_RIG !== false) {
+            walkerRigUrls.push('assets/npc-rigs/npc_bruno.glb', 'assets/npc-rigs/npc_sudo.glb');
+        }
         const walkerRigPool = [];
         const walkerWaiters = [];
         function onWalkerRig(i, fn) {
