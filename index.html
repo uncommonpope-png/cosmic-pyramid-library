@@ -5302,6 +5302,23 @@ bloomPass.radius = 0.7;
         if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('city-core', cityGroup, { maxDistance: 260, autoSleep: false }); // city always near spawn; never auto-dispose
         if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('city-core', cityGroup, { priority: 5, maxDistance: 260 });
 
+        // ========== GENESIS CITY BUILDER MODULE (P8 targeted split -> unblocks P7) ==========
+        // The old inline P7 ring used makeBuilding(), which always writes to cityGroup. The module
+        // builds governed outer-city geometry directly into its own sector, with shared materials,
+        // declared cost, ResourceManager tracking, SectorManager sleep, and Visibility priority.
+        window.__GENESIS_CITY_BUILDER_MODULE = (typeof window.__GENESIS_CITY_BUILDER_MODULE === 'boolean') ? window.__GENESIS_CITY_BUILDER_MODULE : true;
+        if (window.__GENESIS_CITY_BUILDER_MODULE !== false && typeof window.__GENESIS_P7_CITY !== 'boolean') window.__GENESIS_P7_CITY = false;
+        if (window.__GENESIS_CITY_BUILDER_MODULE !== false) {
+            import('./src/cpl/city-builder.js').then((m) => {
+                if (!m || typeof m.install !== 'function') return;
+                const cityBuilder = m.install(window.Genesis, THREE, scene, cityGroup, {});
+                if (cityBuilder && typeof cityBuilder.buildOuterCity === 'function') {
+                    const outer = cityBuilder.buildOuterCity();
+                    if (outer && typeof console !== 'undefined') console.log('[Genesis] CityBuilder module built outer city:', outer.userData.generatedBuildings || 0);
+                }
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] CityBuilder module load skipped:', e && e.message); });
+        }
+
         // ========== GENESIS PREMIUM SLICE — BUILD TRIGGER (Phase A) ==========
         // cityGroup now exists. Only build the street when the slice flag is explicitly ON.
         // When OFF (default) this line is a no-op and the live world is untouched.
