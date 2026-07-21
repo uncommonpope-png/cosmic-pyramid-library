@@ -979,6 +979,7 @@
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
         import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+        import { createNPCScalePass, install as installNPCScalePass } from './src/genesis/npc-scale-pass.js';
 
         // ========== GENESIS TIER 0: telemetry + survival + registry ==========
         const Genesis = window.Genesis || (window.Genesis = {});
@@ -6211,6 +6212,8 @@ bloomPass.radius = 0.7;
         }
         const VIDEO_PLAY_DISTANCE = 130, MAX_ACTIVE_VIDEOS = 6;
         const NPC_SIZE_REF = 1.7; // unified human reference height (world units) for all character NPCs
+        const npcScalePass = createNPCScalePass({ THREE, targetHeight: NPC_SIZE_REF, minScale: 0.4, maxScale: 2.2 });
+        Genesis.NPCScalePass = npcScalePass;
 
         // ========== POSITIONAL AUDIO (engine 1/7) ==========
         // Three.js PositionalAudio — distance-attenuated ambient drones anchored in the world.
@@ -7561,6 +7564,7 @@ bloomPass.radius = 0.7;
         // Pulled from three.js' GitHub repo (Soldier / RobotExpressive / Xbot) so the city
         // citizens are actual animated characters, not sliding placeholders. Each gets a
         // cloned skeleton + an AnimationMixer; Walk plays while moving, Idle while waiting.
+        window.__GENESIS_NPC_SCALE_PASS = (typeof window.__GENESIS_NPC_SCALE_PASS === 'boolean') ? window.__GENESIS_NPC_SCALE_PASS : true;
         const walkerRigUrls = [
             'assets/city/walkers/Soldier.glb',
             'assets/city/walkers/RobotExpressive.glb',
@@ -7594,13 +7598,17 @@ bloomPass.radius = 0.7;
                 // cloned skinned rig returns a degenerate (too-short) bounding box, so s = 1.7/h
                 // ballooned. Measure the SOURCE rig instead, and clamp so a bad measure can't
                 // blow the NPC up. Target standing height = NPC_SIZE_REF (1.7u).
-                const srcBox = new THREE.Box3().setFromObject(rig.scene);
-                const srcSize = new THREE.Vector3(); srcBox.getSize(srcSize);
-                let s = NPC_SIZE_REF / (srcSize.y || 1.8);
-                s = Math.max(0.4, Math.min(2.2, s)); // sane clamp: humanoid, never giant
-                clone.scale.setScalar(s);
-                const box2 = new THREE.Box3().setFromObject(clone);
-                clone.position.y -= box2.min.y; // feet on the ground
+                if (window.__GENESIS_NPC_SCALE_PASS !== false && npcScalePass && npcScalePass.normalize) {
+                    npcScalePass.normalize(clone, rig.scene, { url: walkerRigUrls[rigIdx] || 'walker-rig', npc: talkData.name || talkData.label || 'citizen' });
+                } else {
+                    const srcBox = new THREE.Box3().setFromObject(rig.scene);
+                    const srcSize = new THREE.Vector3(); srcBox.getSize(srcSize);
+                    let s = NPC_SIZE_REF / (srcSize.y || 1.8);
+                    s = Math.max(0.4, Math.min(2.2, s)); // sane clamp: humanoid, never giant
+                    clone.scale.setScalar(s);
+                    const box2 = new THREE.Box3().setFromObject(clone);
+                    clone.position.y -= box2.min.y; // feet on the ground
+                }
                 stampNpcTalk(clone, talkData);
                 group.add(clone);
                 const mixer = new THREE.AnimationMixer(clone);
@@ -7669,7 +7677,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [] };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [], npcScaleAudit: [] };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
@@ -7724,6 +7732,12 @@ bloomPass.radius = 0.7;
             updateWorldLegacy();
         }
         updateWorldLegacy();
+
+        // ========== GENESIS NPC GLB SCALE PASS AUDIT (P69) ==========
+        if (window.__GENESIS_NPC_SCALE_PASS !== false) {
+            const scaleAudit = installNPCScalePass(window.Genesis, worldState, saveWorldState, { api: npcScalePass, maxRecords: 120 });
+            if (scaleAudit && typeof console !== 'undefined') console.log('[Genesis] NPC Scale Pass ready:', scaleAudit.summary());
+        }
 
         // ========== GENESIS PLT LEDGER (P138 / P183) ==========
         // Per-action Profit + Love - Tax audit trail. Event-driven so future actions can wire in safely.

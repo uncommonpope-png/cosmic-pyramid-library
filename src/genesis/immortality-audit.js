@@ -63,6 +63,7 @@ export function install(Genesis, worldState, options = {}) {
       prophecyArchive: count(worldState.prophecyArchive),
       memoryEvents: count(worldState.memoryEvents),
       dragPositions: count(worldState.dragPositions),
+      npcScaleAudit: count(worldState.npcScaleAudit),
       trustLedger: count(worldState.trustLedger),
       personalityProfiles: count(worldState.personalityProfiles),
       pltEntries: count(worldState.pltLedger)
@@ -92,7 +93,7 @@ export function install(Genesis, worldState, options = {}) {
     return proof;
   }
 
-  const events = ['genesis:boot-ready', 'genesis:trust:delta', 'genesis:personality:drift', 'genesis:prophet:archive', 'genesis:builder:schematic', 'genesis:drag:persist'];
+  const events = ['genesis:boot-ready', 'genesis:trust:delta', 'genesis:personality:drift', 'genesis:prophet:archive', 'genesis:builder:schematic', 'genesis:drag:persist', 'genesis:npc:scale-pass'];
   for (const eventName of events) window.addEventListener(eventName, () => checkpoint(eventName));
 
   const api = { checkpoint, surfaces, summary: () => worldState.immortalityAudit || checkpoint('summary') };
