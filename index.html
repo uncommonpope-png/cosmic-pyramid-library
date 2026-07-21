@@ -1016,6 +1016,22 @@
             fallbackVisible: false,
             lastStatus: 'booting'
         };
+        // ========== GENESIS BOOT CONTRACT (P106/P107) ==========
+        // Deterministic readiness promise for all agents: no polling guesses, no local server required.
+        window.__GENESIS_BOOT_READY = !!window.__GENESIS_BOOT_READY;
+        if (!Genesis.bootReady) {
+            Genesis.bootReady = new Promise((resolve) => { Genesis._resolveBootReady = resolve; });
+        }
+        Genesis.checkBootReady = function (reason = 'check') {
+            const frameReady = !!(window.__genesisFirstFrameSeen || window.__genesisBackstopReleased || (Genesis.boot && Genesis.boot.firstFrameAt));
+            if (window.__GENESIS_BOOT_READY || !window.__cplReady || !frameReady) return window.__GENESIS_BOOT_READY;
+            window.__GENESIS_BOOT_READY = true;
+            Genesis.boot.readyAt = performance.now();
+            Genesis.boot.readyReason = reason;
+            try { window.dispatchEvent(new CustomEvent('genesis:boot-ready', { detail: { reason, boot: Genesis.boot } })); } catch (_) {}
+            if (typeof Genesis._resolveBootReady === 'function') Genesis._resolveBootReady({ reason, boot: Genesis.boot });
+            return true;
+        };
         Genesis.ui = Genesis.ui || (() => {
             const root = document.getElementById('genesis-pill');
             const statusEl = document.getElementById('genesis-status');
@@ -2698,6 +2714,7 @@
             Genesis.boot.criticalLoadedAt = performance.now();
             Genesis.boot.backstopReleased = !!window.__genesisBackstopReleased;
             Genesis.setStatus('critical load complete', 'ok');
+            if (Genesis.checkBootReady) Genesis.checkBootReady('critical load complete');
             if (typeof window.__genesisReleaseLoader === 'function') window.__genesisReleaseLoader('critical load complete');
             if (Genesis.boot.fallbackGroup) {
                 Genesis.boot.fallbackGroup.visible = false;
@@ -2717,6 +2734,7 @@
                 window.__cplReady = true;
                 if (typeof window.__genesisReleaseLoader === 'function') window.__genesisReleaseLoader('readiness resolved by frame');
                 Genesis.boot.criticalLoadedAt = Genesis.boot.criticalLoadedAt || performance.now();
+                if (Genesis.checkBootReady) Genesis.checkBootReady('first-frame + backstop');
             } else if (window.__genesisFirstFrameSeen) {
                 showGenesisFailure('Critical load still pending — survival mode active.');
             } else {
@@ -14106,6 +14124,7 @@ bloomPass.radius = 0.7;
                 Genesis.boot.firstFrameAt = performance.now();
                 if (typeof window.__genesisMarkFirstFrame === 'function') window.__genesisMarkFirstFrame();
                 Genesis.setStatus('first frame alive', 'ok');
+                if (Genesis.checkBootReady) Genesis.checkBootReady('first frame alive');
             }
             if (renderSucceeded && Genesis.recovery && typeof Genesis.recovery.noteFrame === 'function') Genesis.recovery.noteFrame();
             if (!Genesis.boot.recoveryActive && Genesis.boot.fallbackGroup && Genesis.boot.fallbackGroup.visible && (window.__cplReady || (window.__genesisBackstopReleased && Genesis.boot.firstFrameAt && (now - Genesis.boot.firstFrameAt) > 1500 && renderer.info.render.calls > 20))) {
