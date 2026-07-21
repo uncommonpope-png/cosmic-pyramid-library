@@ -3430,6 +3430,7 @@ bloomPass.radius = 0.7;
                 dragControls = new DragControls(draggables, camera, renderer.domElement);
                 dragControls.addEventListener('dragstart', () => { controls.enabled = false; });
                 dragControls.addEventListener('dragend', () => { controls.enabled = cameraMode === 'orbit'; });
+                if (Genesis.DragPersistence && Genesis.DragPersistence.bind) Genesis.DragPersistence.bind(dragControls, draggables);
                 return true;
             } catch (err) {
                 console.warn('[Genesis] drag controls rebind failed', err);
@@ -7668,7 +7669,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [] };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {} };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
@@ -9337,6 +9338,7 @@ bloomPass.radius = 0.7;
             dragControls = new DragControls(draggables, camera, renderer.domElement);
             dragControls.addEventListener('dragstart', () => { controls.enabled = false; });
             dragControls.addEventListener('dragend', () => { controls.enabled = cameraMode === 'orbit'; });
+            if (Genesis.DragPersistence && Genesis.DragPersistence.bind) Genesis.DragPersistence.bind(dragControls, draggables);
 
             hideSpawnModal();
         }
@@ -9669,6 +9671,14 @@ bloomPass.radius = 0.7;
         let dragControls = new DragControls(draggables, camera, renderer.domElement);
         dragControls.addEventListener('dragstart', () => { controls.enabled = false; });
         dragControls.addEventListener('dragend', () => { controls.enabled = cameraMode === 'orbit'; });
+        window.__GENESIS_DRAG_PERSISTENCE = (typeof window.__GENESIS_DRAG_PERSISTENCE === 'boolean') ? window.__GENESIS_DRAG_PERSISTENCE : true;
+        if (window.__GENESIS_DRAG_PERSISTENCE !== false) {
+            import('./src/genesis/drag-persistence.js').then((m) => {
+                if (!m || typeof m.install !== 'function') return;
+                const dp = m.install(window.Genesis, worldState, saveWorldState, draggables, dragControls);
+                if (dp && typeof console !== 'undefined') console.log('[Genesis] Drag Persistence ready:', dp.summary());
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Drag Persistence module load skipped:', e && e.message); });
+        }
         
         // ========== BOOK READING SYSTEM ==========
         const readingOverlay = document.getElementById('reading-overlay');
@@ -9853,6 +9863,7 @@ bloomPass.radius = 0.7;
             dragControls = new DragControls(draggables, camera, renderer.domElement);
             dragControls.addEventListener('dragstart', () => { controls.enabled = false; });
             dragControls.addEventListener('dragend', () => { controls.enabled = cameraMode === 'orbit'; });
+            if (Genesis.DragPersistence && Genesis.DragPersistence.bind) Genesis.DragPersistence.bind(dragControls, draggables);
             
             if (openBookGroup) { scene.remove(openBookGroup); }
             openBookGroup = buildOpenBook(book.userData);
