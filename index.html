@@ -7669,7 +7669,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {} };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {} };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
@@ -12839,6 +12839,14 @@ bloomPass.radius = 0.7;
             populateDenizens(builderRealm, builderClickTargets, 0x9ecbff, 4, 'Apprentice', 46);
         }
         buildBuilderRealm();
+        window.__GENESIS_BUILDER_SCHEMATICS = (typeof window.__GENESIS_BUILDER_SCHEMATICS === 'boolean') ? window.__GENESIS_BUILDER_SCHEMATICS : true;
+        if (window.__GENESIS_BUILDER_SCHEMATICS !== false) {
+            import('./src/genesis/builder-schematics.js').then((m) => {
+                if (!m || typeof m.install !== 'function') return;
+                const schematics = m.install(window.Genesis, worldState, saveWorldState, { THREE, builderRealm, builderClickTargets, color: BLU });
+                if (schematics && typeof console !== 'undefined') console.log('[Genesis] Builder Schematics ready:', schematics.summary());
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Builder Schematics module load skipped:', e && e.message); });
+        }
 
         function enterBuilderRealm() {
             if (inBuilder || !captureSurfaceReturnState('builder')) return;
@@ -12931,8 +12939,13 @@ bloomPass.radius = 0.7;
             catch (e) { showScribeReadout('BUILDER: "The forge flickered — ' + (e.message || 'GSK error') + '"'); return; }
             const reply = gskReplyText(data);
             showScribeReadout('📐 BLUEPRINT — ' + reply);
-            worldState.builds = [...(worldState.builds || []), { request: text.slice(0, 160), reply: reply.slice(0, 600), at: Date.now() }].slice(-8);
-            saveWorldState();
+            let schematicEntry = null;
+            if (window.__GENESIS_BUILDER_SCHEMATICS !== false && Genesis.BuilderSchematics && Genesis.BuilderSchematics.archive) {
+                schematicEntry = Genesis.BuilderSchematics.archive(text, reply);
+            } else {
+                worldState.builds = [...(worldState.builds || []), { request: text.slice(0, 160), reply: reply.slice(0, 600), at: Date.now() }].slice(-8);
+                saveWorldState();
+            }
             // materialize the returned blueprint as a new floating schematic in the workshop
             try {
                 const g = new THREE.Group();
@@ -12943,8 +12956,9 @@ bloomPass.radius = 0.7;
                 const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(1.4, 0.34, 80, 12), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.9, roughness: 0.3, metalness: 0.4, wireframe: true }));
                 g.add(knot);
                 g.userData.schematic = true;
+                if (schematicEntry && schematicEntry.id) g.userData.schematicId = schematicEntry.id;
                 g.userData.blueprint = '📐 COMMISSIONED — ' + text.slice(0, 90) + '\n\n' + reply.slice(0, 400);
-                g.traverse(o => { if (o.isMesh) { o.userData.schematic = true; o.userData.blueprint = g.userData.blueprint; builderClickTargets.push(o); } });
+                g.traverse(o => { if (o.isMesh) { o.userData.schematic = true; if (schematicEntry && schematicEntry.id) o.userData.schematicId = schematicEntry.id; o.userData.blueprint = g.userData.blueprint; builderClickTargets.push(o); } });
                 builderRealm.add(g);
                 builderRealm._schematics = builderRealm.children.filter(c => c.userData && c.userData.schematic);
             } catch (e2) { /* visual only */ }
