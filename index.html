@@ -1826,6 +1826,17 @@
                 return m.install(window.Genesis, './asset_manifest.json');
             }).then((catalog) => {
                 if (catalog && typeof console !== 'undefined') console.log('[Genesis] Asset Catalog registered:', catalog.summary());
+                if (catalog && window.__GENESIS_ASSET_LOD_STREAMER !== false) {
+                    window.__GENESIS_ASSET_LOD_STREAMER = (typeof window.__GENESIS_ASSET_LOD_STREAMER === 'boolean') ? window.__GENESIS_ASSET_LOD_STREAMER : true;
+                    return import('./src/genesis/asset-lod-streamer.js').then((m) => {
+                        if (!m || typeof m.install !== 'function') return catalog;
+                        const streamer = m.install(window.Genesis, { types: ['model'] });
+                        if (streamer && streamer.registerCatalog) streamer.registerCatalog({});
+                        if (streamer && typeof console !== 'undefined') console.log('[Genesis] Asset LOD Streamer registered:', streamer.summary());
+                        return catalog;
+                    });
+                }
+                return catalog;
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Asset Catalog load skipped:', e && e.message); });
         }
 
