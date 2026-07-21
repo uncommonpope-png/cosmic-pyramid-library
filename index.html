@@ -980,6 +980,7 @@
         import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
         import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
         import { createNPCScalePass, install as installNPCScalePass } from './src/genesis/npc-scale-pass.js';
+        import { install as installScribeLiveBooks } from './src/genesis/scribe-live-books.js';
 
         // ========== GENESIS TIER 0: telemetry + survival + registry ==========
         const Genesis = window.Genesis || (window.Genesis = {});
@@ -7694,7 +7695,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [], npcScaleAudit: [], angelLifeStats: {} };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [], npcScaleAudit: [], angelLifeStats: {}, scribeLiveBooks: {} };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
@@ -7754,6 +7755,13 @@ bloomPass.radius = 0.7;
         if (window.__GENESIS_NPC_SCALE_PASS !== false) {
             const scaleAudit = installNPCScalePass(window.Genesis, worldState, saveWorldState, { api: npcScalePass, maxRecords: 120 });
             if (scaleAudit && typeof console !== 'undefined') console.log('[Genesis] NPC Scale Pass ready:', scaleAudit.summary());
+        }
+
+        // ========== GENESIS SCRIBE LIVE BOOKS (P72/P127) ==========
+        window.__GENESIS_SCRIBE_LIVE_BOOKS = (typeof window.__GENESIS_SCRIBE_LIVE_BOOKS === 'boolean') ? window.__GENESIS_SCRIBE_LIVE_BOOKS : true;
+        if (window.__GENESIS_SCRIBE_LIVE_BOOKS !== false) {
+            const scribeBooks = installScribeLiveBooks(window.Genesis, worldState, saveWorldState, { max: 48 });
+            if (scribeBooks && typeof console !== 'undefined') console.log('[Genesis] Scribe Live Books ready:', scribeBooks.summary());
         }
 
         // ========== GENESIS PLT LEDGER (P138 / P183) ==========
@@ -12487,8 +12495,12 @@ bloomPass.radius = 0.7;
         }
         async function refreshScribeMemories() {
             if (!gsk) return;
-            let data;
-            try { data = await gsk.memories(); } catch (e) { return; }
+            let data, source = 'gsk';
+            try { data = await gsk.memories(); } catch (e) { source = 'local-fallback'; data = null; }
+            if ((!data || !Array.isArray(data.memories) || !data.memories.length) && window.__GENESIS_SCRIBE_LIVE_BOOKS !== false && Genesis.ScribeLiveBooks) {
+                data = Genesis.ScribeLiveBooks.localMemoryData(source);
+                source = data.source || source;
+            }
             if (!data || !Array.isArray(data.memories)) return;
             const shelf = scribeRealm._memShelf;
             if (!shelf) return;
@@ -12513,10 +12525,12 @@ bloomPass.radius = 0.7;
                 book.userData.book = true;
                 book.userData.gskMemory = true;
                 book.userData.memoryObj = m;
+                book.userData.memory = m.summary || m.text || '(live memory)';
                 shelf.add(book);
                 scribeRealm._memBooks.push(book);
             });
             if (scribeRealm._memCountEl) scribeRealm._memCountEl.textContent = (data.count != null ? data.count : mems.length) + ' GSK entries';
+            if (window.__GENESIS_SCRIBE_LIVE_BOOKS !== false && Genesis.ScribeLiveBooks && Genesis.ScribeLiveBooks.recordRender) Genesis.ScribeLiveBooks.recordRender(data, source);
         }
         buildScribeRealm();
         try { connectGskJournalStream(); } catch (e) {}
@@ -12596,6 +12610,7 @@ bloomPass.radius = 0.7;
             const w = typeof m.weight === 'number' ? m.weight.toFixed(2) : '?';
             const tags = Array.isArray(m.tags) ? m.tags.join(', ') : (m.tags || '');
             showScribeReadout('📖 [' + (m.type || 'memory') + '] ' + (m.summary || '(no summary)') + (tags ? '  ·  ' + tags : '') + '  ·  weight ' + w);
+            if (window.__GENESIS_SCRIBE_LIVE_BOOKS !== false && Genesis.ScribeLiveBooks && Genesis.ScribeLiveBooks.recordOpen) Genesis.ScribeLiveBooks.recordOpen(m);
         }
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && inScribe) exitScribeRealmFade();
