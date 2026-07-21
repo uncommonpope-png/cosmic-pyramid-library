@@ -7669,7 +7669,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {} };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {} };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
@@ -7744,6 +7744,17 @@ bloomPass.radius = 0.7;
                 const trust = m.install(window.Genesis, worldState, saveWorldState);
                 if (trust && typeof console !== 'undefined') console.log('[Genesis] Trust Ledger ready:', trust.summary());
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Trust Ledger module load skipped:', e && e.message); });
+        }
+
+        // ========== GENESIS PERSONALITY DRIFT (P49/P124) ==========
+        // Citizens evolve HEXACO-style traits as trust rises/falls; dialogue can expose their current tone.
+        window.__GENESIS_PERSONALITY_DRIFT = (typeof window.__GENESIS_PERSONALITY_DRIFT === 'boolean') ? window.__GENESIS_PERSONALITY_DRIFT : true;
+        if (window.__GENESIS_PERSONALITY_DRIFT !== false) {
+            import('./src/genesis/personality-drift.js').then((m) => {
+                if (!m || typeof m.install !== 'function') return;
+                const drift = m.install(window.Genesis, worldState, saveWorldState);
+                if (drift && typeof console !== 'undefined') console.log('[Genesis] Personality Drift ready:', drift.summary());
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Personality Drift module load skipped:', e && e.message); });
         }
 
         // ========== GENESIS PROPHET ARCHIVE (P37 / P126) ==========
@@ -8222,6 +8233,10 @@ bloomPass.radius = 0.7;
                 line = npcTalkLines[Math.floor(Math.random() * npcTalkLines.length)];
             }
             if (window.__GENESIS_TRUST_LEDGER !== false && Genesis.TrustLedger && Genesis.TrustLedger.recallLine) line = Genesis.TrustLedger.recallLine(trustId) + line;
+            if (window.__GENESIS_PERSONALITY_DRIFT !== false && Genesis.PersonalityDrift && Genesis.PersonalityDrift.tone) {
+                const tone = Genesis.PersonalityDrift.tone(trustId);
+                if (tone && tone !== 'steady') line = `[${tone}] ${line}`;
+            }
             const who = data.name ? `${data.name} · ${data.title || ''}` : data.label;
             spawnWhisper(pos, `${who}: ${line}`);
         }
