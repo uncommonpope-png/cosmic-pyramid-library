@@ -7668,7 +7668,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], prophecies: [], prophecyArchive: [], memoryEvents: [] };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [] };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
@@ -7723,6 +7723,17 @@ bloomPass.radius = 0.7;
             updateWorldLegacy();
         }
         updateWorldLegacy();
+
+        // ========== GENESIS PLT LEDGER (P138 / P183) ==========
+        // Per-action Profit + Love - Tax audit trail. Event-driven so future actions can wire in safely.
+        window.__GENESIS_PLT_LEDGER = (typeof window.__GENESIS_PLT_LEDGER === 'boolean') ? window.__GENESIS_PLT_LEDGER : true;
+        if (window.__GENESIS_PLT_LEDGER !== false) {
+            import('./src/genesis/plt-ledger.js').then((m) => {
+                if (!m || typeof m.install !== 'function') return;
+                const ledger = m.install(window.Genesis, worldState, saveWorldState, { max: 300 });
+                if (ledger && typeof console !== 'undefined') console.log('[Genesis] PLT Ledger ready:', ledger.summary());
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] PLT Ledger module load skipped:', e && e.message); });
+        }
 
         // ========== GENESIS PROPHET ARCHIVE (P37 / P126) ==========
         // Prophecies become persistent memory/witness records, not RAM-only readouts.
