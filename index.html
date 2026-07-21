@@ -7308,6 +7308,21 @@ bloomPass.radius = 0.7;
         // and (when online) a throttled brain.think enriches one side of each exchange.
         let _angelConvoTimer = 3;
         let _angelGskCd = 0;
+        function recordAngelLife(kind, detail = {}) {
+            try {
+                if (!worldState) return;
+                const stats = worldState.angelLifeStats || { greetings: 0, conversations: 0, gskLines: 0, events: [] };
+                if (kind === 'greeting') stats.greetings = (stats.greetings || 0) + 1;
+                else if (kind === 'gsk-line') stats.gskLines = (stats.gskLines || 0) + 1;
+                else stats.conversations = (stats.conversations || 0) + 1;
+                stats.lastAt = Date.now();
+                stats.lastKind = kind;
+                stats.events = [{ at: stats.lastAt, kind, detail }, ...(stats.events || [])].slice(0, 24);
+                worldState.angelLifeStats = stats;
+                if (typeof saveWorldState === 'function') saveWorldState();
+                window.dispatchEvent(new CustomEvent('genesis:angel:life', { detail: { kind, ...detail, stats } }));
+            } catch (_) {}
+        }
         async function angelGskLine(mood, phase) {
             if (!gskBridge || !gskBridge.gskOnline) return null;
             try {
@@ -7358,6 +7373,7 @@ bloomPass.radius = 0.7;
                         const wj = new THREE.Vector3(); B.obj.getWorldPosition(wj);
                         spawnWhisper(wi, A.name + ' ✶ ' + line);
                         spawnWhisper(wj, B.name + ' ✶ ' + line);
+                        recordAngelLife('greeting', { a: A.name, b: B.name, line, mood });
                     }
                 }
             }
@@ -7378,10 +7394,11 @@ bloomPass.radius = 0.7;
                 const wj = new THREE.Vector3(); heavenAngels[bj].obj.getWorldPosition(wj);
                 spawnWhisper(wi, heavenAngels[bi].name + ': ' + li);
                 spawnWhisper(wj, heavenAngels[bj].name + ': ' + lj);
+                recordAngelLife('conversation', { a: heavenAngels[bi].name, b: heavenAngels[bj].name, li, lj, mood, phase: gskBridge.currentPhase || 'VOID' });
                 if (gskBridge.gskOnline && _angelGskCd <= 0 && Math.random() < 0.6) {
                     _angelGskCd = 10;
                     angelGskLine(mood, gskBridge.currentPhase).then((line) => {
-                        if (line) { const w = new THREE.Vector3(); heavenAngels[bj].obj.getWorldPosition(w); spawnWhisper(w, heavenAngels[bj].name + ': ' + line); }
+                        if (line) { const w = new THREE.Vector3(); heavenAngels[bj].obj.getWorldPosition(w); spawnWhisper(w, heavenAngels[bj].name + ': ' + line); recordAngelLife('gsk-line', { speaker: heavenAngels[bj].name, line, mood, phase: gskBridge.currentPhase || 'VOID' }); }
                     }).catch(() => {});
                 }
             }
@@ -7677,7 +7694,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [], npcScaleAudit: [] };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [], npcScaleAudit: [], angelLifeStats: {} };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };

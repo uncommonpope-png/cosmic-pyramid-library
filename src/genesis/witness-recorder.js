@@ -73,7 +73,7 @@ export function install(Genesis, worldState, options = {}) {
     return latest;
   }
 
-  const watched = ['genesis:boot-ready', 'genesis:trust:delta', 'genesis:personality:drift', 'genesis:immortality:audit', 'genesis:prophet:archive', 'genesis:builder:schematic', 'genesis:drag:persist', 'genesis:npc:scale-pass'];
+  const watched = ['genesis:boot-ready', 'genesis:trust:delta', 'genesis:personality:drift', 'genesis:immortality:audit', 'genesis:prophet:archive', 'genesis:builder:schematic', 'genesis:drag:persist', 'genesis:npc:scale-pass', 'genesis:angel:life'];
   for (const eventName of watched) window.addEventListener(eventName, (ev) => record(eventName, ev && ev.detail ? ev.detail : {}));
   if (window.__GENESIS_BOOT_READY) record('genesis:boot-ready:already-true', { ready: true });
   record('genesis:witness:install', { packs: worldState.witnessProofPacks.length });
