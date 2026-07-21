@@ -7669,7 +7669,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {} };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [] };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
@@ -7766,6 +7766,17 @@ bloomPass.radius = 0.7;
                 const audit = m.install(window.Genesis, worldState, { worldStateKey: WORLD_STATE_KEY });
                 if (audit && typeof console !== 'undefined') console.log('[Genesis] Immortality Audit ready:', audit.summary());
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Immortality Audit module load skipped:', e && e.message); });
+        }
+
+        // ========== GENESIS WITNESS RECORDER PROOF PACKS (P65/P119) ==========
+        // Hash-chained event evidence packs for Scribe/Witness verification.
+        window.__GENESIS_WITNESS_RECORDER = (typeof window.__GENESIS_WITNESS_RECORDER === 'boolean') ? window.__GENESIS_WITNESS_RECORDER : true;
+        if (window.__GENESIS_WITNESS_RECORDER !== false) {
+            import('./src/genesis/witness-recorder.js').then((m) => {
+                if (!m || typeof m.install !== 'function') return;
+                const witness = m.install(window.Genesis, worldState, { worldStateKey: WORLD_STATE_KEY });
+                if (witness && typeof console !== 'undefined') console.log('[Genesis] Witness Recorder ready:', witness.summary());
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Witness Recorder module load skipped:', e && e.message); });
         }
 
         // ========== GENESIS PROPHET ARCHIVE (P37 / P126) ==========
