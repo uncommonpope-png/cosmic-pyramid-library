@@ -1817,6 +1817,18 @@
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Asset Pipeline module load skipped:', e && e.message); });
         })();
 
+        // ========== GENESIS ASSET CATALOG (P103 — manifest registry) ==========
+        // Loads asset_manifest.json (id/type/url/LOD/owner/tier/cost) and registers it with AssetPipeline.
+        window.__GENESIS_ASSET_CATALOG = (typeof window.__GENESIS_ASSET_CATALOG === 'boolean') ? window.__GENESIS_ASSET_CATALOG : true;
+        if (window.__GENESIS_ASSET_CATALOG !== false) {
+            import('./src/genesis/asset-catalog.js').then((m) => {
+                if (!m || typeof m.install !== 'function') return;
+                return m.install(window.Genesis, './asset_manifest.json');
+            }).then((catalog) => {
+                if (catalog && typeof console !== 'undefined') console.log('[Genesis] Asset Catalog registered:', catalog.summary());
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Asset Catalog load skipped:', e && e.message); });
+        }
+
         // ========== GENESIS PREMIUM SLICE (Phase A — subsystem #2) ==========
         // Builds ONE premium street sector (procedural placeholders for where CC0
         // GLBs drop in later). OFF by default so the live world is byte-identical.
