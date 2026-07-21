@@ -7650,7 +7650,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], prophecies: [] };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], prophecies: [], prophecyArchive: [], memoryEvents: [] };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
@@ -7705,6 +7705,18 @@ bloomPass.radius = 0.7;
             updateWorldLegacy();
         }
         updateWorldLegacy();
+
+        // ========== GENESIS PROPHET ARCHIVE (P37 / P126) ==========
+        // Prophecies become persistent memory/witness records, not RAM-only readouts.
+        window.__GENESIS_PROPHET_ARCHIVE = (typeof window.__GENESIS_PROPHET_ARCHIVE === 'boolean') ? window.__GENESIS_PROPHET_ARCHIVE : true;
+        if (window.__GENESIS_PROPHET_ARCHIVE !== false) {
+            import('./src/genesis/prophet-archive.js').then((m) => {
+                if (!m || typeof m.install !== 'function') return;
+                const archive = m.install(window.Genesis, worldState, saveWorldState, { max: 100 });
+                if (archive && typeof console !== 'undefined') console.log('[Genesis] Prophet Archive ready:', archive.summary());
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Prophet Archive module load skipped:', e && e.message); });
+        }
+
         const DENIZEN_IDENTITY = {
             scribe: { title: 'Scribe Acolyte', names: ['Vell', 'Sefa', 'Orin', 'Mira', 'Tace', 'Juno'], lines: [
                 'Every memory GSK keeps is a star we are sworn to catalogue.',
@@ -13101,8 +13113,12 @@ bloomPass.radius = 0.7;
             catch (e) { showScribeReadout('PROPHET: "The vision clouds — ' + (e.message || 'GSK error') + '"'); return; }
             const reply = gskReplyText(data);
             showScribeReadout('🔮 PROPHET SEES — ' + reply);
-            worldState.prophecies = [...(worldState.prophecies || []), { text: reply.slice(0, 600), at: Date.now() }].slice(-10);
-            saveWorldState();
+            if (window.__GENESIS_PROPHET_ARCHIVE !== false && Genesis.ProphetArchive && Genesis.ProphetArchive.archive) {
+                Genesis.ProphetArchive.archive(reply, { source: 'gsk-prophet-oracle' });
+            } else {
+                worldState.prophecies = [...(worldState.prophecies || []), { text: reply.slice(0, 600), at: Date.now() }].slice(-10);
+                saveWorldState();
+            }
         }
         function updateProphetRealm(time, dt) {
             updateRealmAssetMixers(prophetRealm, dt);
