@@ -983,6 +983,7 @@
         import { install as installScribeLiveBooks } from './src/genesis/scribe-live-books.js';
         import { install as installChamberHardening } from './src/genesis/chamber-hardening.js';
         import { install as installWorldTuner } from './src/genesis/world-tuner.js';
+        import { install as installAmbientDriftCam } from './src/genesis/ambient-drift-camera.js';
 
         // ========== GENESIS TIER 0: telemetry + survival + registry ==========
         const Genesis = window.Genesis || (window.Genesis = {});
@@ -7697,7 +7698,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [], npcScaleAudit: [], angelLifeStats: {}, scribeLiveBooks: {}, memoryBuildings: {}, chamberLedger: {}, liveTuning: {} };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [], npcScaleAudit: [], angelLifeStats: {}, scribeLiveBooks: {}, memoryBuildings: {}, chamberLedger: {}, liveTuning: {}, ambientDriftCam: {} };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
@@ -7778,6 +7779,13 @@ bloomPass.radius = 0.7;
         if (window.__GENESIS_WORLD_TUNER !== false) {
             const tuner = installWorldTuner(window.Genesis, worldState, saveWorldState, { max: 40 });
             if (tuner && typeof console !== 'undefined') console.log('[Genesis] World Tuner ready:', tuner.summary());
+        }
+
+        // ========== GENESIS AMBIENT DRIFT CAMERA (P77) ==========
+        window.__GENESIS_AMBIENT_DRIFT_CAM = (typeof window.__GENESIS_AMBIENT_DRIFT_CAM === 'boolean') ? window.__GENESIS_AMBIENT_DRIFT_CAM : true;
+        if (window.__GENESIS_AMBIENT_DRIFT_CAM !== false) {
+            const driftCam = installAmbientDriftCam(window.Genesis, worldState, saveWorldState, { amp: 0.08, ampY: 0.035, saveEveryMs: 15000 });
+            if (driftCam && typeof console !== 'undefined') console.log('[Genesis] Ambient Drift Cam ready:', driftCam.summary());
         }
 
         // ========== GENESIS PLT LEDGER (P138 / P183) ==========
@@ -8245,6 +8253,10 @@ bloomPass.radius = 0.7;
             const look = new THREE.Vector3(Math.sin(playerYaw) * Math.cos(playerPitch), Math.sin(playerPitch), Math.cos(playerYaw) * Math.cos(playerPitch));
             const camPos = eye.clone().addScaledVector(look, -camDist);
             camPos.y = Math.max(camPos.y, playerFloorY + 0.6);
+            if (window.__GENESIS_AMBIENT_DRIFT_CAM !== false && Genesis.AmbientDriftCam && Genesis.AmbientDriftCam.offset) {
+                const drift = Genesis.AmbientDriftCam.offset(dt, { idle: !moveZ && !moveX && !_dragLook && !playerFlying && !_commandCenter, mode: cameraMode });
+                if (drift) { camPos.x += drift.x; camPos.y += drift.y; camPos.z += drift.z; }
+            }
             camera.position.lerp(camPos, 1 - Math.pow(0.0001, dt));
             camera.lookAt(eye);
         }
