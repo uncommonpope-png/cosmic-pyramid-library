@@ -7695,7 +7695,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [], npcScaleAudit: [], angelLifeStats: {}, scribeLiveBooks: {} };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [], npcScaleAudit: [], angelLifeStats: {}, scribeLiveBooks: {}, memoryBuildings: {} };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
@@ -10761,6 +10761,15 @@ bloomPass.radius = 0.7;
             memoryWeightEl.textContent = 'resonance ' + (w * 100).toFixed(0) + '%' + (w >= 0.8 ? ' — MONUMENT' : '');
             memorySummaryEl.textContent = m.summary || '(no summary recorded)';
             memoryOverlay.classList.add('active');
+            try {
+                const state = worldState.memoryBuildings || { renders: 0, opens: 0, events: [] };
+                state.opens = (state.opens || 0) + 1;
+                state.lastOpenAt = Date.now();
+                state.lastOpen = { id: m.id || null, type: m.type || 'memory', summary: String(m.summary || '').slice(0, 160) };
+                worldState.memoryBuildings = state;
+                saveWorldState();
+                window.dispatchEvent(new CustomEvent('genesis:memory:building-open', { detail: state.lastOpen }));
+            } catch (_) {}
         }
         function hideMemoryModal() { memoryOverlay.classList.remove('active'); }
         document.getElementById('close-memory-btn').addEventListener('click', hideMemoryModal);
@@ -11266,18 +11275,24 @@ bloomPass.radius = 0.7;
             }
 
             async poll() {
+                let data = null, source = 'gsk';
                 try {
-                    const data = await gsk.memories();
-                    if (!data || !Array.isArray(data.memories)) return;
-                    this._apply(data.memories);
-                    if (this.memoryCountEl) this.memoryCountEl.textContent = (data.count != null) ? data.count : data.memories.length;
-                    console.log('[Memories] loaded', data.memories.length, 'buildings');
+                    data = await gsk.memories();
                 } catch (e) {
+                    source = 'local-fallback';
                     console.warn('[Memories] poll failed:', e.message);
                 }
+                if ((!data || !Array.isArray(data.memories) || !data.memories.length) && window.__GENESIS_SCRIBE_LIVE_BOOKS !== false && Genesis.ScribeLiveBooks) {
+                    data = Genesis.ScribeLiveBooks.localMemoryData(source);
+                    source = data.source || source;
+                }
+                if (!data || !Array.isArray(data.memories)) return;
+                this._apply(data.memories, source);
+                if (this.memoryCountEl) this.memoryCountEl.textContent = (data.count != null) ? data.count : data.memories.length;
+                console.log('[Memories] loaded', data.memories.length, 'buildings from', source);
             }
 
-            _apply(memories) {
+            _apply(memories, source = 'gsk') {
                 const seen = new Set();
                 memories.forEach((m, i) => {
                     const id = m.id || ('mem-' + i);
@@ -11311,6 +11326,18 @@ bloomPass.radius = 0.7;
                     }
                 }
                 this.layoutAll();
+                try {
+                    const state = worldState.memoryBuildings || { renders: 0, events: [] };
+                    state.renders = (state.renders || 0) + 1;
+                    state.lastAt = Date.now();
+                    state.source = source;
+                    state.count = this.items.size;
+                    state.ids = Array.from(this.items.keys()).slice(0, 48);
+                    state.events = [{ at: state.lastAt, source, count: state.count }, ...(state.events || [])].slice(0, 32);
+                    worldState.memoryBuildings = state;
+                    saveWorldState();
+                    window.dispatchEvent(new CustomEvent('genesis:memory:buildings', { detail: state }));
+                } catch (_) {}
             }
 
             layoutAll() {
