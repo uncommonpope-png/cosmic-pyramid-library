@@ -982,6 +982,7 @@
         import { createNPCScalePass, install as installNPCScalePass } from './src/genesis/npc-scale-pass.js';
         import { install as installScribeLiveBooks } from './src/genesis/scribe-live-books.js';
         import { install as installChamberHardening } from './src/genesis/chamber-hardening.js';
+        import { install as installWorldTuner } from './src/genesis/world-tuner.js';
 
         // ========== GENESIS TIER 0: telemetry + survival + registry ==========
         const Genesis = window.Genesis || (window.Genesis = {});
@@ -7696,7 +7697,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [], npcScaleAudit: [], angelLifeStats: {}, scribeLiveBooks: {}, memoryBuildings: {}, chamberLedger: {} };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [], npcScaleAudit: [], angelLifeStats: {}, scribeLiveBooks: {}, memoryBuildings: {}, chamberLedger: {}, liveTuning: {} };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
@@ -7770,6 +7771,13 @@ bloomPass.radius = 0.7;
         if (window.__GENESIS_CHAMBER_HARDENING !== false) {
             const chamberHardening = installChamberHardening(window.Genesis, worldState, saveWorldState, { total: 36 });
             if (chamberHardening && typeof console !== 'undefined') console.log('[Genesis] Chamber Hardening ready:', chamberHardening.summary());
+        }
+
+        // ========== GENESIS IN-WORLD CONSOLE LIVE TUNER (P75) ==========
+        window.__GENESIS_WORLD_TUNER = (typeof window.__GENESIS_WORLD_TUNER === 'boolean') ? window.__GENESIS_WORLD_TUNER : true;
+        if (window.__GENESIS_WORLD_TUNER !== false) {
+            const tuner = installWorldTuner(window.Genesis, worldState, saveWorldState, { max: 40 });
+            if (tuner && typeof console !== 'undefined') console.log('[Genesis] World Tuner ready:', tuner.summary());
         }
 
         // ========== GENESIS PLT LEDGER (P138 / P183) ==========
@@ -11075,6 +11083,7 @@ bloomPass.radius = 0.7;
         }
 
         const gskBridge = new GSKCityBridge();
+        window.gskBridge = gskBridge;
 
         // Feed GSK status into bridge whenever panel updates
         const origUpdateGskPanel = updateGskPanel;
@@ -11906,14 +11915,42 @@ bloomPass.radius = 0.7;
             el.textContent = text;
             el.className = 'cc-status' + (cls ? ' ' + cls : '');
         }
+        function applyLocalWorldTune(data = {}, source = 'in-world-console') {
+            const mood = String(data.mood || 'neutral').toLowerCase();
+            const phase = String(data.phase || 'VOID').toUpperCase();
+            if (gskBridge) {
+                gskBridge.currentMood = mood;
+                gskBridge.currentPhase = phase;
+                gskBridge.phaseFx = GSK_PHASE_MAP[phase] || GSK_PHASE_MAP['VOID'];
+                gskBridge.applyPhaseSpeeds();
+                const md = GSK_MOOD_MAP[mood] || GSK_MOOD_MAP.neutral;
+                gskBridge.target.sky.setHex(md.sky);
+                gskBridge.target.fog.setHex(md.fog);
+                gskBridge.target.fogDensity = md.fogDensity;
+                gskBridge.target.bloomStr = md.bloomStr;
+                gskBridge.target.hemiColor.setHex(md.hemi[0]);
+                gskBridge.target.hemiGround.setHex(md.hemi[1]);
+            }
+            if (window.__GENESIS_WORLD_TUNER !== false && Genesis.WorldTuner && Genesis.WorldTuner.tune) Genesis.WorldTuner.tune({ mood, phase }, { source, applied: true });
+            pushRuntime('local tune ' + mood + '/' + phase);
+            return true;
+        }
         function issueWorldCommand(type, data) {
             const s = (typeof window !== 'undefined') ? window.__sanctum : null;
             if (!s || !s.ws || s.ws.readyState !== WebSocket.OPEN) {
+                if (type === 'tune' && window.__GENESIS_WORLD_TUNER !== false) {
+                    applyLocalWorldTune(data || {}, 'offline-console');
+                    setCmdStatus('sanctum: offline — local tune applied', 'ok');
+                    return true;
+                }
+                if (window.__GENESIS_WORLD_TUNER !== false && Genesis.WorldTuner && Genesis.WorldTuner.command) Genesis.WorldTuner.command(type, data || {}, 'offline-blocked');
                 setCmdStatus('sanctum: offline — command not sent', 'err');
                 return false;
             }
             try {
                 s.sendCommand(type, data || {});
+                if (window.__GENESIS_WORLD_TUNER !== false && Genesis.WorldTuner && Genesis.WorldTuner.command) Genesis.WorldTuner.command(type, data || {}, 'sent');
+                if (type === 'tune' && window.__GENESIS_WORLD_TUNER !== false) applyLocalWorldTune(data || {}, 'sent-console');
                 const label = (typeof data === 'object' && data) ? JSON.stringify(data) : '';
                 setCmdStatus('→ sent ' + type + (label ? ' ' + label : '') + ' to sanctum', 'ok');
                 pushRuntime(type + (label ? ' ' + label : ''));
