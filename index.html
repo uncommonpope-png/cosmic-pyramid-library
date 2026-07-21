@@ -981,6 +981,7 @@
         import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
         import { createNPCScalePass, install as installNPCScalePass } from './src/genesis/npc-scale-pass.js';
         import { install as installScribeLiveBooks } from './src/genesis/scribe-live-books.js';
+        import { install as installChamberHardening } from './src/genesis/chamber-hardening.js';
 
         // ========== GENESIS TIER 0: telemetry + survival + registry ==========
         const Genesis = window.Genesis || (window.Genesis = {});
@@ -7695,7 +7696,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [], npcScaleAudit: [], angelLifeStats: {}, scribeLiveBooks: {}, memoryBuildings: {} };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {}, witnessProofPacks: [], npcScaleAudit: [], angelLifeStats: {}, scribeLiveBooks: {}, memoryBuildings: {}, chamberLedger: {} };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
@@ -7762,6 +7763,13 @@ bloomPass.radius = 0.7;
         if (window.__GENESIS_SCRIBE_LIVE_BOOKS !== false) {
             const scribeBooks = installScribeLiveBooks(window.Genesis, worldState, saveWorldState, { max: 48 });
             if (scribeBooks && typeof console !== 'undefined') console.log('[Genesis] Scribe Live Books ready:', scribeBooks.summary());
+        }
+
+        // ========== GENESIS 36 CHAMBERS HARDENING (P74/P129) ==========
+        window.__GENESIS_CHAMBER_HARDENING = (typeof window.__GENESIS_CHAMBER_HARDENING === 'boolean') ? window.__GENESIS_CHAMBER_HARDENING : true;
+        if (window.__GENESIS_CHAMBER_HARDENING !== false) {
+            const chamberHardening = installChamberHardening(window.Genesis, worldState, saveWorldState, { total: 36 });
+            if (chamberHardening && typeof console !== 'undefined') console.log('[Genesis] Chamber Hardening ready:', chamberHardening.summary());
         }
 
         // ========== GENESIS PLT LEDGER (P138 / P183) ==========
@@ -13516,6 +13524,7 @@ bloomPass.radius = 0.7;
             chamberVisited.add(chamberIndex);
             worldState.chambers = [...chamberVisited].sort((a, b) => a - b);
             if (chamberSockets[chamberIndex]) chamberSockets[chamberIndex].lit = true;
+            if (window.__GENESIS_CHAMBER_HARDENING !== false && Genesis.ChamberHardening && Genesis.ChamberHardening.enter) Genesis.ChamberHardening.enter(chamberIndex, { biome: CHAMBER_BIOMES[chamberIndex % CHAMBER_BIOMES.length].name });
             saveWorldState();
             loadRealmAssetsOnce('chamber', chamberRoot, REALM_ASSET_SPECS.chamber, chamberClickTargets);
             playerNPC.position.set(chamberBase.x, chamberBase.y + 2, chamberBase.z + 44);
@@ -13532,6 +13541,7 @@ bloomPass.radius = 0.7;
             currentChamber = -1;
             if (chamberSession) chamberSession.lifecycle = 'exit';
             chamberRoot.userData.chamberLifecycleState = 'exit';
+            if (window.__GENESIS_CHAMBER_HARDENING !== false && Genesis.ChamberHardening && Genesis.ChamberHardening.exit && prevIndex >= 0) Genesis.ChamberHardening.exit(prevIndex);
             clearChamberTransient(chamberRoot);
             if (chamberSession) chamberSession.lifecycle = 'idle';
             restoreSurfaceReturnState();
@@ -13553,6 +13563,7 @@ bloomPass.radius = 0.7;
                 const name = target.userData.chamberName || 'Chamber';
                 const idx = target.userData.chamberIndex;
                 showScribeReadout('CHAMBER ' + (idx + 1) + ' — ' + name + ': ' + CHAMBER_QUOTES[idx % CHAMBER_QUOTES.length]);
+                if (window.__GENESIS_CHAMBER_HARDENING !== false && Genesis.ChamberHardening && Genesis.ChamberHardening.feature) Genesis.ChamberHardening.feature(idx, name);
             }
         }
         function updateChamberRealm(time, dt) {

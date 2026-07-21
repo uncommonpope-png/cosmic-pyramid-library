@@ -67,6 +67,7 @@ export function install(Genesis, worldState, options = {}) {
       angelLifeEvents: worldState.angelLifeStats && Array.isArray(worldState.angelLifeStats.events) ? worldState.angelLifeStats.events.length : 0,
       scribeLiveBookEvents: worldState.scribeLiveBooks && Array.isArray(worldState.scribeLiveBooks.events) ? worldState.scribeLiveBooks.events.length : 0,
       memoryBuildings: worldState.memoryBuildings && worldState.memoryBuildings.count ? worldState.memoryBuildings.count : 0,
+      chamberLedger: count(worldState.chamberLedger),
       trustLedger: count(worldState.trustLedger),
       personalityProfiles: count(worldState.personalityProfiles),
       pltEntries: count(worldState.pltLedger)
@@ -96,7 +97,7 @@ export function install(Genesis, worldState, options = {}) {
     return proof;
   }
 
-  const events = ['genesis:boot-ready', 'genesis:trust:delta', 'genesis:personality:drift', 'genesis:prophet:archive', 'genesis:builder:schematic', 'genesis:drag:persist', 'genesis:npc:scale-pass', 'genesis:angel:life', 'genesis:scribe:live-books', 'genesis:scribe:book-open', 'genesis:memory:buildings', 'genesis:memory:building-open'];
+  const events = ['genesis:boot-ready', 'genesis:trust:delta', 'genesis:personality:drift', 'genesis:prophet:archive', 'genesis:builder:schematic', 'genesis:drag:persist', 'genesis:npc:scale-pass', 'genesis:angel:life', 'genesis:scribe:live-books', 'genesis:scribe:book-open', 'genesis:memory:buildings', 'genesis:memory:building-open', 'genesis:chamber:enter', 'genesis:chamber:exit', 'genesis:chamber:feature'];
   for (const eventName of events) window.addEventListener(eventName, () => checkpoint(eventName));
 
   const api = { checkpoint, surfaces, summary: () => worldState.immortalityAudit || checkpoint('summary') };
