@@ -7669,7 +7669,7 @@ bloomPass.radius = 0.7;
 
         // Phase 2: denizen identity + realm quest loops
         const WORLD_STATE_KEY = 'cpl-world-state-v2';
-        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {} };
+        let worldState = { quests: {}, metDenizens: [], chambers: [], contracts: [], builds: [], builderSchematics: [], prophecies: [], prophecyArchive: [], memoryEvents: [], pltLedger: [], dragPositions: {}, trustLedger: {}, personalityProfiles: {}, immortalityAudit: {} };
         try {
             const saved = JSON.parse(localStorage.getItem(WORLD_STATE_KEY) || 'null');
             if (saved && typeof saved === 'object') worldState = { ...worldState, ...saved };
@@ -7755,6 +7755,17 @@ bloomPass.radius = 0.7;
                 const drift = m.install(window.Genesis, worldState, saveWorldState);
                 if (drift && typeof console !== 'undefined') console.log('[Genesis] Personality Drift ready:', drift.summary());
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Personality Drift module load skipped:', e && e.message); });
+        }
+
+        // ========== GENESIS TWO-SURFACE IMMORTALITY AUDIT (P51/P52/P132) ==========
+        // Surface A = GSK/self identity. Surface B = world consequence state. Reopen proves continuity.
+        window.__GENESIS_IMMORTALITY_AUDIT = (typeof window.__GENESIS_IMMORTALITY_AUDIT === 'boolean') ? window.__GENESIS_IMMORTALITY_AUDIT : true;
+        if (window.__GENESIS_IMMORTALITY_AUDIT !== false) {
+            import('./src/genesis/immortality-audit.js').then((m) => {
+                if (!m || typeof m.install !== 'function') return;
+                const audit = m.install(window.Genesis, worldState, { worldStateKey: WORLD_STATE_KEY });
+                if (audit && typeof console !== 'undefined') console.log('[Genesis] Immortality Audit ready:', audit.summary());
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Immortality Audit module load skipped:', e && e.message); });
         }
 
         // ========== GENESIS PROPHET ARCHIVE (P37 / P126) ==========
@@ -7925,6 +7936,9 @@ bloomPass.radius = 0.7;
             document.querySelectorAll('.avatar-btn').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
             const st = document.getElementById('npc-status');
             if (st) st.textContent = 'You are ' + kind.toUpperCase() + ' · WASD move · Shift run · Space up/jump · Q down · F fly · drag to look · click to interact';
+            worldState.playerKind = kind;
+            if (window.__GENESIS_IMMORTALITY_AUDIT !== false && Genesis.ImmortalityAudit && Genesis.ImmortalityAudit.checkpoint) Genesis.ImmortalityAudit.checkpoint('player-avatar');
+            saveWorldState();
         }
 
         function setCameraMode(mode) {
