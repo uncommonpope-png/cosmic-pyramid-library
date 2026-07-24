@@ -1764,6 +1764,39 @@
             }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Performance Governor v2 module load skipped:', e && e.message); });
         })();
 
+        // ========== MULTIVERSE HUB (void realm navigator) ==========
+        window.__GENESIS_MULTIVERSE_HUB = (typeof window.__GENESIS_MULTIVERSE_HUB === 'boolean') ? window.__GENESIS_MULTIVERSE_HUB : true;
+        (function () {
+            if (window.__GENESIS_MULTIVERSE_HUB === false) {
+                Genesis.MultiverseHub = { summary(){return{active:false};}, onNodeClick:function(){}, zoomToNode:function(){}, getNodes:function(){return[];}, getHubGroup:function(){return null;} };
+                Genesis.SoulForgeNexus = { summary(){return{agents:0,souls:0};}, getNexusGroup:function(){return null;} };
+                return;
+            }
+            import('./src/genesis/multiverse-hub.js').then((m) => {
+                if (!Genesis.MultiverseHub && typeof m.install === 'function') {
+                    m.install(window.Genesis, THREE, camera, scene, renderer, cityGroup, controls);
+                    Genesis.registerModule('multiverse-hub', { status: 'installed', path: './src/genesis/multiverse-hub.js' });
+                }
+                if (Genesis.MultiverseHub && typeof transitionPlayerStratum === 'function') {
+                    Genesis.MultiverseHub.onNodeClick = (nodeId) => {
+                        if (nodeId === 'soul-forge-nexus') {
+                            transitionPlayerStratum('forge-nexus', 'surface-forge-nexus').catch(() => {});
+                        } else if (typeof spawnWhisper === 'function') {
+                            spawnWhisper(new THREE.Vector3(0,0,0), 'This realm is not yet forged.');
+                        }
+                    };
+                }
+                if (typeof console !== 'undefined') console.log('[Genesis] Multiverse Hub module validated');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Multiverse Hub module load skipped:', e && e.message); });
+            import('./src/genesis/soul-forge-nexus.js').then((m) => {
+                if (!Genesis.SoulForgeNexus && typeof m.install === 'function') {
+                    m.install(window.Genesis, THREE, camera, scene, renderer, cityGroup, controls);
+                    Genesis.registerModule('soul-forge-nexus', { status: 'installed', path: './src/genesis/soul-forge-nexus.js' });
+                }
+                if (typeof console !== 'undefined') console.log('[Genesis] Soul Forge Nexus module validated');
+            }).catch((e) => { if (typeof console !== 'undefined') console.warn('[Genesis] Soul Forge Nexus module load skipped:', e && e.message); });
+        })();
+
         // ========== GENESIS ASSET PIPELINE (Phase A — subsystem #1) ==========
         // Registry + validation + loader for CC0 premium assets. Routes every load
         // through enqueueLazyAsset so ResourceManager + StreamingManager track it.
@@ -3031,8 +3064,8 @@
         scene.background = new THREE.Color(0x010008);
         scene.fog = new THREE.FogExp2(0x010008, 0.0015);
         
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(12, 10, 18);
+        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 6000);
+        camera.position.set(0, 40, 40); // Age of Empires top-down angled default
         
         const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -3649,18 +3682,15 @@ bloomPass.radius = 0.7;
         
         // ========== ORBIT CONTROLS ==========
         const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.enableZoom = true;
-        controls.enableRotate = true;
-        controls.enablePan = true; // WASD/edge sail across districts
-        controls.dampingFactor = 0.06;
-        controls.zoomSpeed = 0.8;
-        controls.rotateSpeed = 0.6;
-        controls.panSpeed = 1.4;
-        controls.screenSpacePanning = false; // keep horizon level while panning
-        controls.minDistance = 3;
-        controls.maxDistance = 2200; // unlocked: see the whole expanded world
-        controls.target.set(0, 2, 0);
+        controls.keys = { LEFT: 'KeyA', UP: 'KeyW', RIGHT: 'KeyD', BOTTOM: 'KeyS' }; // AoE WASD pan
+        controls.dampingFactor = 0.08;
+        controls.zoomSpeed = 2.0;
+        controls.rotateSpeed = 0.5;
+        controls.panSpeed = 1.8;
+        controls.screenSpacePanning = true; // keep horizon level while panning
+        controls.minDistance = 5;
+        controls.maxDistance = 5000; // zoom from close tactical to full AoE map view
+        controls.target.set(0, 0, 0);
         // Far plane opened so distant districts + endless grid stay rendered.
         camera.far = 6000;
         camera.updateProjectionMatrix();
@@ -4341,7 +4371,46 @@ bloomPass.radius = 0.7;
         
         doorGroup.position.set(0, 0, 1.45);
         scene.add(doorGroup);
-        
+
+        // ========== SOUL FORGE NEXUS PORTAL (Lost World gateway) ==========
+        const nexusPortalGroup = new THREE.Group();
+        nexusPortalGroup.name = 'Nexus Portal';
+        const nexusPortalMat = new THREE.MeshBasicMaterial({
+            color: 0xff6600, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false
+        });
+        const nexusPortalPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 3.0), nexusPortalMat);
+        nexusPortalPlane.position.set(0, 1.5, 0);
+        nexusPortalPlane.userData.nexusPortal = true;
+        nexusPortalGroup.add(nexusPortalPlane);
+
+        const nRingMat = new THREE.MeshBasicMaterial({
+            color: 0xffaa00, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, side: THREE.DoubleSide
+        });
+        for (let i = 0; i < 3; i++) {
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(1.2 + i * 0.4, 0.05, 8, 32), nRingMat.clone());
+            ring.rotation.x = Math.PI / 2 + i * 0.3;
+            ring.rotation.z = i * 0.5;
+            ring.position.y = 1.5;
+            ring.userData.nexusPortal = true;
+            nexusPortalGroup.add(ring);
+        }
+
+        const nLabelCanvas = document.createElement('canvas');
+        nLabelCanvas.width = 256; nLabelCanvas.height = 48;
+        const nctx = nLabelCanvas.getContext('2d');
+        nctx.fillStyle = 'rgba(0,0,0,0.5)'; nctx.fillRect(0, 0, 256, 48);
+        nctx.fillStyle = '#ff8800'; nctx.font = 'bold 18px sans-serif'; nctx.textAlign = 'center';
+        nctx.fillText('SOUL FORGE', 128, 30);
+        const nLabelTex = new THREE.CanvasTexture(nLabelCanvas);
+        const nLabelMat = new THREE.SpriteMaterial({ map: nLabelTex, transparent: true, depthTest: false });
+        const nLabel = new THREE.Sprite(nLabelMat);
+        nLabel.position.set(0, 3.5, 0);
+        nLabel.scale.set(3, 0.6, 1);
+        nexusPortalGroup.add(nLabel);
+
+        nexusPortalGroup.position.set(3.5, 0, 1.45);
+        scene.add(nexusPortalGroup);
+
         // ========== GUARDIAN CHARACTER ==========
         function createGuardian() {
             const g = new THREE.Group();
@@ -6407,7 +6476,8 @@ bloomPass.radius = 0.7;
                 // hand control to the player at the hub spawn (matches the npc camera)
                 playerNPC.position.set(0, 0, 12);
                 playerYaw = Math.PI;
-                playerPitch = 0.25;
+                playerPitch = 0.6;
+                charFacing = Math.PI;
                 playerFlying = false; playerGrounded = true; playerFloorY = 0;
                 setCameraMode('npc');
             }
@@ -7677,12 +7747,13 @@ bloomPass.radius = 0.7;
         const keyState = {};
         let cameraMode = 'npc';
         let playerYaw = Math.PI;
-        let playerPitch = 0.25;
+        let playerPitch = 0;
         let playerVelY = 0;
         let playerGrounded = true;
         let playerFlying = false;
         let playerFloorY = 0;
-        let camDist = 7;
+        let camDist = 5;
+        let charFacing = Math.PI; // character model facing (separate from camera yaw)
   let _hubPlayerPos = null;
   let _hubPlayerYaw = Math.PI;
   let _commandCenter = false;
@@ -7984,6 +8055,7 @@ bloomPass.radius = 0.7;
                         playerNPC.userData = { name: 'You (' + kind + ')', isPlayerNPC: true, glbKind: glbAvatars[kind] ? kind : null };
                         playerNPC.position.copy(p);
                         playerNPC.rotation.y = y;
+                        charFacing = y;
                         scene.add(playerNPC);
                         window.__playerNPC = playerNPC;
                         if (btn) btn.classList.remove('loading');
@@ -7991,14 +8063,15 @@ bloomPass.radius = 0.7;
                     }
                 }, 500);
             }
-            
+
             playerNPC.position.copy(pos);
             playerNPC.rotation.y = yaw;
+            charFacing = yaw;
             scene.add(playerNPC);
             window.__playerNPC = playerNPC;
             document.querySelectorAll('.avatar-btn').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
             const st = document.getElementById('npc-status');
-            if (st) st.textContent = 'You are ' + kind.toUpperCase() + ' · WASD move · Shift run · Space up/jump · Q down · F fly · drag to look · click to interact';
+            if (st) st.textContent = 'You are ' + kind.toUpperCase() + ' · WASD move (camera-relative) · Shift run · Space jump · F fly · scroll zoom · drag to look · click · ESC orbit';
             worldState.playerKind = kind;
             if (window.__GENESIS_IMMORTALITY_AUDIT !== false && Genesis.ImmortalityAudit && Genesis.ImmortalityAudit.checkpoint) Genesis.ImmortalityAudit.checkpoint('player-avatar');
             saveWorldState();
@@ -8006,6 +8079,8 @@ bloomPass.radius = 0.7;
 
         function setCameraMode(mode) {
             cameraMode = mode;
+            if (mode === 'npc' && typeof charFacing !== 'undefined') charFacing = playerNPC ? playerNPC.rotation.y : Math.PI;
+            if (typeof window._smoothLookInit !== 'undefined') window._smoothLookInit = false; // reset slerp on mode switch
             const orbitBtn = document.getElementById('orbit-mode-btn');
             const npcBtn = document.getElementById('npc-mode-btn');
             if (orbitBtn) orbitBtn.classList.toggle('active', mode === 'orbit');
@@ -8013,8 +8088,8 @@ bloomPass.radius = 0.7;
             controls.enabled = mode === 'orbit';
             const h = document.getElementById('controls-hint');
             if (h) h.textContent = mode === 'npc'
-                ? 'WASD move · Shift run · Space up/jump · Q down · F fly · drag mouse to look · click to interact · ESC orbit'
-                : 'Drag objects | Click books | Click souls | PLAY to walk';
+                ? 'WASD moves you relative to camera · Shift sprint · Space jump · F fly · scroll zoom · drag mouse to orbit cam · ESC orbit'
+                : 'WASD pans the world · scroll zooms way out · drag rotates · F fly around · PLAY to walk';
         }
         function toggleCameraMode() { setCameraMode(cameraMode === 'npc' ? 'orbit' : 'npc'); }
         document.getElementById('orbit-mode-btn').addEventListener('click', () => setCameraMode('orbit'));
@@ -8046,14 +8121,21 @@ bloomPass.radius = 0.7;
         });
         document.addEventListener('keyup', (e) => { if (isHubWindowInputLockActive()) return; keyState[e.code] = false; });
 
+        // scroll-wheel zoom in PLAY mode (Fallout: zoom from over-shoulder to orbit-high)
+        document.addEventListener('wheel', (e) => {
+            if (cameraMode !== 'npc') return;
+            if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT')) return;
+            camDist = Math.max(3, Math.min(40, camDist + e.deltaY * 0.01));
+        }, { passive: true });
+
         // drag-to-look (free cursor — no pointer lock, so clicks + UI keep working)
         let _dragLook = false;
         renderer.domElement.addEventListener('pointerdown', () => { _dragLook = true; });
         renderer.domElement.addEventListener('pointerup', () => { _dragLook = false; });
         renderer.domElement.addEventListener('pointermove', (e) => {
             if (!_dragLook || cameraMode !== 'npc') return;
-            playerYaw -= e.movementX * 0.005;
-            playerPitch = Math.max(-0.5, Math.min(1.2, playerPitch - e.movementY * 0.004));
+            playerYaw -= e.movementX * 0.006;
+            playerPitch = Math.max(-0.8, Math.min(1.4, playerPitch - e.movementY * 0.005));
         });
 
         function getActiveStratum() {
@@ -8187,18 +8269,53 @@ bloomPass.radius = 0.7;
         function updatePlayerNPC(dt) {
             if (loaderActive) return; // scroll-world loader owns the camera during initial load
             if (cameraMode !== 'npc') return;
-            const forward = new THREE.Vector3(Math.sin(playerYaw), 0, Math.cos(playerYaw));
-            const right = new THREE.Vector3(Math.cos(playerYaw), 0, -Math.sin(playerYaw));
             const moveZ = (keyState.KeyW ? 1 : 0) - (keyState.KeyS ? 1 : 0);
             const moveX = (keyState.KeyD ? 1 : 0) - (keyState.KeyA ? 1 : 0);
-            const speed = (keyState.ShiftLeft || keyState.ShiftRight) ? 16 : 8;
-            if (moveZ) playerNPC.position.addScaledVector(forward, moveZ * speed * dt);
-            if (moveX) playerNPC.position.addScaledVector(right, moveX * speed * dt);
-            playerNPC.rotation.y = playerYaw;
+            const speed = (keyState.ShiftLeft || keyState.ShiftRight) ? 24 : 12;
+            const isMoving = moveZ !== 0 || moveX !== 0;
+
+            // === FALLOUT-STYLE CAMERA-RELATIVE MOVEMENT ===
+            // Get camera forward direction projected onto XZ plane
+            const camDir = new THREE.Vector3();
+            camera.getWorldDirection(camDir);
+            const camForward = new THREE.Vector3(camDir.x, 0, camDir.z).normalize();
+            const camRight = new THREE.Vector3(-camForward.z, 0, camForward.x);
+
+            if (isMoving) {
+                const movement = new THREE.Vector3();
+                if (moveZ) movement.addScaledVector(camForward, moveZ);
+                if (moveX) movement.addScaledVector(camRight, moveX);
+                movement.normalize().multiplyScalar(speed * dt);
+                playerNPC.position.add(movement);
+
+                // Character smoothly faces movement direction (independent of camera)
+                const targetFacing = Math.atan2(movement.x, movement.z);
+                let diff = targetFacing - charFacing;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                charFacing += diff * Math.min(1, 10 * dt);
+                playerNPC.rotation.y = charFacing;
+            }
+
+            // === FLYING (camera direction follows pitch) ===
             if (playerFlying) {
-                const fs = ((keyState.ShiftLeft || keyState.ShiftRight) ? 12 : 6) * dt;
-                if (keyState.Space) playerNPC.position.y += fs;
-                if (keyState.ControlLeft || keyState.ControlRight || keyState.KeyQ) playerNPC.position.y -= fs;
+                const flySpeed = ((keyState.ShiftLeft || keyState.ShiftRight) ? 20 : 10) * dt;
+                // Use FULL camera direction (with pitch) for flying movement
+                if (isMoving) {
+                    const flyMove = new THREE.Vector3();
+                    if (moveZ) {
+                        const fwd = new THREE.Vector3();
+                        camera.getWorldDirection(fwd);
+                        flyMove.addScaledVector(fwd, moveZ);
+                    }
+                    if (moveX) {
+                        flyMove.addScaledVector(camRight, moveX);
+                    }
+                    flyMove.normalize().multiplyScalar(flySpeed);
+                    playerNPC.position.add(flyMove);
+                }
+                if (keyState.Space) playerNPC.position.y += flySpeed;
+                if (keyState.ControlLeft || keyState.ControlRight || keyState.KeyQ) playerNPC.position.y -= flySpeed;
                 playerNPC.position.y = Math.max(playerFloorY, Math.min(playerFloorY + 600, playerNPC.position.y));
             } else {
                 if (keyState.Space && playerGrounded) { playerVelY = 9; playerGrounded = false; }
@@ -8238,42 +8355,69 @@ bloomPass.radius = 0.7;
                 playerNPC.position.z = Math.max(-2.0, Math.min(0.3, playerNPC.position.z));
                 if (playerNPC.position.y > 1.2) playerNPC.position.y = 1.2;
             }
+            // Camera orbit around character (controlled by playerYaw/playerPitch from drag)
             const eye = playerNPC.position.clone().add(new THREE.Vector3(0, 1.6, 0));
             const look = new THREE.Vector3(Math.sin(playerYaw) * Math.cos(playerPitch), Math.sin(playerPitch), Math.cos(playerYaw) * Math.cos(playerPitch));
             const camPos = eye.clone().addScaledVector(look, -camDist);
             camPos.y = Math.max(camPos.y, playerFloorY + 0.6);
             if (window.__GENESIS_AMBIENT_DRIFT_CAM !== false && Genesis.AmbientDriftCam && Genesis.AmbientDriftCam.offset) {
-                const drift = Genesis.AmbientDriftCam.offset(dt, { idle: !moveZ && !moveX && !_dragLook && !playerFlying && !_commandCenter, mode: cameraMode });
+                const drift = Genesis.AmbientDriftCam.offset(dt, { idle: !isMoving && !_dragLook && !playerFlying && !_commandCenter, mode: cameraMode });
                 if (drift) { camPos.x += drift.x; camPos.y += drift.y; camPos.z += drift.z; }
             }
-            camera.position.lerp(camPos, 1 - Math.pow(0.0001, dt));
-            camera.lookAt(eye);
+            // Exponential follow — frame-independent, snappy but smooth
+            const camLerp = 1 - Math.exp(-15 * dt);
+            camera.position.lerp(camPos, camLerp);
+            // Smooth look-at with quaternion slerp so the view never snaps on turns
+            if (typeof _smoothLookQuat === 'undefined') { window._smoothLookQuat = new THREE.Quaternion(); window._smoothLookInit = false; }
+            const targetQuat = new THREE.Quaternion();
+            const m = new THREE.Matrix4();
+            m.lookAt(camera.position, eye, camera.up);
+            targetQuat.setFromRotationMatrix(m);
+            if (!window._smoothLookInit) {
+                camera.quaternion.copy(targetQuat);
+                window._smoothLookInit = true;
+                window._smoothLookQuat.copy(targetQuat);
+            } else {
+                const lookLerp = 1 - Math.exp(-12 * dt);
+                window._smoothLookQuat.slerp(targetQuat, lookLerp);
+                camera.quaternion.copy(window._smoothLookQuat);
+            }
         }
 
         function applyVerticalPlayerArrival(stratumId) {
-            const arrival = stratumId === 'heaven'
-                ? heavenStratumRoot.localToWorld(new THREE.Vector3(0, 0.38, 6))
-                : cityGroup.localToWorld(new THREE.Vector3(0, 0.02, -46));
+            let arrival;
+            if (stratumId === 'heaven') {
+                arrival = heavenStratumRoot.localToWorld(new THREE.Vector3(0, 0.38, 6));
+            } else if (stratumId === 'forge-nexus') {
+                const root = window.__forgeNexusRoot;
+                arrival = root ? root.localToWorld(new THREE.Vector3(0, 0.5, -30)) : new THREE.Vector3(5000, 0.5, -30);
+            } else {
+                arrival = cityGroup.localToWorld(new THREE.Vector3(0, 0.02, -46));
+            }
             playerNPC.position.copy(arrival);
             playerFloorY = arrival.y;
             playerVelY = 0;
             playerFlying = false;
             playerGrounded = true;
             playerYaw = Math.PI;
+            playerPitch = 0.6;
+            charFacing = Math.PI;
+            window._smoothLookInit = false;
             setCameraMode('npc');
             const eye = arrival.clone().add(new THREE.Vector3(0, 1.6, 0));
-            const look = new THREE.Vector3(Math.sin(playerYaw), 0, Math.cos(playerYaw));
+            const look = new THREE.Vector3(Math.sin(playerYaw) * Math.cos(playerPitch), Math.sin(playerPitch), Math.cos(playerYaw) * Math.cos(playerPitch));
             camera.position.copy(eye).addScaledVector(look, -camDist);
             camera.position.y = Math.max(camera.position.y, playerFloorY + 0.6);
             camera.lookAt(eye);
+            if (typeof window._smoothLookQuat !== 'undefined') window._smoothLookQuat.copy(camera.quaternion);
             controls.target.copy(eye);
             controls.update();
-            spawnWhisper(arrival, stratumId === 'heaven' ? 'Sky-plaza reached. The Northstar beacon is live.' : 'Surface city restored. The lift remembers the route.');
+            spawnWhisper(arrival, stratumId === 'forge-nexus' ? 'Soul Forge Nexus — the Lost World awakens.' : stratumId === 'heaven' ? 'Sky-plaza reached. The Northstar beacon is live.' : 'Surface city restored. The lift remembers the route.');
         }
 
-        function transitionPlayerStratum(stratumId) {
+        function transitionPlayerStratum(stratumId, connectorId) {
             if (!Genesis.VerticalStackManager || !Genesis.VerticalStackManager.transitionTo) return Promise.reject(new Error('Vertical Stack Manager unavailable'));
-            return Genesis.VerticalStackManager.transitionTo(stratumId, { connectorId: 'surface-heaven' });
+            return Genesis.VerticalStackManager.transitionTo(stratumId, { connectorId: connectorId || 'surface-heaven' });
         }
 
         function teleportPlayerToHeaven() {
@@ -8750,6 +8894,23 @@ bloomPass.radius = 0.7;
         if (window.__GENESIS_SECTOR_MANAGER !== false && Genesis.SectorManager) Genesis.SectorManager.register('heaven-prototype', heavenStratumRoot, { maxDistance: 1600, autoSleep: false });
         if (window.__GENESIS_VISIBILITY !== false && Genesis.Visibility) Genesis.Visibility.register('heaven-prototype', heavenStratumRoot, { priority: 9, maxDistance: 1600, stateOwned: true, owner: 'vertical-stack' });
         Genesis.VerticalStackManager.tick({ exteriorVisible: true });
+
+        // ========== SOUL FORGE NEXUS — New Reality Stratum (forged from Lost World mechanics) ==========
+        (function () {
+            if (window.__GENESIS_VERTICAL_STACK === false) return;
+            const forgeRoot = new THREE.Group();
+            forgeRoot.name = 'Soul Forge Nexus Root';
+            forgeRoot.position.set(0, 0, 5000);
+            forgeRoot.visible = false;
+            scene.add(forgeRoot);
+
+            Genesis.VerticalStackManager.registerStratum('forge-nexus', forgeRoot, { order: 3, state: 'UNLOADED', role: 'forge-nexus', contentType: 'soul-forge-nexus' });
+            Genesis.VerticalStackManager.registerConnector('surface-forge-nexus', { from: 'surface', to: 'forge-nexus', bidirectional: true, prewarmMs: 200, endpoints: { surface: null }, ready: ({ destination }) => !!(destination && destination.root && destination.root.parent), transfer: ({ to }) => { if (typeof applyVerticalPlayerArrival === 'function') applyVerticalPlayerArrival(to); } });
+            Genesis.VerticalStackManager.registerConnector('heaven-forge-nexus', { from: 'heaven', to: 'forge-nexus', bidirectional: true, prewarmMs: 200, endpoints: { surface: null }, ready: ({ destination }) => !!(destination && destination.root && destination.root.parent), transfer: ({ to }) => { if (typeof applyVerticalPlayerArrival === 'function') applyVerticalPlayerArrival(to); } });
+            window.__forgeNexusRoot = forgeRoot;
+
+            if (typeof console !== 'undefined') console.log('[Genesis] Soul Forge Nexus stratum registered — new reality waiting');
+        })();
 
         const verticalStackDebugEnabled = new URLSearchParams(location.search).get('genesisDebug') === '1' || new URLSearchParams(location.search).get('genesisTest') === '1';
         const verticalStackTestFacade = verticalStackDebugEnabled ? Object.freeze({
@@ -10127,7 +10288,7 @@ bloomPass.radius = 0.7;
             if (inBuilder) return filterInteractionTargets([...builderClickTargets]);
             if (inProphet) return filterInteractionTargets([...prophetClickTargets]);
             const targets = [...books, ..._soulMeshes, ...avatars, ...npcTalkTargets, ...heavenGateTargets];
-            if (!isInside) { targets.push(portalPlane); targets.push(...shipPortalTargets); targets.push(...realmPortalTargets); targets.push(...chamberSocketTargets); targets.push(...godWorldClickTargets); targets.push(...caretakerTargets); }
+            if (!isInside) { targets.push(portalPlane); targets.push(nexusPortalPlane); targets.push(...shipPortalTargets); targets.push(...realmPortalTargets); targets.push(...chamberSocketTargets); targets.push(...godWorldClickTargets); targets.push(...caretakerTargets); }
             if (avatar && !isInside) targets.push(avatar);
             if (window.__gskAvatar && window.__gskAvatar.clickMesh) targets.push(window.__gskAvatar.clickMesh);
             if (window.__memoryBuildings) targets.push(...window.__memoryBuildings.getClickMeshes());
@@ -10259,6 +10420,11 @@ bloomPass.radius = 0.7;
             }
             if (mouseDownTarget === portalPlane) {
                 dispatchSurfacePyramidPortal(mouseDownTarget);
+                return;
+            }
+            if (mouseDownTarget.userData && mouseDownTarget.userData.nexusPortal) {
+                if (!surfaceWorldActionsAllowed()) return;
+                transitionPlayerStratum('forge-nexus', 'surface-forge-nexus').then(() => {}).catch(() => { spawnWhisper(new THREE.Vector3(0,0,0), 'The forge is not yet ready.'); });
                 return;
             }
             if (mouseDownTarget.userData && mouseDownTarget.userData.verticalConnector) {
