@@ -25,6 +25,7 @@ const REALM_TYPES = [
 let cameraRef = null;
 let controlsRef = null;
 let sceneRef = null;
+let rendererRef = null;
 let hubGroup = null;
 let realmNodes = [];
 let weaveLines = [];
@@ -197,7 +198,7 @@ function fadeHub(cameraY) {
 
 function handleClick(event) {
   if (!hubActive || !hubGroup || !cameraRef) return;
-  const rect = renderer?.domElement?.getBoundingClientRect();
+  const rect = rendererRef?.domElement?.getBoundingClientRect();
   if (!rect) return;
   mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -250,6 +251,7 @@ export function install(Genesis, THREE_REF, camera, scene, renderer, cityGroup, 
   cameraRef = camera;
   controlsRef = controls;
   sceneRef = scene;
+  rendererRef = renderer;
 
   hubGroup = new THREE.Group();
   hubGroup.name = 'Multiverse Hub';

@@ -8,6 +8,7 @@ let Genesis = null;
 let sceneRef = null;
 let cameraRef = null;
 let controlsRef = null;
+let rendererRef = null;
 let playerNPCRef = null;
 let nexusGroup = null;
 let agents = [];
@@ -310,6 +311,7 @@ export function install(GenesisRef, THREE_REF, camera, scene, renderer, cityGrou
   sceneRef = scene;
   cameraRef = camera;
   controlsRef = controls;
+  rendererRef = renderer;
 
   nexusGroup = window.__forgeNexusRoot || new THREE.Group();
   if (!window.__forgeNexusRoot) {

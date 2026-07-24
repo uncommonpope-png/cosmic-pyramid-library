@@ -1767,6 +1767,7 @@
         // ========== MULTIVERSE HUB (void realm navigator) ==========
         window.__GENESIS_MULTIVERSE_HUB = (typeof window.__GENESIS_MULTIVERSE_HUB === 'boolean') ? window.__GENESIS_MULTIVERSE_HUB : true;
         (function () {
+            if (!Array.isArray(window.__genesisFrameCb)) window.__genesisFrameCb = [];
             if (window.__GENESIS_MULTIVERSE_HUB === false) {
                 Genesis.MultiverseHub = { summary(){return{active:false};}, onNodeClick:function(){}, zoomToNode:function(){}, getNodes:function(){return[];}, getHubGroup:function(){return null;} };
                 Genesis.SoulForgeNexus = { summary(){return{agents:0,souls:0};}, getNexusGroup:function(){return null;} };
